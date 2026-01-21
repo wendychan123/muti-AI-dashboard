@@ -126,7 +126,7 @@ export default function Login() {
                         type="text"
                         placeholder="請輸入 user_sn"
                         // 高度改為 h-14，文字加大 text-xl
-                        className="flex-1 bg-white/90 border-0 focus-visible:ring-2 focus-visible:ring-[#4ecdc4] h-12 text-xl px-4 shadow-inner rounded-lg"
+                        className="flex-1 bg-white/90 border-0 focus-visible:ring-2 focus-visible:ring-[#4ecdc4] h-14 text-xl px-4 shadow-inner rounded-lg"
                         value={userSnInput}
                         onChange={(e) => setUserSnInput(e.target.value)}
                     />
@@ -140,7 +140,7 @@ export default function Login() {
                 type="submit"
                 disabled={!userSnInput.trim() || loading}
                 // 高度改為 h-16 (py-8), 文字加大 text-2xl
-                className="w-full bg-[#45c7c1] hover:bg-[#3bbeb8] text-white font-bold h-14 text-xl rounded-xl shadow-lg transition-all active:scale-[0.98]"
+                className="w-full bg-[#45c7c1] hover:bg-[#3bbeb8] text-white font-bold h-12 text-xl rounded-xl shadow-lg transition-all active:scale-[0.98]"
                 >
                 {loading ? "登入中…" : "登入"}
                 </Button>
@@ -148,7 +148,7 @@ export default function Login() {
                 <Button
                     type="button"
                     variant="outline"
-                    className="w-full bg-white/80 hover:bg-white text-[#45c7c1] border-2 border-[#45c7c1] font-bold h-16 text-2xl rounded-xl shadow-sm"
+                    className="w-full bg-white/80 hover:bg-white text-[#45c7c1] border-2 border-[#45c7c1] font-bold h-12 text-xl rounded-xl shadow-sm"
                     onClick={() => alert("目前僅開放測試帳號登入")}
                 >
                     註冊
@@ -159,9 +159,9 @@ export default function Login() {
             <div className="mt-6 pt-6 border-t border-white/40 text-center">
                 <p className="text-sm sm:text-base text-[#2c5c60]/90 font-bold mb-2">｜ 測試帳號 ｜</p>
                 <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-8 text-sm sm:text-base text-[#2c5c60]/80">
-                    <span className="font-mono bg-white/40 px-2 py-1 rounded">
-                    學生：4561, 312031
-                    教師：97352, 374057
+                    <span className="font-mono px-2 py-1 rounded">
+                    學生：4561, 312031 <br/>
+                    教師：97352, 374057 <br/>
                     管理者：頁面開發中
                     </span>
                 </div>
