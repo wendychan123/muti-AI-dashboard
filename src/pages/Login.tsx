@@ -85,10 +85,6 @@ export default function Login() {
       {/* --- 頂部 Logo 區 (放大) --- */}
       <div className="relative z-10 mb-10 flex flex-col items-center gap-4">
         <div className="flex items-center gap-4">
-            {/* 增加一個 Icon 讓視覺更像 Logo */}
-            <div className="p-3 bg-white/80 rounded-full shadow-sm">
-                <GraduationCap className="w-10 h-10 text-[#3c6e71]" />
-            </div>
             <div className="text-[#3c6e71] font-bold text-center sm:text-left">
                 <h1 className="text-3xl sm:text-4xl tracking-wide drop-shadow-sm">多層級教育智慧儀表板</h1>
                 <p className="text-base sm:text-lg text-[#3c6e71]/80 tracking-wider mt-1">AI-Powered Multi-LOD Dashboard</p>
@@ -97,7 +93,7 @@ export default function Login() {
       </div>
 
       {/* --- 主要登入卡片 (寬度加大至 600px) --- */}
-      <Card className="relative z-10 w-full max-w-[600px] border-none bg-white/50 shadow-2xl backdrop-blur-md rounded-2xl overflow-hidden">
+      <Card className="relative z-10 w-full max-w-[500px] border-none bg-white/50 shadow-2xl backdrop-blur-md rounded-2xl overflow-hidden">
         <CardHeader className="pb-4 pt-10">
           <CardTitle className="text-center text-3xl sm:text-4xl font-bold tracking-widest text-[#2c5c60] drop-shadow-sm">
             系統登入
@@ -123,31 +119,19 @@ export default function Login() {
                         htmlFor="userSn" 
                         className="w-full sm:w-24 text-left sm:text-right font-bold text-[#2c5c60] text-xl"
                     >
-                        帳號
+                        使用者
                     </Label>
                     <Input
                         id="userSn"
                         type="text"
                         placeholder="請輸入 user_sn"
                         // 高度改為 h-14，文字加大 text-xl
-                        className="flex-1 bg-white/90 border-0 focus-visible:ring-2 focus-visible:ring-[#4ecdc4] h-14 text-xl px-4 shadow-inner rounded-lg"
+                        className="flex-1 bg-white/90 border-0 focus-visible:ring-2 focus-visible:ring-[#4ecdc4] h-12 text-xl px-4 shadow-inner rounded-lg"
                         value={userSnInput}
                         onChange={(e) => setUserSnInput(e.target.value)}
                     />
                 </div>
                 
-                 {/* 裝飾用的密碼欄位 (視覺平衡用，可選) */}
-                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 opacity-60">
-                    <Label className="w-full sm:w-24 text-left sm:text-right font-bold text-[#2c5c60] text-xl">
-                        密碼
-                    </Label>
-                    <Input
-                        type="password"
-                        placeholder="免填"
-                        disabled
-                        className="flex-1 bg-white/60 border-0 h-14 text-xl px-4 rounded-lg cursor-not-allowed"
-                    />
-                </div>
             </div>
 
             {/* 按鈕區域 (加大) */}
@@ -156,7 +140,7 @@ export default function Login() {
                 type="submit"
                 disabled={!userSnInput.trim() || loading}
                 // 高度改為 h-16 (py-8), 文字加大 text-2xl
-                className="w-full bg-[#45c7c1] hover:bg-[#3bbeb8] text-white font-bold h-16 text-2xl rounded-xl shadow-lg transition-all active:scale-[0.98]"
+                className="w-full bg-[#45c7c1] hover:bg-[#3bbeb8] text-white font-bold h-14 text-xl rounded-xl shadow-lg transition-all active:scale-[0.98]"
                 >
                 {loading ? "登入中…" : "登入"}
                 </Button>
@@ -173,10 +157,13 @@ export default function Login() {
 
             {/* 測試帳號提示區 (字體放大) */}
             <div className="mt-6 pt-6 border-t border-white/40 text-center">
-                <p className="text-sm sm:text-base text-[#2c5c60]/90 font-bold mb-2">｜ 測試帳號快速參考 ｜</p>
+                <p className="text-sm sm:text-base text-[#2c5c60]/90 font-bold mb-2">｜ 測試帳號 ｜</p>
                 <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-8 text-sm sm:text-base text-[#2c5c60]/80">
-                    <span className="font-mono bg-white/40 px-2 py-1 rounded">學生：4561, 312031</span>
-                    <span className="font-mono bg-white/40 px-2 py-1 rounded">教師：97352, 374057</span>
+                    <span className="font-mono bg-white/40 px-2 py-1 rounded">
+                    學生：4561, 312031
+                    教師：97352, 374057
+                    管理者：頁面開發中
+                    </span>
                 </div>
             </div>
 
