@@ -87,22 +87,26 @@ export default function Login() {
       </div>
 
       {/* --- 頂部 Logo 區 (模擬) --- */}
-      <div className="relative z-10 mb-8 flex flex-col items-center gap-2">
+      <div className="relative z-10 mb-10 flex flex-col items-center gap-2">
         {/* 這裡模擬截圖中的 V 型 Logo */}
         <div className="flex items-center gap-3">
-            <div className="text-[#3c6e71] font-bold">
-                <h1 className="text-lg sm:text-xl tracking-wide">多層級教育智慧儀表板</h1>
-                <p className="text-xs sm:text-sm text-[#3c6e71]/80 tracking-wider">AI-Powered Multi-LOD Dashboard</p>
+            <div className="text-[#3c6e71] font-bold text-center sm:text-center">
+                <h1 className="text-3xl sm:text-4xl tracking-wide drop-shadow-sm">多層級教育智慧儀表板</h1>
+                <p className="text-base sm:text-lg text-[#3c6e71]/80 tracking-wider mt-1">AI-Powered Multi-LOD Dashboard</p>
             </div>
         </div>
       </div>
 
       {/* --- 主要登入卡片 --- */}
-      <Card className="relative z-10 w-full max-w-[450px] border-none bg-white/40 shadow-xl backdrop-blur-md rounded-xl overflow-hidden">
-        <CardHeader className="pb-2 pt-6">
-          <CardTitle className="text-center text-2xl font-bold tracking-widest text-[#2c5c60] drop-shadow-sm">
+      <Card className="relative z-10 w-full max-w-[450px] border-none bg-white/50 shadow-2xl backdrop-blur-md rounded-2xl overflow-hidden">
+        <CardHeader className="pb-4 pt-10">
+          <CardTitle className="text-center text-3xl sm:text-4xl font-bold tracking-widest text-[#2c5c60] drop-shadow-sm">
             系統登入
           </CardTitle>
+           {/* 提示語 */}
+           <div className="mt-4 px-8 text-sm sm:text-base text-red-600/80 text-center font-medium">
+            請輸入測試帳號以進入系統
+          </div>
         </CardHeader>
 
         <CardContent className="px-6 pb-8 pt-2">
@@ -120,7 +124,7 @@ export default function Login() {
                         htmlFor="userSn" 
                         className="w-14 text-right font-medium text-[#2c5c60] text-base"
                     >
-                        使用者帳號
+                        帳號
                     </Label>
                     <Input
                         id="userSn"
