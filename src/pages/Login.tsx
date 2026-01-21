@@ -94,8 +94,8 @@ export default function Login() {
                 <GraduationCap className="w-6 h-6 sm:w-8 sm:h-8" />
             </div>
             <div className="text-[#3c6e71] font-bold">
-                <h1 className="text-lg sm:text-xl tracking-wide">教育部教學實踐研究計畫</h1>
-                <p className="text-xs sm:text-sm text-[#3c6e71]/80 tracking-wider">MOE Teaching Practice Research Program</p>
+                <h1 className="text-lg sm:text-xl tracking-wide">多層級教育智慧儀表板</h1>
+                <p className="text-xs sm:text-sm text-[#3c6e71]/80 tracking-wider">AI-Powered Multi-LOD Dashboard</p>
             </div>
         </div>
       </div>
