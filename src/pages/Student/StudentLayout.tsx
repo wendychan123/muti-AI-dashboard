@@ -102,7 +102,7 @@ export default function StudentLayout() {
 
             {/* Logout */}
             <button
-              onClick={() => navigate("/login")}
+              onClick={() => navigate("/")}
               className="flex items-center gap-1 text-sm text-slate-500 hover:text-blue-600"
             >
               <LogOut className="w-4 h-4" />

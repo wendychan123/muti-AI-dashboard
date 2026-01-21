@@ -100,7 +100,7 @@ export default function Login() {
       {/* --- 主要登入卡片 --- */}
       <Card className="relative z-10 w-full max-w-[450px] border-none bg-white/50 shadow-2xl backdrop-blur-md rounded-2xl overflow-hidden">
         <CardHeader className="pb-4 pt-10">
-          <CardTitle className="text-center text-3xl sm:text-4xl font-bold tracking-widest text-[#2c5c60] drop-shadow-sm">
+          <CardTitle className="text-center text-2xl sm:text-3xl font-bold tracking-widest text-[#2c5c60] drop-shadow-sm">
             系統登入
           </CardTitle>
            {/* 提示語 */}
