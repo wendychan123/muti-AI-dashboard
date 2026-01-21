@@ -93,7 +93,7 @@ export default function Login() {
       </div>
 
       {/* --- 主要登入卡片 (寬度加大至 600px) --- */}
-      <Card className="relative z-10 w-full max-w-[500px] border-none bg-white/50 shadow-2xl backdrop-blur-md rounded-2xl overflow-hidden">
+      <Card className="relative z-10 w-full max-w-[450px] border-none bg-white/50 shadow-2xl backdrop-blur-md rounded-2xl overflow-hidden">
         <CardHeader className="pb-4 pt-10">
           <CardTitle className="text-center text-3xl sm:text-4xl font-bold tracking-widest text-[#2c5c60] drop-shadow-sm">
             系統登入
@@ -126,7 +126,7 @@ export default function Login() {
                         type="text"
                         placeholder="請輸入 user_sn"
                         // 高度改為 h-14，文字加大 text-xl
-                        className="flex-1 bg-white/90 border-0 focus-visible:ring-2 focus-visible:ring-[#4ecdc4] h-14 text-xl px-4 shadow-inner rounded-lg"
+                        className="flex-1 bg-white/90 border-0 focus-visible:ring-2 focus-visible:ring-[#4ecdc4] h-16 text-xl px-4 shadow-inner rounded-lg"
                         value={userSnInput}
                         onChange={(e) => setUserSnInput(e.target.value)}
                     />
@@ -134,8 +134,8 @@ export default function Login() {
                 
             </div>
 
-            {/* 按鈕區域 (加大) */}
-            <div className="space-y-4 pt-4">
+            {/* 按鈕區域 */}
+            <div className="space-y-4 pt-2">
                 <Button
                 type="submit"
                 disabled={!userSnInput.trim() || loading}
