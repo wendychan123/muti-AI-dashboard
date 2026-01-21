@@ -74,63 +74,100 @@ export default function Login() {
   };
 
   return (
-    <div
-      className="min-h-screen bg-cover bg-center relative flex items-center justify-center"
-      style={{ backgroundImage: `url(${educationBg})` }}
-    >
-      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm" />
+    <div className="relative min-h-screen w-full overflow-hidden bg-[#d0f0f2] flex flex-col items-center justify-center p-4">
+      {/* --- 背景裝飾 (模擬截圖中的白色線條) --- */}
+      <div className="absolute inset-0 pointer-events-none">
+         {/* 大 V 形線條 1 */}
+        <div className="absolute top-[-20%] left-[-10%] w-[50vw] h-[100vh] border-r-2 border-white/40 transform -skew-x-[20deg]" />
+        <div className="absolute top-[-20%] left-[10%] w-[50vw] h-[100vh] border-r-2 border-white/30 transform -skew-x-[20deg]" />
+        
+        {/* 右側線條 */}
+        <div className="absolute top-[-10%] right-[20%] w-[1px] h-[120vh] bg-white/40 transform skew-x-[25deg]" />
+        <div className="absolute top-[-10%] right-[15%] w-[1px] h-[120vh] bg-white/30 transform skew-x-[25deg]" />
+      </div>
 
-      <Card className="relative z-10 w-full max-w-md bg-white/95 shadow-xl rounded-2xl">
-        <CardHeader className="text-center">
-          <div className="mx-auto w-14 h-14 bg-cyan-600 rounded-full flex items-center justify-center mb-3">
-            <GraduationCap className="w-7 h-7 text-white" />
-          </div>
-          <CardTitle className="text-2xl font-bold">
-            使用者登入
+      {/* --- 頂部 Logo 區 (模擬) --- */}
+      <div className="relative z-10 mb-8 flex flex-col items-center gap-2">
+        {/* 這裡模擬截圖中的 V 型 Logo */}
+        <div className="flex items-center gap-3">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-orange-400 to-green-500 rounded flex items-center justify-center text-white shadow-sm">
+                <GraduationCap className="w-6 h-6 sm:w-8 sm:h-8" />
+            </div>
+            <div className="text-[#3c6e71] font-bold">
+                <h1 className="text-lg sm:text-xl tracking-wide">教育部教學實踐研究計畫</h1>
+                <p className="text-xs sm:text-sm text-[#3c6e71]/80 tracking-wider">MOE Teaching Practice Research Program</p>
+            </div>
+        </div>
+      </div>
+
+      {/* --- 主要登入卡片 --- */}
+      <Card className="relative z-10 w-full max-w-[400px] border-none bg-white/40 shadow-xl backdrop-blur-md rounded-xl overflow-hidden">
+        <CardHeader className="pb-2 pt-6">
+          <CardTitle className="text-center text-2xl font-bold tracking-widest text-[#2c5c60] drop-shadow-sm">
+            系統登入
           </CardTitle>
+          
+          {/* 模擬紅色警告文字 (保留你的提示功能) */}
+          <div className="mt-2 px-2 py-1 text-xs text-red-600/90 text-center leading-relaxed font-medium">
+            已有舊系統帳號者，因本計畫於系統整併及版本升級，請直接輸入下方測試編號登入。
+          </div>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="px-6 pb-8 pt-2">
           <form
             onSubmit={(e) => {
               e.preventDefault();
               handleLogin();
             }}
-            className="space-y-5"
+            className="space-y-6"
           >
-            <div className="space-y-2">
-              <Label htmlFor="userSn" className="flex items-center gap-1">
-                <User className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>使用者</span>
-              </Label>
-              <Input
-                id="userSn"
-                type="text"
-                placeholder="請輸入您的 user_sn"
-                value={userSnInput}
-                onChange={(e) => setUserSnInput(e.target.value)}
-              />
+            {/* 模仿截圖的表單樣式：Label 在左，Input 在右 */}
+            <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                    <Label 
+                        htmlFor="userSn" 
+                        className="w-16 text-right font-medium text-[#2c5c60] text-base"
+                    >
+                        使用者帳號
+                    </Label>
+                    <Input
+                        id="userSn"
+                        type="text"
+                        placeholder="請輸入 user_sn"
+                        className="flex-1 bg-white/90 border-0 focus-visible:ring-2 focus-visible:ring-[#4ecdc4] h-10 shadow-inner"
+                        value={userSnInput}
+                        onChange={(e) => setUserSnInput(e.target.value)}
+                    />
+                </div>
             </div>
 
-            <Button
-              type="submit"
-              disabled={!userSnInput.trim() || loading}
-              className="w-full bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700 text-white font-medium py-2 sm:py-3 text-sm sm:text-base rounded-lg"
-            >
-              {loading ? "登入中…" : "進入系統"}
-            </Button>
+            <div className="space-y-3 pt-2">
+                <Button
+                type="submit"
+                disabled={!userSnInput.trim() || loading}
+                className="w-full bg-[#45c7c1] hover:bg-[#3bbeb8] text-white font-bold py-5 text-lg rounded shadow-md transition-all active:scale-[0.98]"
+                >
+                {loading ? "登入中…" : "登入"}
+                </Button>
+                
+                <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full bg-white hover:bg-gray-50 text-[#45c7c1] border border-[#45c7c1] font-bold py-5 text-lg rounded shadow-sm"
+                    onClick={() => alert("目前僅開放測試帳號登入")}
+                >
+                    註冊
+                </Button>
+            </div>
 
-            <div className="mt-4 pt-3 border-t border-border/20 space-y-1 text-center">
-                    <p className="text-[9px] sm:text-xs text-muted-foreground/70">
-                      ｜測試流水號｜
-                    </p>
-                    <p className="text-[8px] sm:text-xs text-muted-foreground/60">
-                      學生：4561、312031
-                    </p>
-                    <p className="text-[8px] sm:text-xs text-muted-foreground/60">
-                      教師：97352、374057
-                    </p>
-                  </div>
+            {/* 測試帳號提示區 */}
+            <div className="mt-4 pt-4 border-t border-white/30 space-y-1 text-center">
+                <p className="text-xs text-[#2c5c60]/80 font-bold mb-1">｜測試流水號｜</p>
+                <div className="flex justify-center gap-4 text-xs text-[#2c5c60]/70">
+                    <span className="font-mono">學生：4561, 312031</span>
+                    <span className="font-mono">教師：97352, 374057</span>
+                </div>
+            </div>
 
           </form>
         </CardContent>

@@ -41,8 +41,6 @@ export default function App() {
             <Routes>
 
               {/* ===== 首頁 ===== */}
-              <Route path="/" element={<HomePage />} />
-
               {/* ===== Login ===== */}
               <Route path="/login" element={<Login />} />
 
