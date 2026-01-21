@@ -6,11 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GraduationCap, User  } from "lucide-react";
+import { GraduationCap } from "lucide-react"; // 若沒有此icon可移除或換成其他
 
 import { useUserContext } from "@/contexts/UserContext";
 import { supabase } from "@/lib/supabase";
-import educationBg from "@/assets/education-bg.jpg";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -29,7 +28,6 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // 查 users table（不用 single，避免異常資料直接 throw）
       const { data, error } = await supabase
         .from("users")
         .select("*")
@@ -48,12 +46,10 @@ export default function Login() {
 
       const user = data[0];
 
-      // 寫入 UserContext（一次完成）
       setUserSn(user.user_sn);
       setRole(user.role);
       setUserInfo(user);
 
-      // 依角色導向正確的 Layout
       switch (user.role) {
         case "student":
           navigate("/student", { replace: true });
@@ -75,77 +71,92 @@ export default function Login() {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#d0f0f2] flex flex-col items-center justify-center p-4">
-      {/* --- 背景裝飾 (模擬截圖中的白色線條) --- */}
+      {/* --- 背景裝飾 (放大線條比例) --- */}
       <div className="absolute inset-0 pointer-events-none">
          {/* 大 V 形線條 1 */}
-        <div className="absolute top-[-20%] left-[-10%] w-[50vw] h-[100vh] border-r-2 border-white/40 transform -skew-x-[20deg]" />
-        <div className="absolute top-[-20%] left-[10%] w-[50vw] h-[100vh] border-r-2 border-white/30 transform -skew-x-[20deg]" />
+        <div className="absolute top-[-20%] left-[-10%] w-[60vw] h-[120vh] border-r-[3px] border-white/40 transform -skew-x-[20deg]" />
+        <div className="absolute top-[-20%] left-[10%] w-[60vw] h-[120vh] border-r-[3px] border-white/30 transform -skew-x-[20deg]" />
         
         {/* 右側線條 */}
-        <div className="absolute top-[-10%] right-[20%] w-[1px] h-[120vh] bg-white/40 transform skew-x-[25deg]" />
-        <div className="absolute top-[-10%] right-[15%] w-[1px] h-[120vh] bg-white/30 transform skew-x-[25deg]" />
+        <div className="absolute top-[-10%] right-[20%] w-[2px] h-[120vh] bg-white/40 transform skew-x-[25deg]" />
+        <div className="absolute top-[-10%] right-[15%] w-[2px] h-[120vh] bg-white/30 transform skew-x-[25deg]" />
       </div>
 
-      {/* --- 頂部 Logo 區 (模擬) --- */}
-      <div className="relative z-10 mb-8 flex flex-col items-center gap-2">
-        {/* 這裡模擬截圖中的 V 型 Logo */}
-        <div className="flex items-center gap-3">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-orange-400 to-green-500 rounded flex items-center justify-center text-white shadow-sm">
-                <GraduationCap className="w-6 h-6 sm:w-8 sm:h-8" />
+      {/* --- 頂部 Logo 區 (放大) --- */}
+      <div className="relative z-10 mb-10 flex flex-col items-center gap-4">
+        <div className="flex items-center gap-4">
+            {/* 增加一個 Icon 讓視覺更像 Logo */}
+            <div className="p-3 bg-white/80 rounded-full shadow-sm">
+                <GraduationCap className="w-10 h-10 text-[#3c6e71]" />
             </div>
-            <div className="text-[#3c6e71] font-bold">
-                <h1 className="text-lg sm:text-xl tracking-wide">多層級教育智慧儀表板</h1>
-                <p className="text-xs sm:text-sm text-[#3c6e71]/80 tracking-wider">AI-Powered Multi-LOD Dashboard</p>
+            <div className="text-[#3c6e71] font-bold text-center sm:text-left">
+                <h1 className="text-3xl sm:text-4xl tracking-wide drop-shadow-sm">多層級教育智慧儀表板</h1>
+                <p className="text-base sm:text-lg text-[#3c6e71]/80 tracking-wider mt-1">AI-Powered Multi-LOD Dashboard</p>
             </div>
         </div>
       </div>
 
-      {/* --- 主要登入卡片 --- */}
-      <Card className="relative z-10 w-full max-w-[400px] border-none bg-white/40 shadow-xl backdrop-blur-md rounded-xl overflow-hidden">
-        <CardHeader className="pb-2 pt-6">
-          <CardTitle className="text-center text-2xl font-bold tracking-widest text-[#2c5c60] drop-shadow-sm">
+      {/* --- 主要登入卡片 (寬度加大至 600px) --- */}
+      <Card className="relative z-10 w-full max-w-[600px] border-none bg-white/50 shadow-2xl backdrop-blur-md rounded-2xl overflow-hidden">
+        <CardHeader className="pb-4 pt-10">
+          <CardTitle className="text-center text-3xl sm:text-4xl font-bold tracking-widest text-[#2c5c60] drop-shadow-sm">
             系統登入
           </CardTitle>
-          
-          {/* 模擬紅色警告文字 (保留你的提示功能) */}
-          <div className="mt-2 px-2 py-1 text-xs text-red-600/90 text-center leading-relaxed font-medium">
-            已有舊系統帳號者，因本計畫於系統整併及版本升級，請直接輸入下方測試編號登入。
+           {/* 提示語 */}
+           <div className="mt-4 px-8 text-sm sm:text-base text-red-600/80 text-center font-medium">
+            請輸入測試帳號以進入系統
           </div>
         </CardHeader>
 
-        <CardContent className="px-6 pb-8 pt-2">
+        <CardContent className="px-8 sm:px-12 pb-12 pt-4">
           <form
             onSubmit={(e) => {
               e.preventDefault();
               handleLogin();
             }}
-            className="space-y-6"
+            className="space-y-8"
           >
-            {/* 模仿截圖的表單樣式：Label 在左，Input 在右 */}
-            <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+            {/* 表單區域 */}
+            <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
                     <Label 
                         htmlFor="userSn" 
-                        className="w-16 text-right font-medium text-[#2c5c60] text-base"
+                        className="w-full sm:w-24 text-left sm:text-right font-bold text-[#2c5c60] text-xl"
                     >
-                        使用者帳號
+                        帳號
                     </Label>
                     <Input
                         id="userSn"
                         type="text"
                         placeholder="請輸入 user_sn"
-                        className="flex-1 bg-white/90 border-0 focus-visible:ring-2 focus-visible:ring-[#4ecdc4] h-10 shadow-inner"
+                        // 高度改為 h-14，文字加大 text-xl
+                        className="flex-1 bg-white/90 border-0 focus-visible:ring-2 focus-visible:ring-[#4ecdc4] h-14 text-xl px-4 shadow-inner rounded-lg"
                         value={userSnInput}
                         onChange={(e) => setUserSnInput(e.target.value)}
                     />
                 </div>
+                
+                 {/* 裝飾用的密碼欄位 (視覺平衡用，可選) */}
+                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 opacity-60">
+                    <Label className="w-full sm:w-24 text-left sm:text-right font-bold text-[#2c5c60] text-xl">
+                        密碼
+                    </Label>
+                    <Input
+                        type="password"
+                        placeholder="免填"
+                        disabled
+                        className="flex-1 bg-white/60 border-0 h-14 text-xl px-4 rounded-lg cursor-not-allowed"
+                    />
+                </div>
             </div>
 
-            <div className="space-y-3 pt-2">
+            {/* 按鈕區域 (加大) */}
+            <div className="space-y-4 pt-4">
                 <Button
                 type="submit"
                 disabled={!userSnInput.trim() || loading}
-                className="w-full bg-[#45c7c1] hover:bg-[#3bbeb8] text-white font-bold py-5 text-lg rounded shadow-md transition-all active:scale-[0.98]"
+                // 高度改為 h-16 (py-8), 文字加大 text-2xl
+                className="w-full bg-[#45c7c1] hover:bg-[#3bbeb8] text-white font-bold h-16 text-2xl rounded-xl shadow-lg transition-all active:scale-[0.98]"
                 >
                 {loading ? "登入中…" : "登入"}
                 </Button>
@@ -153,19 +164,19 @@ export default function Login() {
                 <Button
                     type="button"
                     variant="outline"
-                    className="w-full bg-white hover:bg-gray-50 text-[#45c7c1] border border-[#45c7c1] font-bold py-5 text-lg rounded shadow-sm"
+                    className="w-full bg-white/80 hover:bg-white text-[#45c7c1] border-2 border-[#45c7c1] font-bold h-16 text-2xl rounded-xl shadow-sm"
                     onClick={() => alert("目前僅開放測試帳號登入")}
                 >
                     註冊
                 </Button>
             </div>
 
-            {/* 測試帳號提示區 */}
-            <div className="mt-4 pt-4 border-t border-white/30 space-y-1 text-center">
-                <p className="text-xs text-[#2c5c60]/80 font-bold mb-1">｜測試流水號｜</p>
-                <div className="flex justify-center gap-4 text-xs text-[#2c5c60]/70">
-                    <span className="font-mono">學生：4561, 312031</span>
-                    <span className="font-mono">教師：97352, 374057</span>
+            {/* 測試帳號提示區 (字體放大) */}
+            <div className="mt-6 pt-6 border-t border-white/40 text-center">
+                <p className="text-sm sm:text-base text-[#2c5c60]/90 font-bold mb-2">｜ 測試帳號快速參考 ｜</p>
+                <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-8 text-sm sm:text-base text-[#2c5c60]/80">
+                    <span className="font-mono bg-white/40 px-2 py-1 rounded">學生：4561, 312031</span>
+                    <span className="font-mono bg-white/40 px-2 py-1 rounded">教師：97352, 374057</span>
                 </div>
             </div>
 
