@@ -116,6 +116,9 @@ export default function StudentPrac() {
 
   // AI
   const [showAI, setShowAI] = useState(false);
+  const [geminiResult, setGeminiResult] = useState<string | null>(null);
+  const [geminiLoading, setGeminiLoading] = useState(false);
+
 
 
   /* =========================
@@ -767,6 +770,36 @@ const formatDateTime = (iso: string) => {
   belowClassAvgStats,
 ]);
 
+const testGemini = async () => {
+  try {
+    setGeminiLoading(true);
+
+    const res = await fetch("/api/gemini", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: "請根據目前學生的練習表現，提供學習建議。",
+      }),
+    });
+
+    const data = await res.json();
+
+    console.log("Gemini response:", data);
+
+    
+    setGeminiResult(data.text);
+    setShowAI(true); // 自動打開 AI 卡片
+  } catch (err) {
+    console.error("Gemini error:", err);
+    setGeminiResult("⚠️ 目前無法取得 AI 回應，請稍後再試。");
+  } finally {
+    setGeminiLoading(false);
+  }
+};
+
+
+
+
 
 
 
@@ -1012,6 +1045,13 @@ const formatDateTime = (iso: string) => {
           >
             AI 學習助手
           </button>
+
+          <button
+            onClick={testGemini}
+            className="px-4 py-2 bg-green-600 text-white rounded"
+          >
+            Gemini 學習助手
+          </button>
         </div>
       </div>
 
@@ -1021,7 +1061,7 @@ const formatDateTime = (iso: string) => {
         <Card className="border-blue-500 bg-blue-50/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              AI 學習建議
+              Rule-based 學習建議
             </CardTitle>
             <CardDescription>
               根據你目前的練習表現，自動產生的行動建議
@@ -1050,6 +1090,43 @@ const formatDateTime = (iso: string) => {
           </CardContent>
         </Card>
       )}
+
+      {geminiResult && (
+        <Card className="border-green-500 bg-green-50/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              Gemini AI 學習建議
+            </CardTitle>
+            <CardDescription>
+              根據目前選擇的日期、科目與能力指標，自動產生的解釋與建議
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-3">
+            {geminiLoading ? (
+              <p className="text-sm text-slate-500">AI 分析中，請稍候…</p>
+            ) : (
+              <div className="text-sm text-slate-700 whitespace-pre-line">
+                {geminiResult}
+              </div>
+            )}
+
+            <div className="text-right">
+              <button
+                onClick={() => setShowAI(false)}
+                className="text-xs text-slate-500 hover:text-slate-700"
+              >
+                收起建議
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+
+      
+
+
 
       {/* 2. KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">

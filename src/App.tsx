@@ -16,7 +16,6 @@ import StudentThemeA from "./pages/Student/StudentOverview";
 import StudentPrac from "./pages/Student/StudentPrac"; 
 import StudentExam from "./pages/Student/StudentExam";
 import StudentMath from "./pages/Student/StudentMath";
-import PracDaily from "./pages/Student/PracDaily";
 
 
 
@@ -54,9 +53,6 @@ export default function App() {
 
                   {/* LOD1：練習總覽 */}
                   <Route index element={<StudentPrac />} />
-
-                  {/* LOD2：單日練習 */}
-                  <Route path="daily/:date" element={<PracDaily />} />
 
                 </Route>
 
