@@ -185,7 +185,7 @@ return (
             xaxis: {
                title: "日期",
                type: "category",
-               tickangle: -30,
+               tickangle: -20,
             },
 
             yaxis: {
@@ -220,7 +220,7 @@ return (
 
             font: { family: "inherit" },
          }}
-         config={{ responsive: true }}
+         config={{ responsive: false }}
          useResizeHandler
          style={{ width: "100%", height: "100%" }}
          />

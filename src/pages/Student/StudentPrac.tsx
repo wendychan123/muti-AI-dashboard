@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Plot from "react-plotly.js";
 import { supabase } from "@/lib/supabase";
 import { useUserContext } from "@/contexts/UserContext";
+import { buildPracPrompt } from "@/lib/ai/buildPracPrompt";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { generatePracSuggestion } from "@/lib/ai/pracActionAdvisor";
@@ -89,6 +90,14 @@ type DiffBarRow = {
   diff: number;
 };
 
+type ExplainTarget =
+  | "daily_overview"
+  | "indicator_effect"
+  | "learning_process"
+  | "indicator_gap";
+
+
+
 
 
 /* =========================
@@ -118,6 +127,7 @@ export default function StudentPrac() {
   const [showAI, setShowAI] = useState(false);
   const [geminiResult, setGeminiResult] = useState<string | null>(null);
   const [geminiLoading, setGeminiLoading] = useState(false);
+  const [selectedCharts, setSelectedCharts] = useState<ExplainTarget[]>(["daily_overview",]);
 
 
 
@@ -771,31 +781,67 @@ const formatDateTime = (iso: string) => {
 ]);
 
 const testGemini = async () => {
-  try {
-    setGeminiLoading(true);
+  setGeminiLoading(true);
 
-    const res = await fetch("/api/gemini", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt: "請根據目前學生的練習表現，提供學習建議。",
-      }),
-    });
-
-    const data = await res.json();
-
-    console.log("Gemini response:", data);
-
-    
-    setGeminiResult(data.text);
-    setShowAI(true); // 自動打開 AI 卡片
-  } catch (err) {
-    console.error("Gemini error:", err);
-    setGeminiResult("⚠️ 目前無法取得 AI 回應，請稍後再試。");
-  } finally {
-    setGeminiLoading(false);
+  if (selectedCharts.length === 0) {
+  alert("請至少選擇一張要解釋的圖表");
+  return;
   }
+
+  const prompt = buildPracPrompt({
+    date: selectedDate,
+    subject: selectedSubject,
+    indicator: selectedIndicator,
+    selectedCharts,
+
+    stats: {
+      avgScore: avgScoreCompare.studentAvg,
+      avgSpeedSec: Number(processedStats.avgSpeedSec),
+      totalCount: processedStats.count,
+      belowClassCount: belowClassAvgStats.count,
+      reachedGoal: processedStats.reachedGoal,
+    },
+  });
+
+  const res = await fetch("/api/gemini", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+  });
+
+  const data = await res.json();
+  setGeminiResult(data.text);
+  setShowAI(true);
+  setGeminiLoading(false);
 };
+
+const EXPLAIN_CHART_OPTIONS: {
+  key: ExplainTarget;
+  label: string;
+  description: string;
+}[] = [
+  {
+    key: "daily_overview",
+    label: "每日練習概況",
+    description: "每日投入時間與正確率變化",
+  },
+  {
+    key: "indicator_effect",
+    label: "能力指標投入成效",
+    description: "各能力指標的練習次數與表現",
+  },
+  {
+    key: "learning_process",
+    label: "學習歷程表現",
+    description: "答題速度 × 正確率的學習區域",
+  },
+  {
+    key: "indicator_gap",
+    label: "能力指標差距分析",
+    description: "學生與班級平均的差距",
+  },
+];
+
 
 
 
@@ -1036,98 +1082,11 @@ const testGemini = async () => {
             </SelectContent>
           </Select>
 
-          {/* AI 學習助手按鈕 */}
-          <button
-            onClick={() => setShowAI((v) => !v)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg
-                      bg-blue-600 text-white hover:bg-blue-700
-                      transition shadow-sm"
-          >
-            AI 學習助手
-          </button>
-
-          <button
-            onClick={testGemini}
-            className="px-4 py-2 bg-green-600 text-white rounded"
-          >
-            Gemini 學習助手
-          </button>
+          
         </div>
       </div>
 
        
-
-      {showAI && aiSuggestion && (
-        <Card className="border-blue-500 bg-blue-50/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Rule-based 學習建議
-            </CardTitle>
-            <CardDescription>
-              根據你目前的練習表現，自動產生的行動建議
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent className="space-y-3">
-            <p className="text-sm text-slate-700">
-              {aiSuggestion.explanation}
-            </p>
-
-            <ul className="list-disc pl-5 text-sm text-slate-600">
-              {aiSuggestion.actions.map((a, i) => (
-                <li key={i}>{a}</li>
-              ))}
-            </ul>
-
-            <div className="text-right">
-              <button
-                onClick={() => setShowAI(false)}
-                className="text-xs text-slate-500 hover:text-slate-700"
-              >
-                收起建議
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {geminiResult && (
-        <Card className="border-green-500 bg-green-50/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Gemini AI 學習建議
-            </CardTitle>
-            <CardDescription>
-              根據目前選擇的日期、科目與能力指標，自動產生的解釋與建議
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent className="space-y-3">
-            {geminiLoading ? (
-              <p className="text-sm text-slate-500">AI 分析中，請稍候…</p>
-            ) : (
-              <div className="text-sm text-slate-700 whitespace-pre-line">
-                {geminiResult}
-              </div>
-            )}
-
-            <div className="text-right">
-              <button
-                onClick={() => setShowAI(false)}
-                className="text-xs text-slate-500 hover:text-slate-700"
-              >
-                收起建議
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-
-      
-
-
-
       {/* 2. KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         
@@ -1695,6 +1654,128 @@ const testGemini = async () => {
         </CardContent>
       </Card>
     </div>
+
+    {/* ===== AI 解釋設定區 ===== */}
+      <Card className="border-dashed border-slate-300 bg-slate-50 relative">
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-4">
+            {/* 左側標題 */}
+            <div>
+              <CardTitle className="text-sm">
+                AI 要解釋哪些圖表？
+              </CardTitle>
+              <CardDescription>
+                勾選後，AI 會針對選定圖表進行說明與學習建議
+              </CardDescription>
+            </div>
+
+            {/* AI 學習助手按鈕 */}
+            <button
+              onClick={testGemini}
+              disabled={geminiLoading || selectedCharts.length === 0}
+              className={`
+                flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
+                transition shadow-sm
+                ${
+                  geminiLoading
+                    ? "bg-slate-300 text-slate-600 cursor-not-allowed"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }
+              `}
+            >
+              {geminiLoading ? (
+                <>
+                  <span className="animate-spin"></span>
+                  分析中…
+                </>
+              ) : (
+                <>
+                  AI 學習助手
+                </>
+              )}
+            </button>
+          </div>
+        </CardHeader>
+
+        <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          {EXPLAIN_CHART_OPTIONS.map(opt => {
+            const checked = selectedCharts.includes(opt.key);
+
+            return (
+              <label
+                key={opt.key}
+                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer
+                  transition
+                  ${checked
+                    ? "bg-blue-50 border-blue-400"
+                    : "bg-white hover:bg-slate-50"
+                  }`}
+              >
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={checked}
+                  onChange={(e) => {
+                    setSelectedCharts(prev =>
+                      e.target.checked
+                        ? [...prev, opt.key]
+                        : prev.filter(v => v !== opt.key)
+                    );
+                  }}
+                />
+                <div>
+                  <div className="font-medium text-slate-800">
+                    {opt.label}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {opt.description}
+                  </div>
+                </div>
+              </label>
+            );
+          })}
+        </CardContent>
+    </Card>
+
+      
+
+      {showAI && (
+        <Card className="border-green-500 bg-green-50/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              AI 學習建議
+            </CardTitle>
+            <CardDescription>
+              根據目前選擇的日期、科目與能力指標，自動產生的解釋與建議
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            {geminiLoading ? (
+              <div className="flex items-center gap-3 text-sm text-slate-600">
+                <span className="animate-spin text-lg"></span>
+                分析中，請稍候…
+              </div>
+            ) : (
+              <div className="text-sm text-slate-700 whitespace-pre-line">
+                {geminiResult}
+              </div>
+            )}
+
+            {!geminiLoading && (
+              <div className="text-right">
+                <button
+                  onClick={() => setShowAI(false)}
+                  className="text-xs text-slate-500 hover:text-slate-700"
+                >
+                  收起建議
+                </button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+      
     </div>
   );
 }
