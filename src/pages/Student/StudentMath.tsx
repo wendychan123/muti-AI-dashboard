@@ -258,6 +258,16 @@ export default function StudentMath() {
               textfont: { color: "white", size: 12 },
 
             },
+            {
+               x: rows.map(r => r.activity_date),
+               y: rows.map(r => r.d_total_time_sec / 60),
+               type: "scatter",
+               mode: "lines+markers",
+               name: "闖關時間（分鐘）",
+               yaxis: "y2",
+               line: { color: "#10b981", width: 3 },
+               marker: { size: 7 },
+            },
           ]}
           layout={{ 
             barmode: "stack", 
