@@ -345,7 +345,7 @@ export default function StudentMath() {
             const unit = (e.points[0].label as string).split("（")[0];
             handleUnitClick(unit);
           }}
-          style={{ width: "100%", height: "100%" }}
+          style={{ width: "100%"}}
         />
       </Card>
       </div>
