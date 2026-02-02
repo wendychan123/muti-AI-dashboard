@@ -12,10 +12,8 @@ import NotFound from "./pages/NotFound";
 
 /* ===== Student ===== */
 import StudentLayout from "./pages/Student/StudentLayout";
-import StudentThemeA from "./pages/Student/StudentOverview"; 
 import StudentPrac from "./pages/Student/StudentPrac"; 
-import StudentExam from "./pages/Student/StudentExam";
-import StudentMath from "./pages/Student/StudentMath";
+
 
 
 
@@ -55,10 +53,6 @@ export default function App() {
                   <Route index element={<StudentPrac />} />
 
                 </Route>
-
-                {/* 其他模組分析 */}
-                <Route path="math" element={<StudentMath />} />
-                <Route path="exam" element={<StudentExam />} />
 
 
               </Route>

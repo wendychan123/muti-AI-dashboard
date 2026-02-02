@@ -1,28 +1,20 @@
 // src/pages/StudentLayout.tsx
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import StudentAIPanel from "@/components/StudentAiPanel";
+import { Avatar, AvatarImage, AvatarFallback, } from "@/components/ui/avatar";
+import studentAvatar from "@/assets/student-avatar.jpg";
 import {
-  Home,
   BarChart3,
-  PenTool,
-  PlayCircle,
-  Calculator,
   Sparkles,
-  Bell,
   LogOut,
 } from "lucide-react";
 import { useUserContext } from "@/contexts/UserContext";
 
-import {
-  Avatar,
-  AvatarImage,
-  AvatarFallback,
-} from "@/components/ui/avatar";
-import studentAvatar from "@/assets/student-avatar.jpg";
-
 export default function StudentLayout() {
   const navigate = useNavigate();
-  const { userSn, organizationId, gradeId, classId } = useUserContext();
+  const { userSn } = useUserContext();
+  const [aiOpen, setAiOpen] = useState(false);
 
   /* =====================
      登入防呆
@@ -47,63 +39,44 @@ export default function StudentLayout() {
         {/* =====================
            Top Header
            ===================== */}
-        <header className="h-16 bg-white border-b flex items-center justify-between px-6">
+        <header className="h-14 bg-white border-b flex items-center justify-between px-6">
 
           {/* =====================
-             Left: Home + Nav Tabs
+             Left: Title
              ===================== */}
-          <div className="flex items-center gap-6">
-
-            {/* Navigation Tabs */}
-            <nav className="flex items-center gap-5">
-               {/* <TopTab
-                to="/student"
-                icon={<Home size={ICON_SIZE} />}
-                label="首頁"
-                end
-              />  */}
-              <TopTab
-                to="/student/practice"
-                icon={<BarChart3 size={ICON_SIZE} />}
-                label="練習表現"
-              />
-              <TopTab
-                to="/student/exam"
-                icon={<PenTool size={ICON_SIZE} />}
-                label="測驗答題"
-              />
-              <TopTab
-                to="/student/math"
-                icon={<Calculator size={ICON_SIZE} />}
-                label="數學測驗"
-              />
-            </nav>
+          <div className="flex items-center gap-3">
+            {/* <Avatar className="h-10 w-10 border-0 border-white shadow-sm"> <AvatarImage src={studentAvatar} alt="學生頭像" /> </Avatar> */}
+            <h1 className="text-lg font-semibold text-slate-800">
+              學生 {userSn} 學習儀表板
+            </h1>
           </div>
 
           {/* =====================
-             Right: Notification + Student Info
+             Right: Actions
              ===================== */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
 
-            {/* Student Avatar Card */}
-            <div className="flex items-center gap-3 px-4 py-2 rounded-lg">
-              <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
-                <AvatarImage src={studentAvatar} alt="學生頭像" />
-              </Avatar>
-              <div className="leading-tight">
-                <div className="text-m font-semibold text-gray-900">
-                  學生 {userSn}
-                </div>
-                <div className="text-xs text-gray-500">
-                  
-                </div>
-              </div>
-            </div>
+            {/* AI Assistant */}
+            <button
+              onClick={() => setAiOpen((v) => !v)}
+              className="flex items-center gap-2 px-4 py-2 text-sm
+                         rounded-lg border text-blue-600 border-blue-200
+                         hover:bg-blue-50 transition"
+            >
+              <Sparkles className="w-4 h-4" />
+              AI 助手
+            </button>
 
             {/* Logout */}
             <button
               onClick={() => navigate("/")}
-              className="flex items-center gap-1 text-sm text-slate-500 hover:text-blue-600"
+              className="
+                flex items-center gap-2 px-4 py-2
+                text-sm font-medium
+                rounded-lg border
+                text-slate-600 border-slate-200
+                hover:bg-slate-100 transition
+              "
             >
               <LogOut className="w-4 h-4" />
               登出
@@ -118,12 +91,18 @@ export default function StudentLayout() {
           <Outlet />
         </main>
       </div>
+
+         {/* ===== 右側 AI Panel ===== */}
+      {aiOpen && (
+        <StudentAIPanel onClose={() => setAiOpen(false)} />
+      )}
     </div>
   );
 }
 
 /* =====================
    Top Tab Component
+   （目前保留，之後若要加分頁可用）
    ===================== */
 function TopTab({
   to,
@@ -157,4 +136,3 @@ function TopTab({
     </NavLink>
   );
 }
-

@@ -781,19 +781,32 @@ const formatDateTime = (iso: string) => {
 ]);
 
 const testGemini = async () => {
+  if (selectedCharts.length === 0) {
+    alert("請至少選擇一張要解釋的圖表");
+    return;
+  }
+
   setGeminiLoading(true);
 
-  if (selectedCharts.length === 0) {
-  alert("請至少選擇一張要解釋的圖表");
-  return;
-  }
+  const selectedChartLabels = selectedCharts.map(
+    key => EXPLAIN_LABEL_MAP[key]
+  );
+
+  // 一開始就通知 Panel：開始分析
+  window.dispatchEvent(
+    new CustomEvent("student-ai-update", {
+      detail: {
+        loading: true,
+        questions: selectedChartLabels,
+      },
+    })
+  );
 
   const prompt = buildPracPrompt({
     date: selectedDate,
     subject: selectedSubject,
     indicator: selectedIndicator,
     selectedCharts,
-
     stats: {
       avgScore: avgScoreCompare.studentAvg,
       avgSpeedSec: Number(processedStats.avgSpeedSec),
@@ -810,10 +823,22 @@ const testGemini = async () => {
   });
 
   const data = await res.json();
+
   setGeminiResult(data.text);
   setShowAI(true);
   setGeminiLoading(false);
+
+  // 分析完成 → 通知 Panel 顯示結果
+  window.dispatchEvent(
+    new CustomEvent("student-ai-update", {
+      detail: {
+        loading: false,
+        content: data.text,
+      },
+    })
+  );
 };
+
 
 const EXPLAIN_CHART_OPTIONS: {
   key: ExplainTarget;
@@ -842,6 +867,10 @@ const EXPLAIN_CHART_OPTIONS: {
   },
 ];
 
+const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
+  Object.fromEntries(
+    EXPLAIN_CHART_OPTIONS.map(opt => [opt.key, opt.label])
+  ) as Record<ExplainTarget, string>;
 
 
 
@@ -858,183 +887,8 @@ const EXPLAIN_CHART_OPTIONS: {
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6 space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* ===== Practice Daily Card ===== */}
-          <Card className="p-6 space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-slate-800">每日練習表現投入 </h3>
-          </div>
-
-          {/* Main Content：Chart + KPI */}
-              <Plot
-                data={[
-                  {
-                    x: filteredDailyRows.map(r => r.activity_date),
-                    y: filteredDailyRows.map(r => r.d_learn_time_sec / 60),
-                    type: "bar",
-                    name: "練習時間（分鐘）",
-                    marker: {
-                      color: filteredDailyRows.map(r =>
-                        !selectedDate
-                          ? "#60a5fa"
-                          : r.activity_date === selectedDate
-                          ? "#2563eb"   // 被選中的：深藍
-                          : "#93c5fd"   // 其他：淡藍
-                      ),
-                      opacity: filteredDailyRows.map(r =>
-                        !selectedDate || r.activity_date === selectedDate ? 0.9 : 0.35
-                      ),
-                    },
-                    hovertemplate:
-                      "日期：%{x}<br>" +
-                      "練習時間：%{y:.1f} 分鐘<extra></extra>",
-                  },
-                  {
-                    x: filteredDailyRows.map(r => r.activity_date),
-                    y: filteredDailyRows.map(r => r.d_avg_score_rate),
-                    type: "scatter",
-                    mode: "lines+markers",
-                    name: "平均正確率（%）",
-                    yaxis: "y2",
-                    marker: { size: 8 },
-                    line: { width: 3, color: "#f97316" },
-                    hovertemplate:
-                      "日期：%{x}<br>" +
-                      "平均正確率：%{y}%<extra></extra>",
-                  },
-                ]}
-                layout={{
-                  autosize: true,
-                  height: 260,
-                  margin: { t: 20, l: 40, r: 40, b: 60 },
-                  xaxis: {
-                    type: "category",
-                    tickangle: -30,
-                    tickfont: { size: 10 },
-                  },
-                  yaxis: {
-                    title: "練習時間（分鐘）",
-                    range: [0, yMax],
-                    showgrid: true,
-                    zeroline: false,
-                  },
-                  yaxis2: {
-                    title: "平均正確率（%）",
-                    overlaying: "y",
-                    side: "right",
-                    range: [0, 110],
-                    showgrid: false,
-                  },
-                  legend: { orientation: "h", y: -0.35 },
-                }}
-                onClick={(event) => {
-                  const point = event.points?.[0];
-                  if (!point) return;
-
-                  const clickedDate = String(point.x);
-
-                  setSelectedDate(prev =>
-                    prev === clickedDate ? null : clickedDate
-                  );
-                }}
-
-                style={{ width: "100%"}}
-                config={{ responsive: true, displayModeBar: false }}
-              />
-
-            {/* ===== KPI Side Panel ===== */}
-
-              <div className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <p className="text-sm text-slate-500">總練習次數</p>
-                <p className="text-3xl font-bold text-blue-600">
-                  {practice_kpi.totalPrac}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-sm text-slate-500">總練習時間</p>
-                <p className="text-3xl font-bold text-blue-600">
-                  {practice_kpi.totalTimeMin} 分
-                </p>
-              </div>
-
-              <div>
-                <p className="text-sm text-slate-500">平均正確率</p>
-                <p className="text-3xl font-bold text-blue-600">
-                  {practice_kpi.avgScore}%
-                </p>
-              </div>
-              </div>
 
 
-              {/* 空資料提示 */}
-              {filteredDailyRows.length === 0 && (
-                <div className="text-center text-sm text-slate-500 pt-2">
-                  此日期區間沒有練習紀錄
-                </div>
-              )}
-        </Card>
-
-        {/* ===== Subject Practice Pie ===== */}
-        <Card className="p-6">
-          {/* Header */}
-            <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-slate-800">科目練習比例</h3>
-            <CardDescription>
-              {selectedDate
-                ? `${selectedDate} 各科目練習分布`
-                : "整體各科目練習分布"}
-            </CardDescription>
-            </div>
-      
-          <CardContent className="h-[350px]">
-            {subjectPieData.length === 0 ? (
-              <div className="text-center text-sm text-slate-500 pt-10">
-                該日期沒有練習紀錄
-              </div>
-            ) : (
-              <Plot
-                data={[
-                  {
-                    type: "pie",
-                    labels: pieLabels,
-                    values: subjectPieData.map(d => d.count),
-                    hole: 0.45,
-                    marker: {
-                      opacity: pieOpacity,
-                    },
-                    textinfo: "label+percent",
-                    hovertemplate:
-                      "<b>%{label}</b><br>" +
-                      "練習次數：%{value}<br>" +
-                      "比例：%{percent}<extra></extra>",
-                  },
-                ]}
-                layout={{
-                  autosize: true,
-                  showlegend: true,
-                  legend: { orientation: "h", y: -0.15 },
-                  margin: { t: 10, b: 40 },
-                  font: { family: "inherit" },
-                }}
-                config={{ responsive: true, displayModeBar: false }}
-                style={{ width: "100%", height: "100%" }}
-
-                /* 科目篩選 */
-                onClick={(event) => {
-                  const clickedSubject = event.points?.[0]?.label;
-                  if (!clickedSubject) return;
-
-                  setSelectedSubject(prev =>
-                    prev === clickedSubject ? "all" : String(clickedSubject)
-                  );
-                  setSelectedIndicator("all");
-                }}
-              />
-            )}
-          </CardContent>
-        </Card>
         </div>
 
 
