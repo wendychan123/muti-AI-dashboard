@@ -1593,7 +1593,18 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
 
       
 
-      
+      {showAI && (
+        <Card className="border-green-500 bg-green-50/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              AI 學習建議
+            </CardTitle>
+            <CardDescription>
+              根據目前選擇的日期、科目與能力指標，自動產生的解釋與建議
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
       
     </div>
   );
