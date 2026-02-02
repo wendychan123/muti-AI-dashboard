@@ -1550,45 +1550,6 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
             </button>
           </div>
         </CardHeader>
-
-        <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          {EXPLAIN_CHART_OPTIONS.map(opt => {
-            const checked = selectedCharts.includes(opt.key);
-
-            return (
-              <label
-                key={opt.key}
-                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer
-                  transition
-                  ${checked
-                    ? "bg-blue-50 border-blue-400"
-                    : "bg-white hover:bg-slate-50"
-                  }`}
-              >
-                <input
-                  type="checkbox"
-                  className="mt-1"
-                  checked={checked}
-                  onChange={(e) => {
-                    setSelectedCharts(prev =>
-                      e.target.checked
-                        ? [...prev, opt.key]
-                        : prev.filter(v => v !== opt.key)
-                    );
-                  }}
-                />
-                <div>
-                  <div className="font-medium text-slate-800">
-                    {opt.label}
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    {opt.description}
-                  </div>
-                </div>
-              </label>
-            );
-          })}
-        </CardContent>
     </Card>
 
       
