@@ -1550,6 +1550,45 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
             </button>
           </div>
         </CardHeader>
+
+        <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          {EXPLAIN_CHART_OPTIONS.map(opt => {
+            const checked = selectedCharts.includes(opt.key);
+
+            return (
+              <label
+                key={opt.key}
+                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer
+                  transition
+                  ${checked
+                    ? "bg-blue-50 border-blue-400"
+                    : "bg-white hover:bg-slate-50"
+                  }`}
+              >
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={checked}
+                  onChange={(e) => {
+                    setSelectedCharts(prev =>
+                      e.target.checked
+                        ? [...prev, opt.key]
+                        : prev.filter(v => v !== opt.key)
+                    );
+                  }}
+                />
+                <div>
+                  <div className="font-medium text-slate-800">
+                    {opt.label}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {opt.description}
+                  </div>
+                </div>
+              </label>
+            );
+          })}
+        </CardContent>
     </Card>
 
       
@@ -1564,30 +1603,6 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
               根據目前選擇的日期、科目與能力指標，自動產生的解釋與建議
             </CardDescription>
           </CardHeader>
-
-          <CardContent className="space-y-4">
-            {geminiLoading ? (
-              <div className="flex items-center gap-3 text-sm text-slate-600">
-                <span className="animate-spin text-lg"></span>
-                分析中，請稍候…
-              </div>
-            ) : (
-              <div className="text-sm text-slate-700 whitespace-pre-line">
-                {geminiResult}
-              </div>
-            )}
-
-            {!geminiLoading && (
-              <div className="text-right">
-                <button
-                  onClick={() => setShowAI(false)}
-                  className="text-xs text-slate-500 hover:text-slate-700"
-                >
-                  收起建議
-                </button>
-              </div>
-            )}
-          </CardContent>
         </Card>
       )}
       
