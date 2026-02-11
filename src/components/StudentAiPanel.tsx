@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X, Sparkles, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import { X, Sparkles, Bot, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
 
 interface AIEventPayload {
   questions?: string[];
@@ -69,11 +69,11 @@ export default function StudentAiPanel({
   }, []);
 
   return (
-    <aside className="w-[320px] h-full bg-white border-l flex flex-col">
+    <aside className="w-[300px] h-full bg-white border-l flex flex-col">
       {/* Header */}
       <div className="h-14 flex items-center justify-between px-5">
         <div className="flex items-center gap-2 font-semibold text-slate-800">
-          <Sparkles className="w-5 h-5 text-blue-600" />
+          <Bot className="w-5 h-5 text-blue-600" />
           AI 學習助手
         </div>
         <button onClick={onClose}>

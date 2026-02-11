@@ -29,14 +29,14 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // 查 users table（不用 single，避免異常資料直接 throw）
+      // 查 user table（不用 single，避免異常資料直接 throw）
       const { data, error } = await supabase
-        .from("users")
+        .from("user_data")
         .select("*")
         .eq("user_sn", sn);
 
       if (error) {
-        console.error("users 查詢失敗:", error);
+        console.error("user 查詢失敗:", error);
         alert("系統錯誤，請稍後再試");
         return;
       }
@@ -161,9 +161,8 @@ export default function Login() {
                 <p className="text-xs text-[#2c5c60]/80 font-bold mb-1">｜測試帳號｜</p>
                 <div className="flex justify-center gap-4 text-xs text-[#2c5c60]/70">
                     <span className="font-mono">
-                      學生：4561, 312031 <br/>
-                      教師：97352, 374057 <br/>
-                      管理者：頁面開發中
+                      學生：S033bf / S083bc <br/>
+                      教師：T44619 / T11467 <br/>
                     </span>
                 </div>
             </div>

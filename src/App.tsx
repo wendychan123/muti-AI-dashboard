@@ -39,7 +39,8 @@ export default function App() {
 
               {/* ===== 首頁 ===== */}
               {/* ===== Login ===== */}
-              <Route path="/" element={<Login />} />
+              <Route path="/" element={<HomePage />} />
+              <Route path="/login" element={<Login />} />
 
 
               {/* ===== Student 區 ===== */}

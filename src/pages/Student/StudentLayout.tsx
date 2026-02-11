@@ -7,6 +7,7 @@ import studentAvatar from "@/assets/student-avatar.jpg";
 import {
   BarChart3,
   Sparkles,
+  Bot,
   LogOut,
 } from "lucide-react";
 import { useUserContext } from "@/contexts/UserContext";
@@ -14,7 +15,7 @@ import { useUserContext } from "@/contexts/UserContext";
 export default function StudentLayout() {
   const navigate = useNavigate();
   const { userSn } = useUserContext();
-  const [aiOpen, setAiOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(true);
 
   /* =====================
      登入防呆
@@ -60,12 +61,13 @@ export default function StudentLayout() {
             <button
               onClick={() => setAiOpen((v) => !v)}
               className="flex items-center gap-2 px-4 py-2 text-sm
-                         rounded-lg border text-blue-600 border-blue-200
-                         hover:bg-blue-50 transition"
+                        rounded-lg border text-blue-600 border-blue-200
+                        hover:bg-blue-50 transition"
             >
-              <Sparkles className="w-4 h-4" />
-              AI 助手
+              <Bot className="w-4 h-4" />
+              {aiOpen ? "收合 AI" : "開啟 AI"}
             </button>
+
 
             {/* Logout */}
             <button
