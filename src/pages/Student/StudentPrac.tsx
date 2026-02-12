@@ -851,7 +851,7 @@ const EXPLAIN_CHART_OPTIONS: {
   {
     key: "indicator_gap",
     label: "能力指標差距分析",
-    description: "學生與班級平均的差距",
+    description: "學生與該校平均的差距",
   },
 ];
 
@@ -972,7 +972,7 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
 
             {avgSpeedCompare.classAvgSec != null && (
               <p className="text-xs text-slate-500">
-                班級平均 {avgSpeedCompare.classAvgSec} 秒　
+                校平均 {avgSpeedCompare.classAvgSec} 秒　
                 <span
                   className={
                     Number(avgSpeedCompare.diff) < 0
@@ -1009,7 +1009,7 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
 
           {avgScoreCompare.classAvg !== null && (
             <p className="text-xs text-slate-500">
-              班級平均 {avgScoreCompare.classAvg}%　
+              校平均 {avgScoreCompare.classAvg}%　
               <span
                 className={
                   avgScoreCompare.diff >= 0
@@ -1033,7 +1033,7 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
         <Card className={`${belowClassAvgStats.count > 0 ? "border-red-300 bg-red-50/50"
               : "border-green-300 bg-green-50/50"}`}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-            <CardTitle className="text-sm font-medium">低於班級平均</CardTitle>
+            <CardTitle className="text-sm font-medium">低於校平均</CardTitle>
           </CardHeader>
 
           <CardContent className="space-y-1">
@@ -1048,7 +1048,7 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
             </div>
 
             <p className="text-xs text-slate-500">
-              班級總練習人數 {belowClassAvgStats.classPracPeople} 人
+              該校總練習人數 {belowClassAvgStats.classPracPeople} 人
             </p>
           </CardContent>
         </Card>
@@ -1212,7 +1212,7 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
                           x: 1,
                           yref: "y2",
                           y: avgScoreCompare.classAvg,
-                          text: `班級平均 ${avgScoreCompare.classAvg}%`,
+                          text: `校平均 ${avgScoreCompare.classAvg}%`,
                           showarrow: false,
                           font: { size: 11, color: "#ef4444" },
                           xanchor: "right",
@@ -1380,7 +1380,7 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
     <div>
       <CardTitle>能力指標差距分析</CardTitle>
       <CardDescription className="text-xs text-slate-500 mt-2">
-        各能力指標相對於班級平均的差距
+        各能力指標相對於該校平均的差距
       </CardDescription>
     </div>
 
@@ -1425,7 +1425,7 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
                 hovertemplate:
                   "<b>%{y}</b><br>" +
                   "學生平均：%{customdata[0]}%<br>" +
-                  "班級平均：%{customdata[1]}%<br>" +
+                  "該校平均：%{customdata[1]}%<br>" +
                   "差距：%{x}%<extra></extra>",
                 customdata: diffBarData.map(d => [
                   d.studentAvg,
@@ -1438,7 +1438,7 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
               margin: { l: 80, r: 60, t: 20, b: 40 },
 
               xaxis: {
-                title: "學生 − 班級平均（%）",
+                title: "學生 − 校平均（%）",
                 zeroline: true,
                 zerolinewidth: 2,
                 zerolinecolor: "#94a3b8",
@@ -1470,7 +1470,7 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
                   x: 0,
                   y: 1,
                   yref: "paper",
-                  text: "班級平均 = 0",
+                  text: "校平均 = 0",
                   showarrow: false,
                   font: { size: 11, color: "#64748b" },
                   yanchor: "bottom",
