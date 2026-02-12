@@ -14,7 +14,10 @@ export type UserRole = "student" | "teacher" | "policy_maker";
 
 export interface UserInfo {
   user_sn: string;
+  user_id: string;
+  OpenID_sub: string;
   role: UserRole;
+  city: string;
   organization_id: number;
   grade?: number | null;
   class?: number | null;

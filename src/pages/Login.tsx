@@ -41,7 +41,7 @@ export default function Login() {
         return;
       }
 
-      if (!data || data.length === 0) {
+      if (!data) {
         alert("查無此使用者編號（user_sn）");
         return;
       }
@@ -162,7 +162,6 @@ export default function Login() {
                 <div className="flex justify-center gap-4 text-xs text-[#2c5c60]/70">
                     <span className="font-mono">
                       學生：S033bf / S083bc <br/>
-                      教師：T44619 / T11467 <br/>
                     </span>
                 </div>
             </div>

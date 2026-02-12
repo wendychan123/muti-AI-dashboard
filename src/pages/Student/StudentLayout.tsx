@@ -14,8 +14,9 @@ import { useUserContext } from "@/contexts/UserContext";
 
 export default function StudentLayout() {
   const navigate = useNavigate();
-  const { userSn } = useUserContext();
+  const { userSn, userInfo } = useUserContext();
   const [aiOpen, setAiOpen] = useState(true);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   /* =====================
      登入防呆
@@ -47,9 +48,49 @@ export default function StudentLayout() {
              ===================== */}
           <div className="flex items-center gap-3">
             {/* <Avatar className="h-10 w-10 border-0 border-white shadow-sm"> <AvatarImage src={studentAvatar} alt="學生頭像" /> </Avatar> */}
-            <h1 className="text-lg font-semibold text-slate-800">
-              學生 {userSn} 學習儀表板
-            </h1>
+            <div className="relative flex items-center gap-3">
+
+              {/* 學生名稱按鈕 */}
+
+              <span className="text-lg font-semibold text-slate-700">
+                學生
+              </span>
+
+              <button
+                onClick={() => setInfoOpen((v) => !v)}
+                className="flex items-center gap-2 px-3 py-1.5
+                          bg-slate-100 hover:bg-slate-200
+                          rounded-md text-sm font-medium 
+                          transition"
+              >
+               {userSn}
+              </button>
+
+              <span className="text-lg font-semibold text-slate-700">
+                學習儀表板
+              </span>
+
+              {/* 下拉資訊卡 */}
+              {infoOpen && userInfo && (
+                <div className="absolute top-12 left-0 w-80
+                                bg-white border rounded-lg shadow-xl
+                                p-4 text-sm text-slate-700 z-50">
+
+                  <div className="space-y-1 leading-relaxed">
+                    <div className="font-mono text-xs text-slate-500">
+                      {userInfo.user_id}
+                    </div>
+
+                    <div className="font-mono text-s">
+                      {userInfo.city} {userInfo.organization_id} 國小 <br/>
+                      {userInfo.grade} 年 {userInfo.class} 班
+                    </div>
+
+                  </div>
+                </div>
+              )}
+            </div>
+
           </div>
 
           {/* =====================
