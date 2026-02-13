@@ -15,13 +15,15 @@ import StudentLayout from "./pages/Student/StudentLayout";
 import StudentPrac from "./pages/Student/StudentPrac"; 
 
 
-
-
 /* ===== Teacher ===== */
 import TeacherLayout from "./pages/Teacher/TeacherLayout";
 import TeacherThemeA from "./pages/Teacher/TeacherThemeA";
 import TeacherThemeB from "./pages/Teacher/TeacherThemeB";
 import TeacherThemeC from "./pages/Teacher/TeacherThemeC";
+
+/* ===== PolicyMaker ===== */
+import PolicyLayout from "./pages/Policy/PolicyLayout";
+import PolicyPrac from "./pages/Policy/PolicyPrac";
 
 
 const queryClient = new QueryClient();
@@ -60,10 +62,16 @@ export default function App() {
 
               {/* ===== Teacher 區 ===== */}
               <Route path="/teacher" element={<TeacherLayout />}>
-                <Route index element={<Navigate to="theme-a" replace />} />
-                <Route path="theme-a" element={<TeacherThemeA />} />
+                <Route index element={<Navigate to="practice" replace />} />
+                <Route path="practice" element={<TeacherThemeA />} />
                 <Route path="theme-b" element={<TeacherThemeB />} />
                 <Route path="theme-c" element={<TeacherThemeC />} />
+              </Route>
+
+              {/* ===== Teacher 區 ===== */}
+              <Route path="/policymaker" element={<PolicyLayout />}>
+                <Route index element={<Navigate to="practice" replace />} />
+                <Route path="practice" element={<PolicyPrac />} />
               </Route>
 
               {/* ===== 404 ===== */}

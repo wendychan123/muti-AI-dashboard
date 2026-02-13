@@ -1,25 +1,30 @@
-// src/pages/StudentLayout.tsx
+// src/pages/Teacher/TeacherLayout.tsx
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { Sparkles, Home } from "lucide-react";
 import { useUserContext } from "@/contexts/UserContext";
 
-export default function StudentLayout() {
+export default function TeacherLayout() {
   const navigate = useNavigate();
   const { userSn, role, userInfo } = useUserContext();
 
   /* =====================
-     登入防呆（唯一一個）
+     登入 & 角色防呆（只做一次）
      ===================== */
   useEffect(() => {
     if (!userSn) {
       navigate("/login", { replace: true });
+      return;
     }
-  }, [userSn, navigate]);
 
-  // ⛔ 不要 loading，不要查 supabase
-  if (!userSn || !userInfo) {
-    return null; // 或 skeleton
+    if (role !== "policymaker") {
+      navigate("/", { replace: true });
+    }
+  }, [userSn, role, navigate]);
+
+  // 尚未初始化完成時不 render（避免閃爍）
+  if (!userSn || !userInfo || role !== "policymaker") {
+    return null;
   }
 
   return (
@@ -29,10 +34,7 @@ export default function StudentLayout() {
         {/* ===== Header ===== */}
         <header className="bg-white border-b px-8 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-slate-800">
-            {role === "student" && "學生 "}
-            {role === "teacher" && "教師 "}
-            {role === "policy_maker" && "教育管理者 "}
-            {userSn} 個人儀表板
+            教師 {userSn} 班級儀表板
           </h1>
 
           <div className="flex items-center gap-3">
@@ -51,12 +53,12 @@ export default function StudentLayout() {
           </div>
         </header>
 
-        {/* ===== Tabs（之後可依 role 切換） ===== */}
+        {/* ===== Tabs（教師視角） ===== */}
         <nav className="bg-white border-b px-8">
           <div className="flex gap-6">
-            <TopTab to="/student/theme-a" label="我的學習進度" />
-            <TopTab to="/student/theme-b" label="錯題與弱點" />
-            <TopTab to="/student/theme-c" label="學習歷程紀錄" />
+            <TopTab to="/teacher/theme-a" label="班級學習概覽" />
+            <TopTab to="/teacher/theme-b" label="學生差異分析" />
+            <TopTab to="/teacher/theme-c" label="學習歷程紀錄" />
           </div>
         </nav>
 

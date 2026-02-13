@@ -11,12 +11,12 @@ const HomePage = () => {
 
   const roles = [
     {
-      id: "manager",
+      id: "policymaker",
       title: "管理者",
       description: "總覽校務數據\n輔助決策與資源分配",
       icon: <Users className="w-10 h-10 md:w-12 md:h-12 text-white" />,
       color: "bg-gradient-to-br from-blue-500 to-blue-600",
-      onClick: () => alert("管理者功能開發中"),
+      oonClick: () => navigate("/login"),
     },
     {
       id: "teacher",
