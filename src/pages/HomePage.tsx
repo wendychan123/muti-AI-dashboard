@@ -16,7 +16,7 @@ const HomePage = () => {
       description: "總覽校務數據\n輔助決策與資源分配",
       icon: <Users className="w-10 h-10 md:w-12 md:h-12 text-white" />,
       color: "bg-gradient-to-br from-blue-500 to-blue-600",
-      oonClick: () => navigate("/login"),
+      onClick: () => alert("管理者儀表板開發中"),
     },
     {
       id: "teacher",
@@ -24,7 +24,7 @@ const HomePage = () => {
       description: "平台學習狀況\n提供教學調整建議",
       icon: <BookOpen className="w-10 h-10 md:w-12 md:h-12 text-white" />,
       color: "bg-gradient-to-br from-teal-500 to-teal-600",
-      onClick: () => navigate("/login"),
+      onClick: () => alert("教師儀表板開發中"),
     },
     {
       id: "student",
