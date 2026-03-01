@@ -12,8 +12,7 @@ import NotFound from "./pages/NotFound";
 
 /* ===== Student ===== */
 import StudentLayout from "./pages/Student/StudentLayout";
-import StudentPrac from "./pages/Student/StudentPrac"; 
-
+import StudentPrac from "./pages/Student/StudentPrac";
 
 /* ===== Teacher ===== */
 import TeacherLayout from "./pages/Teacher/TeacherLayout";
@@ -24,7 +23,6 @@ import TeacherThemeC from "./pages/Teacher/TeacherThemeC";
 /* ===== PolicyMaker ===== */
 import PolicyLayout from "./pages/Policy/PolicyLayout";
 import PolicyPrac from "./pages/Policy/PolicyPrac";
-
 
 const queryClient = new QueryClient();
 
@@ -40,27 +38,20 @@ export default function App() {
             <Routes>
 
               {/* ===== 首頁 ===== */}
-              {/* ===== Login ===== */}
               <Route path="/" element={<HomePage />} />
               <Route path="/login" element={<Login />} />
 
-
-              {/* ===== Student 區 ===== */}
+              {/* ============================= */}
+              {/* ===== Student 區（需登入） ===== */}
+              {/* ============================= */}
               <Route path="/student" element={<StudentLayout />}>
                 <Route index element={<Navigate to="practice" replace />} />
-
-                {/* ===== Practice（dp001_prac） ===== */}
-                <Route path="practice">
-
-                  {/* LOD1：練習總覽 */}
-                  <Route index element={<StudentPrac />} />
-
-                </Route>
-
-
+                <Route path="practice" element={<StudentPrac />} />
               </Route>
 
-              {/* ===== Teacher 區 ===== */}
+              {/* ============================= */}
+              {/* ===== Teacher 區（需登入） ===== */}
+              {/* ============================= */}
               <Route path="/teacher" element={<TeacherLayout />}>
                 <Route index element={<Navigate to="practice" replace />} />
                 <Route path="practice" element={<TeacherThemeA />} />
@@ -68,7 +59,9 @@ export default function App() {
                 <Route path="theme-c" element={<TeacherThemeC />} />
               </Route>
 
-              {/* ===== Teacher 區 ===== */}
+              {/* ============================= */}
+              {/* ===== PolicyMaker 區 ===== */}
+              {/* ============================= */}
               <Route path="/policymaker" element={<PolicyLayout />}>
                 <Route index element={<Navigate to="practice" replace />} />
                 <Route path="practice" element={<PolicyPrac />} />
@@ -79,6 +72,7 @@ export default function App() {
 
             </Routes>
           </BrowserRouter>
+
         </TooltipProvider>
       </UserProvider>
     </QueryClientProvider>

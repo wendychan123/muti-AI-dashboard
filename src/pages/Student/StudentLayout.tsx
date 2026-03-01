@@ -1,7 +1,7 @@
 // src/pages/StudentLayout.tsx
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import StudentAIPanel from "@/components/StudentAiPanel";
+import StudentAIPanel from "@/pages/Student/StudentAiPanel";
 import { Avatar, AvatarImage, AvatarFallback, } from "@/components/ui/avatar";
 import studentAvatar from "@/assets/student-avatar.jpg";
 import {
@@ -35,7 +35,7 @@ export default function StudentLayout() {
   const ICON_SIZE = 18;
 
   return (
-    <div className="flex h-screen w-full bg-[#f8fafc] overflow-hidden">
+    <div className="flex h-screen w-full bg-[#f8fbfc] overflow-hidden">
       <div className="flex-1 flex flex-col min-w-0">
 
         {/* =====================

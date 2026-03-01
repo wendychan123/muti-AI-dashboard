@@ -10,31 +10,35 @@ const HomePage = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const roles = [
-    {
-      id: "policymaker",
-      title: "管理者",
-      description: "總覽校務數據\n輔助決策與資源分配",
-      icon: <Users className="w-10 h-10 md:w-12 md:h-12 text-white" />,
-      color: "bg-gradient-to-br from-blue-500 to-blue-600",
-      onClick: () => alert("管理者儀表板開發中"),
-    },
-    {
-      id: "teacher",
-      title: "教師",
-      description: "平台學習狀況\n提供教學調整建議",
-      icon: <BookOpen className="w-10 h-10 md:w-12 md:h-12 text-white" />,
-      color: "bg-gradient-to-br from-teal-500 to-teal-600",
-      onClick: () => alert("教師儀表板開發中"),
-    },
-    {
-      id: "student",
-      title: "學生",
-      description: "個人學習進度\n獲取個人化建議",
-      icon: <GraduationCap className="w-10 h-10 md:w-12 md:h-12 text-white" />,
-      color: "bg-gradient-to-br from-cyan-500 to-cyan-600",
-      onClick: () => navigate("/login"),
-    },
-  ];
+  {
+    id: "policymaker",
+    title: "管理者",
+    description: "總覽校務數據\n輔助決策與資源分配",
+    icon: <Users className="w-10 h-10 md:w-12 md:h-12 text-white" />,
+    color: "bg-gradient-to-br from-blue-600 to-indigo-600",
+    path: "/policymaker/practice",
+    requiresLogin: false,
+  },
+  {
+    id: "teacher",
+    title: "教師",
+    description: "平台學習狀況\n提供教學調整建議",
+    icon: <BookOpen className="w-10 h-10 md:w-12 md:h-12 text-white" />,
+    color: "bg-gradient-to-br from-teal-500 to-teal-600",
+    path: "/login",
+    requiresLogin: true,
+  },
+  {
+    id: "student",
+    title: "學生",
+    description: "個人學習進度\n獲取個人化建議",
+    icon: <GraduationCap className="w-10 h-10 md:w-12 md:h-12 text-white" />,
+    color: "bg-gradient-to-br from-cyan-500 to-cyan-600",
+    path: "/login",
+    requiresLogin: true,
+  },
+];
+
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -118,7 +122,7 @@ const HomePage = () => {
               {roles.map((role) => (
                 <Card
                   key={role.id}
-                  onClick={role.onClick}
+                  onClick={() => navigate(role.path)}
                   className="group cursor-pointer hover:shadow-xl active:scale-[0.98] transition-all duration-300 hover:-translate-y-1 sm:hover:-translate-y-2 overflow-hidden bg-white/95 backdrop-blur-sm rounded-2xl"
                 >
                   <div

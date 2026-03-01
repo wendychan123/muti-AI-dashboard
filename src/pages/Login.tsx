@@ -61,9 +61,7 @@ export default function Login() {
         case "teacher":
           navigate("/teacher", { replace: true });
           break;
-        case "policy_maker":
-          navigate("/policy", { replace: true });
-          break;
+        
         default:
           console.warn("未知角色:", user.role);
           alert("使用者角色異常，請聯絡管理者");
@@ -87,7 +85,7 @@ export default function Login() {
       </div>
 
       {/* --- 頂部 Logo 區 (模擬) --- */}
-      <div className="relative z-10 mb-10 flex flex-col items-center gap-2">
+      <div className="relative z-10 mb-4 flex flex-col items-center gap-2">
         {/* 這裡模擬截圖中的 V 型 Logo */}
         <div className="flex items-center gap-3">
             <div className="text-[#3c6e71] font-bold text-center sm:text-center">
@@ -150,21 +148,22 @@ export default function Login() {
                     type="button"
                     variant="outline"
                     className="w-full bg-white hover:bg-gray-50 text-[#45c7c1] border border-[#45c7c1] font-bold py-5 text-lg rounded shadow-sm"
-                    onClick={() => alert("目前僅開放測試帳號登入")}
+                    onClick={() => navigate("/")}
                 >
-                    註冊
+                    返回首頁
                 </Button>
             </div>
 
             {/* 測試帳號提示區 */}
-            <div className="mt-4 pt-4 border-t border-white/30 space-y-1 text-center">
+            <div className="mt-2 pt-0 border-t border-white/30 space-y-1 text-center">
                 <p className="text-xs text-[#2c5c60]/80 font-bold mb-1">｜測試帳號｜</p>
                 <div className="flex justify-center gap-4 text-xs text-[#2c5c60]/70">
                     <span className="font-mono">
-                      學生：S033bf / S083bc <br/>
+                      S1c974 / S033bf / S083bc <br/>
                     </span>
                 </div>
             </div>
+
 
           </form>
         </CardContent>

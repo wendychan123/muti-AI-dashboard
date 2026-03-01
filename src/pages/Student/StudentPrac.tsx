@@ -3,7 +3,9 @@ import { useNavigate } from "react-router-dom";
 import Plot from "react-plotly.js";
 import { supabase } from "@/lib/supabase";
 import { useUserContext } from "@/contexts/UserContext";
-import { buildPracPrompt } from "@/lib/ai/buildPracPrompt";
+import { buildPracPrompt } from "@/lib/ai/buildStudentPracPrompt";
+import dayjs from "dayjs";
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
@@ -11,7 +13,7 @@ import {
   Filter, 
   Activity,
   Sparkles, 
-  BarChart2,
+  HelpCircle,
   Target, 
   Clock, 
   TrendingUp,
@@ -124,6 +126,8 @@ export default function StudentPrac() {
   const [OrgIndicatorData, setOrgIndicatorData] = useState<OrgIndicatorRow[]>([]);
   const [pracItems, setPracItems] = useState<PracItemRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [startDate, setStartDate] = useState<string | null>(null);
+  const [endDate, setEndDate] = useState<string | null>(null);
 
 
   // Filters
@@ -186,18 +190,38 @@ export default function StudentPrac() {
       const [DailyRes, attemptsRes, indicatorRes, OrgIndicatorRes, items] =
         await Promise.all([setDailyReq, attemptsReq, indicatorReq, OrgIndicatorReq, itemsReq]);
 
-      if (attemptsRes.error) console.error("Error fetching attempts:", attemptsRes.error);
-      
-      setDailyData((DailyRes.data as DailyRow[]) || []);
-      setAttemptsData((attemptsRes.data as AttemptRow[]) || []);
-      setIndicatorData((indicatorRes.data as IndicatorRow[]) || []);
-      setOrgIndicatorData(OrgIndicatorRes.data || []);
-      setPracItems((items.data as PracItemRow[]) || []);
-      setLoading(false);
-    };
+      if (attemptsRes.error) {
+      console.error("Error fetching attempts:", attemptsRes.error);
+    } else {
+      const data = (attemptsRes.data as AttemptRow[]) || [];
+      setAttemptsData(data);
 
-    fetchData();
-  }, [userSn]);
+      // --- 新增：計算並設定資料期間 ---
+      if (data.length > 0) {
+        // 假設 date 格式為 'YYYY-MM-DD' 或 ISO 格式，進行排序
+        const sortedDates = data
+          .map(d => d.date)
+          .filter(Boolean)
+          .sort();
+        
+        setStartDate(sortedDates[0]); // 最早日期
+        setEndDate(sortedDates[sortedDates.length - 1]); // 最晚日期
+      } else {
+        setStartDate(null);
+        setEndDate(null);
+      }
+      // ----------------------------
+    }
+
+    setDailyData((DailyRes.data as DailyRow[]) || []);
+    setIndicatorData((indicatorRes.data as IndicatorRow[]) || []);
+    setOrgIndicatorData(OrgIndicatorRes.data || []);
+    setPracItems((items.data as PracItemRow[]) || []);
+    setLoading(false);
+  };
+
+  fetchData();
+}, [userSn]);
 
   /* =========================
      Data Processing 
@@ -442,6 +466,24 @@ const belowClassAvgStats = useMemo(() => {
     const activeNames = new Set(filteredAttempts.map(d => d.indicate_name));
     return indicatorData.filter(d => activeNames.has(d.indicate_name));
   }, [indicatorData, filteredAttempts, selectedSubject]);
+
+  /* =========================
+       資料期間顯示
+    ========================= */
+    const periodLabel = useMemo(() => {
+      // 改用過濾後的資料來決定顯示的區間
+      if (filteredAttempts.length === 0) return "資料期間：無數據";
+      
+      const dates = filteredAttempts.map(d => d.date).sort();
+      const start = dates[0];
+      const end = dates[dates.length - 1];
+      
+      const s = dayjs(start).format("YYYY/MM/DD");
+      const e = dayjs(end).format("YYYY/MM/DD");
+      const days = dayjs(end).diff(dayjs(start), "day") + 1;
+      
+      return `篩選資料期間：${s} ～ ${e}（${days} 天）`;
+    }, [filteredAttempts]); // 這裡監聽過濾後的結果
 
   /* =========================
      Chart Data Preparation
@@ -719,65 +761,6 @@ const formatDateTime = (iso: string) => {
 };
 
 
-const testGemini = async () => {
-  if (selectedCharts.length === 0) {
-    alert("請至少選擇一張要解釋的圖表");
-    return;
-  }
-
-  setGeminiLoading(true);
-
-  const selectedChartLabels = selectedCharts.map(
-    key => EXPLAIN_LABEL_MAP[key]
-  );
-
-  // 一開始就通知 Panel：開始分析
-  window.dispatchEvent(
-    new CustomEvent("student-ai-update", {
-      detail: {
-        loading: true,
-        questions: selectedChartLabels,
-      },
-    })
-  );
-
-  const prompt = buildPracPrompt({
-    date: selectedDate,
-    subject: selectedSubject,
-    indicator: selectedIndicator,
-    selectedCharts,
-    stats: {
-      avgScore: avgScoreCompare.studentAvg,
-      avgSpeedSec: Number(processedStats.avgSpeedSec),
-      totalCount: processedStats.count,
-      belowClassCount: belowClassAvgStats.count,
-      reachedGoal: processedStats.reachedGoal,
-    },
-  });
-
-  const res = await fetch("/api/gemini", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
-  });
-
-  const data = await res.json();
-
-  setGeminiResult(data.text);
-  setShowAI(true);
-  setGeminiLoading(false);
-
-  // 分析完成 → 通知 Panel 顯示結果
-  window.dispatchEvent(
-    new CustomEvent("student-ai-update", {
-      detail: {
-        loading: false,
-        content: data.text,
-      },
-    })
-  );
-};
-
 const runAIForChart = async (chart: ExplainTarget) => {
   setGeminiLoading(true);
 
@@ -785,7 +768,7 @@ const runAIForChart = async (chart: ExplainTarget) => {
     date: selectedDate,
     subject: selectedSubject,
     indicator: selectedIndicator,
-    selectedCharts: [chart],   // ⭐ 只分析一張
+    selectedCharts: [chart],   //只分析一張
     stats: {
       avgScore: avgScoreCompare.studentAvg,
       avgSpeedSec: Number(processedStats.avgSpeedSec),
@@ -866,20 +849,19 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
   /* =========================
      Render
      ========================= */
-  
-  if (loading) return <div className="p-20 text-center flex items-center justify-center h-screen text-slate-500"><Activity className="animate-spin mr-2"/> 分析資料載入中...</div>;
 
   return (
-    <div className="min-h-screen bg-slate-50 md:p-2 space-y-6">
+    <div className="min-h-screen bg-slate-50 md:p-0 space-y-4">
 
       {/* 1. Header & Filter */}
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-        <div className="flex items-center gap-2 bg-white p-2 rounded-lg border shadow-sm">
+        <div className="flex flex-wrap items-center gap-3 p-2 pb-1">
           <div className="p-2 text-slate-400">
-            <Filter className="w-4 h-4"/>
+            <Filter className="w-5 h-5"/>
           </div>
 
           {/* 科目 */}
+          <span className="text-sm">科目：</span>
           <Select
             value={selectedSubject}
             onValueChange={(val) => {
@@ -887,11 +869,11 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
               setSelectedIndicator("all");
             }}
           >
-            <SelectTrigger className="w-[160px] border-none focus:ring-0 font-medium text-slate-700">
+            <SelectTrigger className="w-[150px] focus:ring-0 font-medium text-slate-700 bg-white border rounded">
               <SelectValue placeholder="選擇科目"/>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">所有科目</SelectItem>
+              <SelectItem value="all">全部科目</SelectItem>
               {uniqueSubjects.map(sub => (
                 <SelectItem key={sub} value={sub}>{sub}</SelectItem>
               ))}
@@ -900,15 +882,16 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
 
 
           {/* 能力指標 */}
+          <span className="text-sm">能力指標：</span>
           <Select
             value={selectedIndicator}
             onValueChange={setSelectedIndicator}
           >
-            <SelectTrigger className="w-[800x] border-none focus:ring-0 font-medium text-slate-700">
+            <SelectTrigger className="w-[800x] focus:ring-0 font-medium text-slate-700 bg-white border rounded">
               <SelectValue placeholder="選擇能力指標"/>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">所有能力指標</SelectItem>
+              <SelectItem value="all">全部能力指標</SelectItem>
               {availableIndicators.map(ind => (
                 <SelectItem key={ind} value={ind}>{ind}</SelectItem>
               ))}
@@ -941,9 +924,17 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
             )}
           </button>
 
-          
         </div>
       </div>
+
+        {/* 資料期間顯示 */}
+        <div className="flex justify-end px-4 -mt-1">
+          <span className="text-xs text-slate-400">
+            {periodLabel}
+          </span>
+        </div>
+
+      
 
        
       {/* 2. KPI Cards */}
@@ -1102,37 +1093,82 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
       </div>
 
       {/* 3. Charts Grid */}
+      {/* =========================
+              區塊一（3張圖表）
+      ========================= */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Chart 1 */}
-        <Card className="col-span-1">
-          <CardHeader className="flex flex-row items-start justify-between">
-          <div>
-            <CardTitle>能力指標投入成效</CardTitle>
-            <CardDescription className="text-xs text-slate-500 mt-2">
-              長條代表累積練習次數，折線代表平均正確率。
-            </CardDescription>
-          </div>
+        {/* ===== 圖表 1：能力指標投入圖 ===== */}
+        <Card className="col-span-1 relative">
 
-          <button
-            onClick={() => runAIForChart("learning_process")}
-            className="
-              flex items-center justify-center
-              w-8 h-8
-              rounded-full
-              text-indigo-600
-              hover:bg-indigo-50
-              hover:border-indigo-300
-              transition
-              shadow-sm
-            "
-          >
-            <Bot className="w-4 h-4" />
-          </button>
+            {loading && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+              <Activity className="animate-spin mr-2 w-4 h-4" />
+              <span className="text-sm text-slate-600">資料分析中...</span>
+            </div>
+          )}
 
-        </CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
+            {/* 左側：標題 */}
+            <CardTitle className="text-xl font-bold ">
+              能力指標投入
+            </CardTitle>
 
-          <CardContent className="h-[420px] w-full">
+            {/* 右側：按鈕群組 */}
+            <div className="flex items-center gap-0">
+              {/* 圖表說明 Tooltip */}
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="
+                        flex items-center justify-center
+                        w-8 h-8
+                        rounded-full
+                        text-slate-400
+                        hover:bg-slate-100
+                        hover:text-slate-600
+                        transition
+                        "
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
+                      <div className="space-y-3">
+                        <p className="font-bold border-b pb-1 text-indigo-700">圖表計算說明：</p>
+                        <ul className="text-xs space-y-2 list-disc pl-4">
+                          <li><b>練習次數：</b>學生在該指標上的投入總量。</li>
+                          <li><b>平均正確率：</b>學生對該指標的理解程度。</li>
+                          <li><b>該校平均線：</b>全校學生在該指標的平均正確率。</li>
+                        </ul>
+                        <p className="text-[12px] text-slate-400 pt-1 border-t">
+                          ※ 透過此圖可以了解你的學習熱區，幫助你發現哪些知識點已經掌握、哪些還需要多加練習。
+                        </p>
+                      </div>
+                    </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              {/* AI 分析按鈕 */}
+              <button
+                onClick={() => runAIForChart("learning_process")}
+                className="
+                  flex items-center justify-center
+                  w-8 h-8
+                  rounded-full
+                  text-indigo-600
+                  hover:bg-indigo-50
+                  hover:border-indigo-300
+                  transition
+                  shadow-sm
+                "
+              >
+                <Bot className="w-4 h-4" />
+              </button>
+            </div>
+          </CardHeader>
+
+          <CardContent className="h-[350px] w-full">
             <Plot
               data={[
                 {
@@ -1230,40 +1266,84 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
 
                 font: { family: "inherit" },
               }}
-              config={{ responsive: true }}
+              
               useResizeHandler
-              style={{ width: "100%", height: "100%" }}
+              style={{ width: "100%" }}
+              config={{ displayModeBar: false, responsive: true }}
             />
           </CardContent>
         </Card>
 
-        {/* Chart 2: Scatter  */}
-        <Card className="col-span-1">
-          <CardHeader className="flex flex-row items-start justify-between">
-          <div>
-            <CardTitle>學習歷程表現</CardTitle>
-            <CardDescription className="text-xs text-slate-500 mt-3">
-              每個點代表一次練習嘗試。<br />
-              X 軸：答題速度（秒）　Y 軸：正確率（%）
-            </CardDescription>
-          </div>
+        
+        {/* ===== 圖表 2：學習歷程表現圖 ===== */}
+        <Card className="col-span-1 relative">
+          
+          {loading && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+              <Activity className="animate-spin mr-2 w-4 h-4" />
+              <span className="text-sm text-slate-600">資料分析中...</span>
+            </div>
+          )}
 
-          <button
-            onClick={() => runAIForChart("indicator_effect")}
-            className="
-                flex items-center justify-center
-                w-8 h-8
-                rounded-full
-                text-indigo-600
-                hover:bg-indigo-50
-                transition
-                shadow-sm
-              "
-          >
-            <Bot className="w-4 h-4" />
-          </button>
+        <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
+            {/* 左側：標題 */}
+            <CardTitle className="text-xl font-bold ">
+              學習歷程表現
+            </CardTitle>
 
-        </CardHeader>
+            {/* 右側：按鈕群組 */}
+            <div className="flex items-center gap-0">
+              {/* 圖表說明 Tooltip */}
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="
+                        flex items-center justify-center
+                        w-8 h-8
+                        rounded-full
+                        text-slate-400
+                        hover:bg-slate-100
+                        hover:text-slate-600
+                        transition
+                        "
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
+                      <div className="space-y-3">
+                        <p className="font-bold border-b pb-1 text-indigo-700">圖表計算說明：</p>
+                        <ul className="text-xs space-y-2 list-disc pl-4">
+                          <li><b>圓點：</b>學生在該指標上每一次練習的紀錄。</li>
+                          <li><b>答題速度（X軸）：</b>往左代表思考愈快，往右代表你花比較多時間仔細推敲。</li>
+                          <li><b>正確率 (Y軸)：</b>愈往上代表答對的情況愈好。</li>
+                        </ul>
+                        <p className="text-[12px] text-slate-400 pt-1 border-t">
+                          ※ 透過此圖可以觀察你在該科目/能力指標上反應速度與準確度關係。
+                        </p>
+                      </div>
+                    </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              {/* AI 分析按鈕 */}
+              <button
+                onClick={() => runAIForChart("indicator_effect")}
+                className="
+                  flex items-center justify-center
+                  w-8 h-8
+                  rounded-full
+                  text-indigo-600
+                  hover:bg-indigo-50
+                  hover:border-indigo-300
+                  transition
+                  shadow-sm
+                "
+              >
+                <Bot className="w-4 h-4" />
+              </button>
+            </div>
+          </CardHeader>
 
           
           
@@ -1371,40 +1451,80 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
 
       
 
-    <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+    
       {/* Chart 3: 差距條形圖（學生 vs 班級） */}
-        <Card className="col-span-1">
-  <CardHeader className="flex flex-row items-start justify-between">
+        <Card className="col-span-1 relative">
 
-    {/* 左側標題區 */}
-    <div>
-      <CardTitle>能力指標差距分析</CardTitle>
-      <CardDescription className="text-xs text-slate-500 mt-2">
-        各能力指標相對於該校平均的差距
-      </CardDescription>
-    </div>
+          {loading && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+              <Activity className="animate-spin mr-2 w-4 h-4" />
+              <span className="text-sm text-slate-600">資料分析中...</span>
+            </div>
+          )}
 
-    {/* 右側 AI 圓形按鈕 */}
-    <button
-      onClick={() => runAIForChart("indicator_gap")}
-      className="
-        flex items-center justify-center
-        w-8 h-8
-        rounded-full
-        text-indigo-600
-        hover:bg-indigo-50
-        hover:border-indigo-300
-        transition
-        shadow-sm
-      "
-    >
-      <Bot className="w-4 h-4" />
-    </button>
+          <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
+              {/* 左側：標題 */}
+              <CardTitle className="text-xl font-bold ">
+                能力指標差距
+              </CardTitle>
+              
+              {/* 右側：按鈕群組 */}
+              <div className="flex items-center gap-0">
+                {/* 圖表說明 Tooltip */}
+                <TooltipProvider delayDuration={100}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button className="
+                          flex items-center justify-center
+                          w-8 h-8
+                          rounded-full
+                          text-slate-400
+                          hover:bg-slate-100
+                          hover:text-slate-600
+                          transition
+                          "
+                      >
+                        <HelpCircle className="w-4 h-4" />
+                      </button>
+                    </TooltipTrigger>
+                      <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
+                        <div className="space-y-3">
+                          <p className="font-bold border-b pb-1 text-indigo-700">圖表計算說明：</p>
+                          <ul className="text-xs space-y-2 list-disc pl-4">
+                            <li><b>中間基準線 (0%)：</b>代表全校同學的平均分。</li>
+                            <li><b>綠色向右 (+)：</b>代表你在這個知識點表現得比全校平均更好。</li>
+                            <li><b>紅色向左 (-)：</b>代表你目前稍微落後平均，需優先複習。</li>
+                          </ul>
+                          <p className="text-[12px] text-slate-400 pt-1 border-t">
+                            ※ 透過此圖可以快速抓出你的強項與弱項，讓你的學習更有效率。
+                          </p>
+                        </div>
+                      </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
 
-  </CardHeader>
+                {/* AI 分析按鈕 */}
+                <button
+                  onClick={() => runAIForChart("indicator_gap")}
+                  className="
+                    flex items-center justify-center
+                    w-8 h-8
+                    rounded-full
+                    text-indigo-600
+                    hover:bg-indigo-50
+                    hover:border-indigo-300
+                    transition
+                    shadow-sm
+                  "
+                >
+                  <Bot className="w-4 h-4" />
+                </button>
+              </div>
+            </CardHeader>
 
 
-        <CardContent className="h-[420px]">
+
+        <CardContent className="h-[350px]">
           <Plot
             data={[
               {
@@ -1486,13 +1606,21 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
         </CardContent>
       </Card>
       </div>
-    </div>
+    
 
 
     <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
       {/* 4. Detailed Table (保留歷史紀錄) */}
       {/* 詳細練習紀錄 */}
-      <Card>
+      <Card className="relative">
+
+        {loading && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+              <Activity className="animate-spin mr-2 w-4 h-4" />
+              <span className="text-sm text-slate-600">資料分析中...</span>
+            </div>
+          )}
+
         <CardHeader>
           <CardTitle>詳細練習紀錄</CardTitle>
           <CardDescription></CardDescription>
