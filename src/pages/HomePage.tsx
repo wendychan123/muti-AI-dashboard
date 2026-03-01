@@ -27,6 +27,7 @@ const HomePage = () => {
     color: "bg-gradient-to-br from-teal-500 to-teal-600",
     path: "/login",
     requiresLogin: true,
+    isComingSoon: true,
   },
   {
     id: "student",
@@ -51,6 +52,19 @@ const HomePage = () => {
       setIsFullscreen(false);
     }
   };
+
+  
+
+const handleRoleClick = (role) => {
+  // 核心邏輯：判斷是否為開發中
+  if (role.isComingSoon) {
+    alert("此頁面尚未開發完成！");
+    return; // 攔截，不執行後續導航
+  }
+
+  // 原本的跳轉邏輯
+  navigate(role.path);
+};
 
   return (
     <div
@@ -122,7 +136,7 @@ const HomePage = () => {
               {roles.map((role) => (
                 <Card
                   key={role.id}
-                  onClick={() => navigate(role.path)}
+                  onClick={() => handleRoleClick(role)}
                   className="group cursor-pointer hover:shadow-xl active:scale-[0.98] transition-all duration-300 hover:-translate-y-1 sm:hover:-translate-y-2 overflow-hidden bg-white/95 backdrop-blur-sm rounded-2xl"
                 >
                   <div
@@ -136,6 +150,11 @@ const HomePage = () => {
                       <h3 className="text-xl sm:text-2xl font-bold text-white mb-1 sm:mb-2">
                         {role.title}
                       </h3>
+                      {role.isComingSoon && (
+                        <span className="inline-block mt-1 px-2 py-0.5 bg-black/30 backdrop-blur-md rounded text-xs text-white border border-white/20">
+                          開發中
+                        </span>
+                      )}
                     </div>
                     <div className="absolute top-3 right-3 sm:top-4 sm:right-4 w-12 h-12 sm:w-16 sm:h-16 bg-white/10 rounded-full"></div>
                     <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 w-6 h-6 sm:w-8 sm:h-8 bg-white/10 rounded-full"></div>
