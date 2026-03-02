@@ -819,7 +819,7 @@ const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
               ${
                 geminiLoading
                   ? "bg-slate-300 text-slate-600 cursor-not-allowed"
-                  : "bg-indigo-600 text-white hover:bg-indigo-700"
+                  : "bg-emerald-600 text-white hover:bg-emerald-700"
               }
             `}
             >
@@ -953,7 +953,7 @@ const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
             }
             // ===== 政策燈號邏輯 =====
             let bgColor = "bg-emerald-50 border-emerald-200";
-            let textColor = "text-emerald-700";
+            let textColor = "text-green-900";
             let label = "表現均衡";
 
             if (value > 3) {

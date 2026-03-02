@@ -913,7 +913,7 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
               ${
                 geminiLoading
                   ? "bg-slate-300 text-slate-600 cursor-not-allowed"
-                  : "bg-indigo-600 text-white hover:bg-indigo-700"
+                  : "bg-indigo-500 text-white hover:bg-indigo-700"
               }
             `}
           >
@@ -1203,7 +1203,7 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
               ]}
               layout={{
                 autosize: true,
-                margin: { l: 50, r: 50, t: 20, b: 100 },
+                margin: { l: 40, r: 50, t: 60, b: 180 },
 
                 xaxis: {
                   tickangle: -30,
