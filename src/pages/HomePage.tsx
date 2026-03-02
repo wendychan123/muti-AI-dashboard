@@ -13,7 +13,7 @@ const HomePage = () => {
   {
     id: "policymaker",
     title: "管理者",
-    description: "總覽校務數據\n輔助決策與資源分配",
+    description: "總覽校務數據\n輔助縣市教學策略與資源配置",
     icon: <Users className="w-10 h-10 md:w-12 md:h-12 text-white" />,
     color: "bg-gradient-to-br from-blue-600 to-indigo-600",
     path: "/policymaker/practice",
@@ -22,7 +22,7 @@ const HomePage = () => {
   {
     id: "teacher",
     title: "教師",
-    description: "平台學習狀況\n提供教學調整建議",
+    description: "作答練習狀況\n掌握校內學習成效與進度",
     icon: <BookOpen className="w-10 h-10 md:w-12 md:h-12 text-white" />,
     color: "bg-gradient-to-br from-teal-500 to-teal-600",
     path: "/login",
@@ -32,7 +32,7 @@ const HomePage = () => {
   {
     id: "student",
     title: "學生",
-    description: "個人學習進度\n獲取個人化建議",
+    description: "個人練習表現\n獲取個人學習診斷與建議",
     icon: <GraduationCap className="w-10 h-10 md:w-12 md:h-12 text-white" />,
     color: "bg-gradient-to-br from-cyan-500 to-cyan-600",
     path: "/login",
