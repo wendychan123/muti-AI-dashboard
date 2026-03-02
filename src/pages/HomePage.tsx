@@ -13,7 +13,7 @@ const HomePage = () => {
   {
     id: "policymaker",
     title: "管理者",
-    description: "總覽校務數據\n輔助縣市教學策略與資源配置",
+    description: "總覽校務數據\n輔助教學策略與資源配置",
     icon: <Users className="w-10 h-10 md:w-12 md:h-12 text-white" />,
     color: "bg-gradient-to-br from-blue-600 to-indigo-600",
     path: "/policymaker/practice",

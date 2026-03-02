@@ -1,4 +1,3 @@
-// src/pages/Teacher/TeacherLayout.tsx
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { Sparkles, Home } from "lucide-react";

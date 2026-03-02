@@ -1526,7 +1526,7 @@ const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
 
 
           {/* 日 / 週 / 月 切換按鈕 */}
-            <div className="flex items-center gap-1 mr-2 px-8">
+            <div className="flex items-center gap-1 mr-2 px-8 ">
               {["day", "week", "month"].map((mode) => (
                 <button
                   key={mode}
@@ -1543,6 +1543,8 @@ const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
               ))}
             </div>
 
+
+          <CardContent className="h-[350px] w-full">
           <Plot
             data={[
               // 長條圖：活躍學生數
@@ -1618,6 +1620,7 @@ const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
             useResizeHandler
             style={{ width: "100%", height: "100%" }}
           />
+          </CardContent>
         </Card>
 
         {/* ===== 圖表 2：成效趨勢 ===== */}

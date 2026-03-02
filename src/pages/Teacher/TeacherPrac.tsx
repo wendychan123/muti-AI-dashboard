@@ -1,4 +1,3 @@
-// src/pages/Teacher/TeacherThemeA.tsx
 import { useEffect, useState } from "react";
 import { useUserContext } from "@/contexts/UserContext";
 import { supabase } from "@/lib/supabase";
@@ -11,7 +10,7 @@ interface StudentRow {
   class: number | null;
 }
 
-export default function TeacherThemeA() {
+export default function TeacherPrac() {
   const { userInfo } = useUserContext();
 
   const [students, setStudents] = useState<StudentRow[]>([]);

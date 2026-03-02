@@ -16,9 +16,7 @@ import StudentPrac from "./pages/Student/StudentPrac";
 
 /* ===== Teacher ===== */
 import TeacherLayout from "./pages/Teacher/TeacherLayout";
-import TeacherThemeA from "./pages/Teacher/TeacherThemeA";
-import TeacherThemeB from "./pages/Teacher/TeacherThemeB";
-import TeacherThemeC from "./pages/Teacher/TeacherThemeC";
+import TeacherPrac from "./pages/Teacher/TeacherPrac";
 
 /* ===== PolicyMaker ===== */
 import PolicyLayout from "./pages/Policy/PolicyLayout";
@@ -54,9 +52,8 @@ export default function App() {
               {/* ============================= */}
               <Route path="/teacher" element={<TeacherLayout />}>
                 <Route index element={<Navigate to="practice" replace />} />
-                <Route path="practice" element={<TeacherThemeA />} />
-                <Route path="theme-b" element={<TeacherThemeB />} />
-                <Route path="theme-c" element={<TeacherThemeC />} />
+                <Route path="practice" element={<TeacherPrac />} />
+                
               </Route>
 
               {/* ============================= */}
