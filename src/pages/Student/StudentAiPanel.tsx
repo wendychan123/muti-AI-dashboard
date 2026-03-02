@@ -69,7 +69,7 @@ export default function StudentAiPanel({
   }, []);
 
   return (
-    <aside className="w-[300px] h-full bg-white border-l flex flex-col">
+    <aside className="w-[320px] h-full bg-white border-l flex flex-col">
       {/* Header */}
       <div className="h-14 flex items-center justify-between px-5">
         <div className="flex items-center gap-2 font-semibold text-slate-800">
@@ -115,11 +115,6 @@ export default function StudentAiPanel({
                 )}
 
                 <div>
-                  {/* <div className="font-medium text-slate-800">
-                    練習表現分析
-                  </div> */}
-
-                  {/* 使用者選擇 */}
                   {msg.questions.length > 0 && (
                     <div className="font-medium text-slate-800">
                       分析項目：{msg.questions.join("、")}

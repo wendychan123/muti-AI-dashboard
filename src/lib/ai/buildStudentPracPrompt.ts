@@ -41,7 +41,7 @@ export function buildPracPrompt(params: BuildPracPromptParams): string {
 【本次需要解釋的圖表】
 ${selectedCharts
   .map(c => {
-    if (c === "daily_overview") return "每日練習概況（投入時間與正確率的變化）";
+    if (c === "daily_overview") return "總覽練習概況（總覽投入時間與正確率變化）";
     if (c === "indicator_effect") return "能力指標投入成效（哪些能力練得多、表現如何）";
     if (c === "learning_process") return "學習歷程表現（速度與正確率的關係）";
     if (c === "indicator_gap") return "能力指標差距分析（與班級平均的比較）";

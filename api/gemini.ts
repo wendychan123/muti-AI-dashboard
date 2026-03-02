@@ -1,13 +1,13 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// ===== Simple rate limit (best effort) =====
+// ===== Simple rate limit =====
 const rateLimitMap = new Map<
   string,
   { count: number; timestamp: number }
 >();
 
-const WINDOW_MS = 30 * 1000; // 30 秒
+const WINDOW_MS = 30 * 1000;
 const MAX_REQUESTS = 5;
 
 function checkRateLimit(ip: string) {
@@ -53,14 +53,27 @@ export default async function handler(
       });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: "Missing GEMINI_API_KEY" });
-    }
+    // ===== 取得 role =====
+    const { prompt, role } = req.body;
 
-    const { prompt } = req.body;
     if (!prompt) {
       return res.status(400).json({ error: "Missing prompt" });
+    }
+
+    // ===== 根據角色選擇 API KEY =====
+    let apiKey: string | undefined;
+
+    if (role === "policy") {
+      apiKey = process.env.GEMINI_API_KEY_1;
+    } else {
+      // student
+      apiKey = process.env.GEMINI_API_KEY_3;
+    }
+
+    if (!apiKey) {
+      return res.status(500).json({
+        error: "Missing Gemini API key for role",
+      });
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);

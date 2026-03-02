@@ -787,7 +787,12 @@ const runAIForChart = async (chart: ExplainTarget) => {
   const res = await fetch("/api/gemini", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ 
+      prompt,
+      role: "student",
+   }),
+   
+
   });
 
   const data = await res.json();

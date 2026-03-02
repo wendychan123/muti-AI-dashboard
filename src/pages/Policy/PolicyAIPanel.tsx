@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { X, Sparkles, Bot, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import {
+  X,
+  Bot,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle2,
+} from "lucide-react";
 
 interface AIEventPayload {
   questions?: string[];
@@ -15,7 +21,7 @@ interface AIMessage {
   collapsed: boolean;
 }
 
-export default function StudentAiPanel({
+export default function PolicyAIPanel({
   onClose,
 }: {
   onClose: () => void;
@@ -28,53 +34,53 @@ export default function StudentAiPanel({
       if (!detail) return;
 
       setMessages(prev => {
-        // 如果是 loading → 新增一筆
-        if (detail.loading) {
+        // Loading → 新增一筆
+        if (detail.loading === true) {
+          const newMessage: AIMessage = {
+            id: crypto.randomUUID(),
+            questions: detail.questions || [],
+            status: "loading",
+            collapsed: false,
+          };
+
           return [
-            {
-              id: crypto.randomUUID(),
-              questions: detail.questions || [],
-              status: "loading",
-              collapsed: false,
-            },
+            newMessage,
             ...prev.map(m => ({ ...m, collapsed: true })),
           ];
         }
 
-        // 如果是完成 → 更新最新一筆
-        if (detail.loading === false && detail.content) {
-            const index = prev.findIndex(m => m.status === "loading");
+        // 完成 → 更新第一筆 loading
+        if (detail.loading === false) {
+          const index = prev.findIndex(m => m.status === "loading");
+          if (index === -1) return prev;
 
-            if (index === -1) return prev;
-
-            return prev.map((m, i) =>
-                i === index
-                ? {
-                    ...m,
-                    status: "done",
-                    content: detail.content,
-                    }
-                : m
-            );
-            }
-
+          return prev.map((m, i) =>
+            i === index
+              ? {
+                  ...m,
+                  status: "done",
+                  content: detail.content || "",
+                }
+              : m
+          );
+        }
 
         return prev;
       });
     };
 
-    window.addEventListener("student-ai-update", handler);
+    window.addEventListener("policy-ai-update", handler);
     return () =>
-      window.removeEventListener("student-ai-update", handler);
+      window.removeEventListener("policy-ai-update", handler);
   }, []);
 
   return (
-    <aside className="w-[300px] h-full bg-white border-l flex flex-col">
+    <aside className="w-[320px] h-full bg-white border-l flex flex-col shadow-sm">
       {/* Header */}
-      <div className="h-14 flex items-center justify-between px-5">
+      <div className="h-14 flex items-center justify-between px-5 border-b">
         <div className="flex items-center gap-2 font-semibold text-slate-800">
-          <Bot className="w-5 h-5 text-blue-600" />
-          AI 學習助手
+          <Bot className="w-5 h-5 text-emerald-600" />
+          AI 決策助手
         </div>
         <button onClick={onClose}>
           <X className="w-5 h-5 text-slate-500 hover:text-slate-800" />
@@ -90,11 +96,10 @@ export default function StudentAiPanel({
         )}
 
         {messages.map(msg => (
-          <div
-            key={msg.id}
-            className="border rounded-lg bg-slate-50"
+          <div key={msg.id} 
+          className="border rounded-lg bg-slate-50"
           >
-            {/* Message Header */}
+            {/* Header */}
             <button
               onClick={() =>
                 setMessages(prev =>
@@ -115,11 +120,6 @@ export default function StudentAiPanel({
                 )}
 
                 <div>
-                  {/* <div className="font-medium text-slate-800">
-                    練習表現分析
-                  </div> */}
-
-                  {/* 使用者選擇 */}
                   {msg.questions.length > 0 && (
                     <div className="font-medium text-slate-800">
                       分析項目：{msg.questions.join("、")}
@@ -141,7 +141,7 @@ export default function StudentAiPanel({
               )}
             </button>
 
-            {/* Message Body */}
+            {/* Body */}
             {!msg.collapsed && msg.content && (
               <div className="px-3 pb-3 text-slate-700 whitespace-pre-line">
                 {msg.content}

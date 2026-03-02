@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Plot from "react-plotly.js";
 import { supabase } from "@/lib/supabase";
 import dayjs from "dayjs";
+import { buildPolicyPracPrompt } from "@/lib/ai/buildPolicyPracPrompt";
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -40,6 +41,15 @@ type KPICompare = {
   baseline: KPI;
 };
 
+type PolicyExplainTarget =
+  | "overview"
+  | "development_index"
+  | "regional_gap"
+  | "gap_trend"
+  | "practice_trend"
+  | "effect_trend";
+
+
 export default function PolicyPrac() {
   /* =========================
      常數：顯示字串
@@ -72,6 +82,13 @@ export default function PolicyPrac() {
   const [baselineTrend, setBaselineTrend] = useState<CityTrendRow[]>([]); 
   const [viewMode, setViewMode] = useState<"day" | "week" | "month">("day");
   const [loading, setLoading] = useState(false);
+
+  /* =========================
+     AI助手
+  ========================= */
+  const [geminiLoading, setGeminiLoading] = useState(false);
+  const [geminiResult, setGeminiResult] = useState<string | null>(null);
+  const [showAI, setShowAI] = useState(false);
 
 
   /* =========================
@@ -648,6 +665,87 @@ const gapTrend = useMemo(() => {
   });
 }, [trend, baselineTrend]);
 
+/* =========================
+     AI 助手功能
+  ========================= */
+  const runPolicyAIForChart = async (chart: PolicyExplainTarget) => {
+  if (!kpiCurrent) return;
+
+  const chartLabel = POLICY_EXPLAIN_MAP[chart];
+
+  setGeminiLoading(true);
+
+  const prompt = buildPolicyPracPrompt({
+    city: selectedCity,
+    subject: selectedSubject,
+    period: periodLabel,
+    startDate: startDate ?? null,
+    endDate: endDate ?? null,
+
+    selectedCharts: [chart],
+
+    stats: {
+      totalStudents: kpiCurrent.total_students,
+      avgScore: kpiCurrent.avg_score_rate,
+      avgPracPerStudent: kpiCurrent.avg_prac_per_student,
+      schoolGap: kpiCurrent.school_score_std ?? null,
+    },
+  });
+
+  window.dispatchEvent(
+    new CustomEvent("policy-ai-update", {
+      detail: {
+        loading: true,
+        questions: [chartLabel],
+      },
+    })
+  );
+  
+  try {
+    const res = await fetch("/api/gemini", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt,
+        role: "policy",
+      }),
+    });
+
+    const data = await res.json();
+
+    window.dispatchEvent(
+      new CustomEvent("policy-ai-update", {
+        detail: {
+          loading: false,
+          content: data.text,
+        },
+      })
+    );
+  } catch (err) {
+    console.error("Policy AI error:", err);
+
+    window.dispatchEvent(
+      new CustomEvent("policy-ai-update", {
+        detail: {
+          loading: false,
+          content: "AI 分析失敗，請稍後再試。",
+        },
+      })
+    );
+  } finally {
+    setGeminiLoading(false);
+  }
+};
+
+const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
+  overview: "總覽練習概況",
+  development_index: "學力發展指標",
+  regional_gap: "區域學習差距",
+  gap_trend: "平均差距趨勢",
+  practice_trend: "練習投入趨勢",
+  effect_trend: "學習成效趨勢",
+};
+
 
 
 
@@ -711,10 +809,38 @@ const gapTrend = useMemo(() => {
           />
         </div>
 
+        {/* AI 分析按鈕 */}
+          <button
+            onClick={() => runPolicyAIForChart("overview")}
+            disabled={geminiLoading}
+            className={`
+              flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
+              transition shadow-sm
+              ${
+                geminiLoading
+                  ? "bg-slate-300 text-slate-600 cursor-not-allowed"
+                  : "bg-indigo-600 text-white hover:bg-indigo-700"
+              }
+            `}
+            >
+            {geminiLoading ? (
+              <>
+                <span className="animate-spin"></span>
+                分析中…
+              </>
+            ) : (
+              <>
+                總覽練習表現
+              </>
+            )}
+          </button>
+
         {/* 資料期間顯示 */}
         <div className="ml-auto text-xs text-slate-400 whitespace-nowrap">
           {periodLabel}
         </div>
+
+        
       </div>
 
       
@@ -926,6 +1052,7 @@ const gapTrend = useMemo(() => {
 
               {/* AI 分析按鈕 */}
               <button
+                onClick={() => runPolicyAIForChart("development_index")}
                 className="
                   flex items-center justify-center
                   w-8 h-8
@@ -1089,6 +1216,7 @@ const gapTrend = useMemo(() => {
 
               {/* AI 分析按鈕 */}
               <button
+                onClick={() => runPolicyAIForChart("regional_gap")}
                 className="
                   flex items-center justify-center
                   w-8 h-8
@@ -1100,6 +1228,7 @@ const gapTrend = useMemo(() => {
               >
                 <Bot className="w-5 h-5" />
               </button>
+
             </div>
           </CardHeader>
 
@@ -1254,6 +1383,7 @@ const gapTrend = useMemo(() => {
 
             {/* AI 分析按鈕 */}
               <button
+                onClick={() => runPolicyAIForChart("gap_trend")}
                 className="
                   flex items-center justify-center
                   w-8 h-8
@@ -1341,7 +1471,9 @@ const gapTrend = useMemo(() => {
               <TooltipProvider delayDuration={100}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button className="
+                    <button 
+                    onClick={() => runPolicyAIForChart("practice_trend")}
+                    className="
                         flex items-center justify-center
                         w-8 h-8
                         rounded-full
@@ -1377,6 +1509,7 @@ const gapTrend = useMemo(() => {
 
               {/* AI 分析按鈕 */}
               <button
+                onClick={() => runPolicyAIForChart("effect_trend")}
                 className="
                   flex items-center justify-center
                   w-8 h-8

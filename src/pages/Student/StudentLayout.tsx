@@ -18,6 +18,15 @@ export default function StudentLayout() {
   const [aiOpen, setAiOpen] = useState(true);
   const [infoOpen, setInfoOpen] = useState(false);
 
+  // 1. 新增一個 refreshKey 狀態
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // 2. 定義重整函數：每次點擊就讓 key 加 1
+  const handleContentRefresh = () => {
+    setRefreshKey(prev => prev + 1);
+  };
+
+
   /* =====================
      登入防呆
      ===================== */
@@ -44,53 +53,66 @@ export default function StudentLayout() {
         <header className="h-14 bg-white border-b flex items-center justify-between px-6">
 
           {/* =====================
-             Left: Title
-             ===================== */}
-          <div className="flex items-center gap-3">
-            {/* <Avatar className="h-10 w-10 border-0 border-white shadow-sm"> <AvatarImage src={studentAvatar} alt="學生頭像" /> </Avatar> */}
-            <div className="relative flex items-center gap-3">
-
-              {/* 學生名稱按鈕 */}
-
-              <span className="text-lg font-semibold text-slate-700">
-                學生
-              </span>
-
-              <button
-                onClick={() => setInfoOpen((v) => !v)}
-                className="flex items-center gap-2 px-3 py-1.5
-                          bg-slate-100 hover:bg-slate-200
-                          rounded-md text-sm font-medium 
-                          transition"
+              Left: Logo & Version
+          ===================== */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+              {/* Logo 圖示 (若需要可取消註釋)
+              <div className="w-12 h-12 flex items-center justify-center">
+                <img src={myLogo} alt="Logo" className="h-15 w-auto" />
+              </div> 
+              */}
+              
+              {/* Muti-Edu 點擊可重新整理頁面 */}
+              <button 
+                onClick={handleContentRefresh}
+                className="text-2xl font-bold text-black tracking-tight hover:opacity-70 transition-opacity focus:outline-none"
               >
-               {userSn}
+                Muti-Edu
               </button>
+            </div>
 
-              <span className="text-lg font-semibold text-slate-700">
-                學習儀表板
-              </span>
+            {/* 身份標籤 (包含 Tooltip 功能) */}
+            <div className="relative ml-2 group"> 
+              {/* 標籤主體 */}
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-sky-500/10 rounded-full border border-sky-500/20 cursor-default">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-800"></span>
+                
+                <span className="text-sm font-semibold text-sky-800">
+                  學生
+                </span>
+
+                {/* 使用者簡稱  */}
+                <span className="text-sm text-sky-800 font-semibold">
+                  {userSn}
+                </span>
+              </div>
 
               {/* 下拉資訊卡 */}
-              {infoOpen && userInfo && (
-                <div className="absolute top-12 left-0 w-80
-                                bg-white border rounded-lg shadow-xl
-                                p-4 text-sm text-slate-700 z-50">
-
+              {userInfo && (
+                <div className="absolute top-full mt-2 left-0 w-80 
+                                invisible opacity-0 group-hover:visible group-hover:opacity-100
+                                bg-[#e3e4e6] border rounded-lg shadow-xl
+                                p-4 text-sm text-slate-700 z-50
+                                transition-all duration-200 transform origin-top-left scale-95 group-hover:scale-100">
+                  
+                  {/* 資訊卡內容 */}
                   <div className="space-y-1 leading-relaxed">
                     <div className="font-mono text-xs text-slate-500">
-                      {userInfo.user_id}
+                      ID: {userInfo.user_id}
                     </div>
 
-                    <div className="font-mono text-s">
-                      {userInfo.city} {userInfo.organization_id} 國小 <br/>
+                    <div className="font-mono text-[13px] text-slate-800">
+                      <span className="font-bold">{userInfo.city}</span> {userInfo.organization_id} 國小 <br/>
                       {userInfo.grade} 年 {userInfo.class} 班
                     </div>
-
                   </div>
+
+                  {/* 小箭頭 (選用，增加視覺指引) */}
+                  <div className="absolute -top-1.5 left-6 w-3 h-3 bg-[#e3e4e6] border-t border-l rotate-45"></div>
                 </div>
               )}
             </div>
-
           </div>
 
           {/* =====================
@@ -127,11 +149,11 @@ export default function StudentLayout() {
           </div>
         </header>
 
-        {/* =====================
-           Page Content
-           ===================== */}
+        {/* ===================== Page Content ===================== */}
         <main className="flex-1 overflow-y-auto p-8">
-          <Outlet />
+          <div key={refreshKey} className="h-full">
+            <Outlet />
+          </div>
         </main>
       </div>
 
