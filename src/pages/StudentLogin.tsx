@@ -1,4 +1,4 @@
-// src/pages/Login.tsx
+// src/pages/StudentLogin.tsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -33,7 +33,7 @@ export default function Login() {
       const { data, error } = await supabase
         .from("user_data")
         .select("*")
-        .eq("user_sn", sn);
+        .eq("user_id", sn);
 
       if (error) {
         console.error("user 查詢失敗:", error);
@@ -57,9 +57,6 @@ export default function Login() {
       switch (user.role) {
         case "student":
           navigate("/student", { replace: true });
-          break;
-        case "teacher":
-          navigate("/teacher", { replace: true });
           break;
         
         default:
@@ -85,21 +82,24 @@ export default function Login() {
       </div>
 
       {/* --- 頂部 Logo 區 (模擬) --- */}
-      <div className="relative z-10 mb-4 flex flex-col items-center gap-2">
-        {/* 這裡模擬截圖中的 V 型 Logo */}
+      <div className="relative z-10 mb-2 flex flex-col items-center gap-2">
+        {/* 標題 */}
         <div className="flex items-center gap-3">
             <div className="text-[#3c6e71] font-bold text-center sm:text-center">
-                <h1 className="text-3xl sm:text-4xl tracking-wide drop-shadow-sm">多層級教育智慧儀表板</h1>
+                <h1 className="text-2xl sm:text-3xl tracking-wide drop-shadow-sm">多層級教育智慧儀表板</h1>
                 <p className="text-base sm:text-lg text-[#3c6e71]/80 tracking-wider mt-1">AI-Powered Multi-LOD Dashboard</p>
-            </div>
+            </div> 
         </div>
       </div>
 
       {/* --- 主要登入卡片 --- */}
       <Card className="relative z-10 w-full max-w-[450px] border-none bg-white/50 shadow-2xl backdrop-blur-md rounded-2xl overflow-hidden">
-        <CardHeader className="pb-4 pt-10">
-          <CardTitle className="text-center text-2xl sm:text-3xl font-bold tracking-widest text-[#2c5c60] drop-shadow-sm">
-            系統登入
+        
+        
+
+        <CardHeader className="pb-6 pt-8">
+          <CardTitle className="text-center text-2xl sm:text-3xl font-bold text-[#2c5c60] drop-shadow-sm">
+            學生系統登入
           </CardTitle>
            {/* 提示語 */}
            <div className="mt-4 px-8 text-sm sm:text-base text-red-600/80 text-center font-medium">
@@ -120,15 +120,15 @@ export default function Login() {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                     <Label 
                         htmlFor="userSn" 
-                        className="w-14 text-right font-medium text-[#2c5c60] text-base"
+                        className="w-18 text-right font-medium text-[#2c5c60] text-base"
                     >
-                        帳號
+                        學生帳號
                     </Label>
                     <Input
                         id="userSn"
                         type="text"
-                        placeholder="請輸入 user_sn"
-                        className="flex-1 bg-white/90 border-0 focus-visible:ring-2 focus-visible:ring-[#4ecdc4] h-10 shadow-inner"
+                        placeholder="請輸入 user_id"
+                        className="flex-1 bg-white/90 border-1 focus-visible:ring-2 focus-visible:ring-[#4ecdc4] h-10 shadow-inner"
                         value={userSnInput}
                         onChange={(e) => setUserSnInput(e.target.value)}
                     />
@@ -156,10 +156,12 @@ export default function Login() {
 
             {/* 測試帳號提示區 */}
             <div className="mt-2 pt-0 border-t border-white/30 space-y-1 text-center">
-                <p className="text-xs text-[#2c5c60]/80 font-bold mb-1">｜測試帳號｜</p>
+                <p className="text-xs text-[#2c5c60]/80 font-bold mb-1">｜測試帳號 ID｜</p>
                 <div className="flex justify-center gap-4 text-xs text-[#2c5c60]/70">
                     <span className="font-mono">
-                      S1c974 / S033bf / S083bc <br/>
+                      1c9747bb111f88d3cf38f5b168c3e3c8<br/>
+                      033bfaeae392b5eb3d430ee86f86952e<br/>
+                      083bc7148b0e08870728a56f7c0563db
                     </span>
                 </div>
             </div>

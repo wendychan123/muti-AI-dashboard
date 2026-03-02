@@ -7,7 +7,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { UserProvider } from "@/contexts/UserContext";
 
 import HomePage from "./pages/HomePage";
-import Login from "./pages/Login";
+import StudentLogin from "./pages/StudentLogin";
+import TeacherLogin from "./pages/TeacherLogin";
 import NotFound from "./pages/NotFound";
 
 /* ===== Student ===== */
@@ -24,6 +25,7 @@ import PolicyPrac from "./pages/Policy/PolicyPrac";
 
 const queryClient = new QueryClient();
 
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -34,10 +36,13 @@ export default function App() {
 
           <BrowserRouter>
             <Routes>
-
-              {/* ===== 首頁 ===== */}
+              {/* ===== 公共入口 ===== */}
               <Route path="/" element={<HomePage />} />
-              <Route path="/login" element={<Login />} />
+              
+              {/* ===== 登入路由拆分 ===== */}
+              {/* 原本的 /login 可以保留作為預設（導向學生）或直接移除 */}
+              <Route path="/student/login" element={<StudentLogin />} />
+              <Route path="/teacher/login" element={<TeacherLogin />} />
 
               {/* ============================= */}
               {/* ===== Student 區（需登入） ===== */}
@@ -45,6 +50,7 @@ export default function App() {
               <Route path="/student" element={<StudentLayout />}>
                 <Route index element={<Navigate to="practice" replace />} />
                 <Route path="practice" element={<StudentPrac />} />
+                {/* 如果在 StudentLayout 內沒登入，應導向 /student/login */}
               </Route>
 
               {/* ============================= */}
@@ -53,11 +59,11 @@ export default function App() {
               <Route path="/teacher" element={<TeacherLayout />}>
                 <Route index element={<Navigate to="practice" replace />} />
                 <Route path="practice" element={<TeacherPrac />} />
-                
+                {/* 如果在 TeacherLayout 內沒登入，應導向 /teacher/login */}
               </Route>
 
               {/* ============================= */}
-              {/* ===== PolicyMaker 區 ===== */}
+              {/* ===== PolicyMaker 區（不變） ===== */}
               {/* ============================= */}
               <Route path="/policymaker" element={<PolicyLayout />}>
                 <Route index element={<Navigate to="practice" replace />} />
@@ -66,7 +72,6 @@ export default function App() {
 
               {/* ===== 404 ===== */}
               <Route path="*" element={<NotFound />} />
-
             </Routes>
           </BrowserRouter>
 

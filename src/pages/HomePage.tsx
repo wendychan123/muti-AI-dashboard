@@ -25,9 +25,9 @@ const HomePage = () => {
     description: "作答練習狀況\n掌握校內學習成效與進度",
     icon: <BookOpen className="w-10 h-10 md:w-12 md:h-12 text-white" />,
     color: "bg-gradient-to-br from-teal-500 to-teal-600",
-    path: "/login",
-    requiresLogin: true,
-    isComingSoon: true,
+    path: "/teacher/login",
+    requiresLogin: true
+    // isComingSoon: true,
   },
   {
     id: "student",
@@ -35,7 +35,7 @@ const HomePage = () => {
     description: "個人練習表現\n獲取個人學習診斷與建議",
     icon: <GraduationCap className="w-10 h-10 md:w-12 md:h-12 text-white" />,
     color: "bg-gradient-to-br from-cyan-500 to-cyan-600",
-    path: "/login",
+    path: "/student/login",
     requiresLogin: true,
   },
 ];
@@ -150,11 +150,11 @@ const handleRoleClick = (role) => {
                       <h3 className="text-xl sm:text-2xl font-bold text-white mb-1 sm:mb-2">
                         {role.title}
                       </h3>
-                      {role.isComingSoon && (
+                      {/* {role.isComingSoon && (
                         <span className="inline-block mt-1 px-2 py-0.5 bg-black/30 backdrop-blur-md rounded text-xs text-white border border-white/20">
                           開發中
                         </span>
-                      )}
+                      )} */}
                     </div>
                     <div className="absolute top-3 right-3 sm:top-4 sm:right-4 w-12 h-12 sm:w-16 sm:h-16 bg-white/10 rounded-full"></div>
                     <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 w-6 h-6 sm:w-8 sm:h-8 bg-white/10 rounded-full"></div>

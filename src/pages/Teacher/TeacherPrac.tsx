@@ -3,7 +3,7 @@ import { useUserContext } from "@/contexts/UserContext";
 import { supabase } from "@/lib/supabase";
 import { Card } from "@/components/ui/card";
 
-interface StudentRow {
+interface TeacherRow {
   user_sn: string;
   organization_id: number;
   grade: number | null;
@@ -13,7 +13,7 @@ interface StudentRow {
 export default function TeacherPrac() {
   const { userInfo } = useUserContext();
 
-  const [students, setStudents] = useState<StudentRow[]>([]);
+  const [students, setStudents] = useState<TeacherRow[]>([]);
   const [loading, setLoading] = useState(false);
 
   /* =========================

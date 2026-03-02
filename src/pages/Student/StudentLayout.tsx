@@ -38,9 +38,7 @@ export default function StudentLayout() {
 
   if (!userSn) return null;
 
-  /* =====================
-     Icon size 統一控管
-     ===================== */
+  
   const ICON_SIZE = 18;
 
   return (
@@ -82,10 +80,10 @@ export default function StudentLayout() {
                   學生
                 </span>
 
-                {/* 使用者簡稱  */}
+                {/* 使用者簡稱  
                 <span className="text-sm text-sky-800 font-semibold">
                   {userSn}
-                </span>
+                </span> */}
               </div>
 
               {/* 下拉資訊卡 */}
@@ -98,14 +96,18 @@ export default function StudentLayout() {
                   
                   {/* 資訊卡內容 */}
                   <div className="space-y-1 leading-relaxed">
-                    <div className="font-mono text-xs text-slate-500">
-                      ID: {userInfo.user_id}
-                    </div>
 
-                    <div className="font-mono text-[13px] text-slate-800">
+                    <div className="font-mono text-[14px] text-slate-800">
                       <span className="font-bold">{userInfo.city}</span> {userInfo.organization_id} 國小 <br/>
                       {userInfo.grade} 年 {userInfo.class} 班
                     </div>
+
+                    <div className="font-mono text-[10px] text-slate-500">
+                      ID：{userInfo.user_id} <br/>
+                      OpenID：{userInfo.OpenID_sub}
+                    </div>
+
+                    
                   </div>
 
                   {/* 小箭頭 (選用，增加視覺指引) */}
