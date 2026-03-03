@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Plot from "react-plotly.js";
 import { supabase } from "@/lib/supabase";
 import { useUserContext } from "@/contexts/UserContext";
-import { buildPracPrompt } from "@/lib/ai/buildStudentPracPrompt";
+import { buildStudentPracPrompt } from "@/lib/ai/buildStudentPracPrompt";
 import dayjs from "dayjs";
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -764,7 +764,7 @@ const formatDateTime = (iso: string) => {
 const runAIForChart = async (chart: ExplainTarget) => {
   setGeminiLoading(true);
 
-  const prompt = buildPracPrompt({
+  const prompt = buildStudentPracPrompt({
     date: selectedDate,
     subject: selectedSubject,
     indicator: selectedIndicator,
@@ -776,11 +776,19 @@ const runAIForChart = async (chart: ExplainTarget) => {
       belowClassCount: belowClassAvgStats.count,
       reachedGoal: processedStats.reachedGoal,
     },
+
+    chartData: {
+      indicatorEffect: chart1Data.meta,
+      learningProcess: chart3Data,
+      indicatorGap: diffBarData
+    }
   });
 
   window.dispatchEvent(
     new CustomEvent("student-ai-update", {
-      detail: { loading: true }
+      detail: { 
+        loading: true,
+        questions: [EXPLAIN_LABEL_MAP[chart]], }
     })
   );
 
@@ -815,6 +823,102 @@ const runOverviewAI = () => {
   runAIForChart("daily_overview");
 };
 
+/* =========================
+   多圖整合 AI 監聽
+========================= */
+
+useEffect(() => {
+  const handler = async (e: Event) => {
+    const detail = (e as CustomEvent).detail;
+    if (!detail?.charts) return;
+
+    const chartLabels: string[] = detail.charts;
+
+    // 中文轉 ExplainTarget
+    const explainTargets: ExplainTarget[] = chartLabels
+      .map(label => LABEL_TO_EXPLAIN_KEY[label])
+      .filter(Boolean);
+
+    if (explainTargets.length === 0) return;
+
+    setGeminiLoading(true);
+
+    // 組合多圖 prompt
+    const prompt = buildStudentPracPrompt({
+      date: selectedDate,
+      subject: selectedSubject,
+      indicator: selectedIndicator,
+      selectedCharts: explainTargets, // ← 多圖
+      stats: {
+        avgScore: avgScoreCompare.studentAvg,
+        avgSpeedSec: Number(processedStats.avgSpeedSec),
+        totalCount: processedStats.count,
+        belowClassCount: belowClassAvgStats.count,
+        reachedGoal: processedStats.reachedGoal,
+      },
+
+      chartData: {
+          indicatorEffect: chart1Data.meta,
+          learningProcess: chart3Data,
+          indicatorGap: diffBarData
+        }
+    });
+
+    // 發送 loading 給 panel
+    window.dispatchEvent(
+      new CustomEvent("student-ai-update", {
+        detail: {
+          loading: true,
+          questions: chartLabels,
+        },
+      })
+    );
+
+    try {
+      const res = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          role: "student",
+        }),
+      });
+
+      const data = await res.json();
+
+      setGeminiResult(data.text);
+      setShowAI(true);
+      setGeminiLoading(false);
+
+      // 回傳結果給 Panel
+      window.dispatchEvent(
+        new CustomEvent("student-ai-update", {
+          detail: {
+            loading: false,
+            content: data.text,
+          },
+        })
+      );
+    } catch (err) {
+      console.error("Multi AI error:", err);
+      setGeminiLoading(false);
+    }
+  };
+
+  window.addEventListener("student-ai-multi-request", handler);
+
+  return () => {
+    window.removeEventListener("student-ai-multi-request", handler);
+  };
+}, [
+  selectedDate,
+  selectedSubject,
+  selectedIndicator,
+  avgScoreCompare,
+  processedStats,
+  belowClassAvgStats,
+]);
+
 
 const EXPLAIN_CHART_OPTIONS: {
   key: ExplainTarget;
@@ -828,7 +932,7 @@ const EXPLAIN_CHART_OPTIONS: {
   },
   {
     key: "indicator_effect",
-    label: "能力指標投入成效",
+    label: "能力指標投入",
     description: "各能力指標的練習次數與表現",
   },
   {
@@ -838,7 +942,7 @@ const EXPLAIN_CHART_OPTIONS: {
   },
   {
     key: "indicator_gap",
-    label: "能力指標差距分析",
+    label: "能力指標差距",
     description: "學生與該校平均的差距",
   },
 ];
@@ -847,6 +951,14 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
   Object.fromEntries(
     EXPLAIN_CHART_OPTIONS.map(opt => [opt.key, opt.label])
   ) as Record<ExplainTarget, string>;
+
+
+const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
+  "練習狀況表現": "daily_overview",
+  "能力指標投入": "indicator_effect",
+  "學習歷程表現": "learning_process",
+  "能力指標差距": "indicator_gap",
+};
 
 
 
@@ -1156,7 +1268,7 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
 
               {/* AI 分析按鈕 */}
               <button
-                onClick={() => runAIForChart("learning_process")}
+                onClick={() => runAIForChart("indicator_effect")}
                 className="
                   flex items-center justify-center
                   w-8 h-8
@@ -1333,7 +1445,7 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
 
               {/* AI 分析按鈕 */}
               <button
-                onClick={() => runAIForChart("indicator_effect")}
+                onClick={() => runAIForChart("learning_process")}
                 className="
                   flex items-center justify-center
                   w-8 h-8

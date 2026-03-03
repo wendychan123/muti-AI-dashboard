@@ -53,36 +53,7 @@ export default function TeacherPrac() {
      ========================= */
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-slate-800">
-        班級學生名單
-      </h2>
-
-      <p className="text-sm text-slate-500">
-        班級：{userInfo?.grade} 年 {userInfo?.class} 班
-      </p>
-
-      {loading && (
-        <div className="text-slate-500 text-sm">
-          載入學生名單中…
-        </div>
-      )}
-
-      {!loading && students.length === 0 && (
-        <div className="text-slate-400 text-sm">
-          目前尚無學生資料
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {students.map((stu) => (
-          <Card key={stu.user_sn} className="p-4">
-            <div className="text-sm text-slate-500">學生編號</div>
-            <div className="text-xl font-bold text-slate-800">
-              {stu.user_sn}
-            </div>
-          </Card>
-        ))}
-      </div>
+      
     </div>
   );
 }

@@ -739,12 +739,112 @@ const gapTrend = useMemo(() => {
 
 const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
   overview: "總覽練習概況",
-  development_index: "學力發展指標",
+  development_index: "練習診斷指標",
   regional_gap: "區域學習差距",
-  gap_trend: "平均差距趨勢",
-  practice_trend: "練習投入趨勢",
-  effect_trend: "學習成效趨勢",
+  gap_trend: "平均差距走勢",
+  practice_trend: "練習投入走勢",
+  effect_trend: "學習成效走勢",
 };
+
+/* =========================
+   監聽多圖整合分析（型別安全版本）
+========================= */
+useEffect(() => {
+  const handler = async (e: Event) => {
+    const detail = (e as CustomEvent<{ charts: string[] }>).detail;
+    if (!detail || !detail.charts?.length) return;
+    if (!kpiCurrent) return;
+
+    const selected: PolicyExplainTarget[] = detail.charts.filter(
+      (c): c is PolicyExplainTarget =>
+        c in POLICY_EXPLAIN_MAP
+    );
+
+    if (!selected.length) return;
+
+    setGeminiLoading(true);
+
+    const chartLabels = selected.map(
+      (c) => POLICY_EXPLAIN_MAP[c]
+    );
+
+    const prompt = buildPolicyPracPrompt({
+      city: selectedCity,
+      subject: selectedSubject,
+      period: periodLabel,
+      startDate: startDate ?? null,
+      endDate: endDate ?? null,
+
+      selectedCharts: selected, 
+
+      stats: {
+        totalStudents: kpiCurrent.total_students,
+        avgScore: kpiCurrent.avg_score_rate,
+        avgPracPerStudent: kpiCurrent.avg_prac_per_student,
+        schoolGap: kpiCurrent.school_score_std ?? null,
+      },
+    });
+
+    // 🔹 發送 loading
+    window.dispatchEvent(
+      new CustomEvent("policy-ai-update", {
+        detail: {
+          loading: true,
+          questions: chartLabels,
+        },
+      })
+    );
+
+    try {
+      const res = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          role: "policy",
+        }),
+      });
+
+      const data = await res.json();
+
+      // 🔹 發送完成
+      window.dispatchEvent(
+        new CustomEvent("policy-ai-update", {
+          detail: {
+            loading: false,
+            content: data.text,
+          },
+        })
+      );
+    } catch (err) {
+      console.error("Policy Multi AI error:", err);
+
+      window.dispatchEvent(
+        new CustomEvent("policy-ai-update", {
+          detail: {
+            loading: false,
+            content: "AI 整合分析失敗，請稍後再試。",
+          },
+        })
+      );
+    } finally {
+      setGeminiLoading(false);
+    }
+  };
+
+  window.addEventListener("policy-ai-multi-request", handler);
+
+  return () => {
+    window.removeEventListener("policy-ai-multi-request", handler);
+  };
+}, [
+  selectedCity,
+  selectedSubject,
+  startDate,
+  endDate,
+  periodLabel,
+  kpiCurrent,
+]);
 
 
 
@@ -1012,7 +1112,7 @@ const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
             {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold ">
-              學力發展指標
+              練習診斷指標
             </CardTitle>
 
             {/* 右側：按鈕群組 */}
@@ -1341,7 +1441,7 @@ const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
           />
       </Card>
 
-      {/* ===== 圖表 3：平均差距趨勢 ===== */}
+      {/* ===== 圖表 3：平均差距走勢 ===== */}
       <Card className="col-span-1 relative">
 
         {loading && (
@@ -1351,12 +1451,12 @@ const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
           </div>
         )}
 
-        <CardHeader className="flex flex-row items-start justify-between py-4 pb-2">
-          <div className="flex flex-col gap-1">
-            <CardTitle className="text-xl font-bold text-slate-800">
-              平均差距趨勢
+        <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
+            {/* 左側：標題 */}
+            <CardTitle className="text-xl font-bold ">
+              平均差距走勢
             </CardTitle>
-          </div>
+         
 
           <div className="flex items-center gap-1 mt-1">
             <TooltipProvider delayDuration={100}>
@@ -1450,7 +1550,7 @@ const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
       ========================= */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* ===== 圖表 1：練習投入趨勢 ===== */}
+        {/* ===== 圖表 1：練習投入走勢 ===== */}
         <Card className="col-span-1 relative">
           {loading && (
             <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
@@ -1462,7 +1562,7 @@ const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-6">
             {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold ">
-              練習投入趨勢
+              練習投入走勢
             </CardTitle>
 
             {/* 右側：按鈕群組 */}
@@ -1623,7 +1723,7 @@ const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
           </CardContent>
         </Card>
 
-        {/* ===== 圖表 2：成效趨勢 ===== */}
+        {/* ===== 圖表 2：學習成效走勢 ===== */}
         <Card className="col-span-1 relative">
           {loading && (
             <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
@@ -1635,7 +1735,7 @@ const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-6">
             {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold ">
-              學習成效趨勢
+              學習成效走勢
             </CardTitle>
             
 

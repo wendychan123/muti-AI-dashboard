@@ -2,10 +2,17 @@ import { useEffect, useState } from "react";
 import {
   X,
   Bot,
+  BarChart,
   ChevronDown,
   ChevronUp,
   CheckCircle2,
 } from "lucide-react";
+
+import type { PolicyExplainTarget } from "@/lib/ai/buildPolicyPracPrompt";
+
+/* =========================
+   Types
+========================= */
 
 interface AIEventPayload {
   questions?: string[];
@@ -21,12 +28,37 @@ interface AIMessage {
   collapsed: boolean;
 }
 
+/* =========================
+   Component
+========================= */
+
 export default function PolicyAIPanel({
   onClose,
 }: {
   onClose: () => void;
 }) {
   const [messages, setMessages] = useState<AIMessage[]>([]);
+  const [selectedCharts, setSelectedCharts] = useState<PolicyExplainTarget[]>([]);
+  const [toolOpen, setToolOpen] = useState(true);
+
+  /* =========================
+     圖表選項（強型別）
+  ========================= */
+
+  const chartOptions: {
+    id: PolicyExplainTarget;
+    label: string;
+  }[] = [
+    { id: "development_index", label: "練習診斷指標" },
+    { id: "regional_gap", label: "區域學習差距" },
+    { id: "gap_trend", label: "平均差距走勢" },
+    { id: "practice_trend", label: "練習投入走勢" },
+    { id: "effect_trend", label: "學習成效走勢" },
+  ];
+
+  /* =========================
+     監聽 AI 回傳（單圖 / 多圖共用）
+  ========================= */
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -74,10 +106,36 @@ export default function PolicyAIPanel({
       window.removeEventListener("policy-ai-update", handler);
   }, []);
 
+  /* =========================
+     多圖整合分析
+  ========================= */
+
+  const handleAnalysis = () => {
+    if (selectedCharts.length === 0) return;
+
+    window.dispatchEvent(
+      new CustomEvent("policy-ai-multi-request", {
+        detail: {
+          charts: selectedCharts,
+        },
+      })
+    );
+
+    // 分析後清空勾選
+    setSelectedCharts([]);
+
+    // 分析後自動收合工具區
+    setToolOpen(true);
+  };
+
+  /* =========================
+     UI
+  ========================= */
+
   return (
-    <aside className="w-[320px] h-full bg-white border-l flex flex-col shadow-sm">
+    <aside className="w-[320px] h-full bg-white border-l flex flex-col">
       {/* Header */}
-      <div className="h-14 flex items-center justify-between px-5 border-b">
+      <div className="h-14 flex items-center justify-between px-5">
         <div className="flex items-center gap-2 font-semibold text-slate-800">
           <Bot className="w-5 h-5 text-emerald-600" />
           AI 決策助手
@@ -87,7 +145,72 @@ export default function PolicyAIPanel({
         </button>
       </div>
 
-      {/* Content */}
+      {/* 分析工具區 */}
+      <div className="px-4">
+        <div className="border rounded-lg bg-emerald-50 text-xs">
+
+          {/* 標題列 */}
+          <button
+            onClick={() => setToolOpen(prev => !prev)}
+            className="w-full flex items-center justify-between px-3 py-3"
+          >
+            <div className="flex items-center gap-1 text-sm font-bold text-emerald-700">
+              <BarChart className="w-4 h-4 text-emerald-600" />
+              選擇要分析的圖表
+              {selectedCharts.length > 0 && (
+                <span className="ml-2 text-xs font-normal">
+                  （已選 {selectedCharts.length} 項）
+                </span>
+              )}
+            </div>
+
+            {toolOpen ? (
+              <ChevronUp className="w-4 h-4 text-emerald-600" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-emerald-600" />
+            )}
+          </button>
+
+          {/* 勾選區 */}
+          {toolOpen && (
+            <div className="px-3 pb-3 space-y-2">
+              {chartOptions.map(option => (
+                <label
+                  key={option.id}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedCharts.includes(option.id)}
+                    onChange={() =>
+                      setSelectedCharts(prev =>
+                        prev.includes(option.id)
+                          ? prev.filter(c => c !== option.id)
+                          : [...prev, option.id]
+                      )
+                    }
+                  />
+                  {option.label}
+                </label>
+              ))}
+
+              <button
+                onClick={handleAnalysis}
+                disabled={selectedCharts.length === 0}
+                className={`w-full mt-2 py-1 rounded text-white transition ${
+                  selectedCharts.length === 0
+                    ? "bg-slate-300 cursor-not-allowed"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                }`}
+              >
+                開始分析
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 訊息區 */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 text-sm">
         {messages.length === 0 && (
           <div className="text-slate-400 text-center mt-10">
@@ -96,10 +219,10 @@ export default function PolicyAIPanel({
         )}
 
         {messages.map(msg => (
-          <div key={msg.id} 
-          className="border rounded-lg bg-slate-50"
+          <div
+            key={msg.id}
+            className="border rounded-lg bg-slate-50"
           >
-            {/* Header */}
             <button
               onClick={() =>
                 setMessages(prev =>
@@ -122,7 +245,8 @@ export default function PolicyAIPanel({
                 <div>
                   {msg.questions.length > 0 && (
                     <div className="font-medium text-slate-800">
-                      分析項目：{msg.questions.join("、")}
+                      【分析項目】<br />
+                      {msg.questions.join("、")}
                     </div>
                   )}
 
@@ -141,7 +265,6 @@ export default function PolicyAIPanel({
               )}
             </button>
 
-            {/* Body */}
             {!msg.collapsed && msg.content && (
               <div className="px-3 pb-3 text-slate-700 whitespace-pre-line">
                 {msg.content}

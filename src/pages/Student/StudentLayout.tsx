@@ -73,10 +73,10 @@ export default function StudentLayout() {
             {/* 身份標籤 (包含 Tooltip 功能) */}
             <div className="relative ml-2 group"> 
               {/* 標籤主體 */}
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-sky-500/10 rounded-full border border-sky-500/20 cursor-default">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-800"></span>
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 rounded-full border border-blue-500/20 cursor-default">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-700"></span>
                 
-                <span className="text-sm font-semibold text-sky-800">
+                <span className="text-sm font-semibold text-blue-700">
                   學生
                 </span>
 
