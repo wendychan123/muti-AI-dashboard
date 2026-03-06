@@ -1,7 +1,7 @@
 // src/pages/StudentLayout.tsx
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import StudentAIPanel from "@/pages/Student/StudentAIPanel";
+import StudentAIPanel from "@/pages/Student/StudentAPanel";
 import { Avatar, AvatarImage, AvatarFallback, } from "@/components/ui/avatar";
 import studentAvatar from "@/assets/student-avatar.jpg";
 import {
