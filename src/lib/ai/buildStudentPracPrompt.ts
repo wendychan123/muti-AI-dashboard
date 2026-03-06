@@ -13,6 +13,8 @@ interface BuildPracPromptParams {
   };
 
   chartData?: {
+    practiceTrend?: any;    // 練習投入走勢 (時間與次數)
+    scoreTrend?: any;       // 學習成效走勢 (正確率變化)
     indicatorEffect?: any;
     learningProcess?: any;
     indicatorGap?: any;
@@ -34,13 +36,17 @@ export function buildStudentPracPrompt(params: BuildPracPromptParams): string {
   const chartDescriptions = selectedCharts
     .map(c => {
       if (c === "daily_overview")
-        return "總覽練習概況（投入時間與正確率整體表現）";
+        return "總覽練習概況";
       if (c === "indicator_effect")
-        return "能力指標投入成效（練習次數與表現分布）";
+        return "能力指標投入";
       if (c === "learning_process")
-        return "學習歷程表現（速度 × 正確率四象限）";
+        return "學習歷程表現";
       if (c === "indicator_gap")
-        return "能力指標差距分析（與班級平均差距）";
+        return "能力指標差距）";
+      if (c === "practice_trend")
+        return "練習投入走勢）";
+      if (c === "score_trend")
+        return "學習成效走勢";
       return c;
     })
     .map(t => `- ${t}`)
@@ -61,6 +67,7 @@ export function buildStudentPracPrompt(params: BuildPracPromptParams): string {
 嚴禁逐張圖分開解釋。
 每一個重點都必須同時引用至少兩張圖的資訊。
 `;
+
 
   return `
 你是一位「學習助教」，正在對使用者說明他的學習分析結果。
@@ -110,20 +117,24 @@ ${JSON.stringify(chartData ?? {}, null, 2)}
 
 ｜圖表重點發現
 •（列出 2–3 點）
-
-${chartCount === 1
-  ? "◦ 請深入說明這張圖呈現的學習現象與原因"
-  : "◦ 每一點都必須同時提及至少兩張圖的關聯"}
+（發現一：關於趨勢或規律）
+${chartCount === 1 ? "  ◦ 深入解析此圖表的關鍵數據點" : "  ◦ 結合兩張圖表說明其中的關聯或因果"}
+（發現二：關於表現或落差）
+  ◦ 說明數據反映出的具體現象
 
 ｜學習優勢與需要注意的地方
 學習優勢：
-◦ 說明你目前較好的表現與原因
+◦ 根據數據指出表現最穩定或優於平均的地方並說明原因
 需要注意的地方：
-◦ 明確指出你可以再加強的地方
+◦ 指出數據中波動較大或低於預期的部分，明確指出可以再加強的地方
 
 ｜具體行動建議
 •（列出 2–3 點）
 ◦ 使用「動作 + 目的」句型
+（建議一：針對學習規律）
+  ◦ 動作 + 目的（例如：固定在週二增加練習，以穩定正確率）
+（建議二：針對弱項加強）
+  ◦ 動作 + 目的（例如：針對差距較大的能力指標進行複習）
 ◦ 必須對應前面提到的分析發現
 
 請保留標題格式，直接輸出內容。

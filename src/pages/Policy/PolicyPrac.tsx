@@ -42,7 +42,7 @@ type KPICompare = {
 };
 
 type PolicyExplainTarget =
-  | "overview"
+  | "policy_overview"
   | "development_index"
   | "regional_gap"
   | "gap_trend"
@@ -738,7 +738,7 @@ const gapTrend = useMemo(() => {
 };
 
 const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
-  overview: "總覽練習概況",
+  policy_overview: "總覽練習概況",
   development_index: "練習診斷指標",
   regional_gap: "區域學習差距",
   gap_trend: "平均差距走勢",
@@ -856,7 +856,7 @@ useEffect(() => {
   return (
     <div className="min-h-screen p-0 space-y-4">
       {/* ===== 篩選器列 ===== */}
-      <div className="flex flex-wrap items-center gap-4 p-3 ">
+      <div className="flex flex-wrap items-center gap-2 p-3 ">
         <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
           <Filter className="w-4 h-4" />
         </div>
@@ -911,7 +911,7 @@ useEffect(() => {
 
         {/* AI 分析按鈕 */}
           <button
-            onClick={() => runPolicyAIForChart("overview")}
+            onClick={() => runPolicyAIForChart("policy_overview")}
             disabled={geminiLoading}
             className={`
               flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
@@ -1166,7 +1166,6 @@ useEffect(() => {
               </button>
             </div>
           </CardHeader>
-
               <Plot
                 data={[
                   {
@@ -1586,7 +1585,7 @@ useEffect(() => {
                       <HelpCircle className="w-5 h-5" />
                     </button>
                   </TooltipTrigger>
-                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f4fafb] shadow-xl border-slate-200 text-slate-700 z-50">
+                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f4fafb] shadow-xl border-emerald-200 text-slate-700 z-50">
                       <div className="space-y-3">
                         <p className="font-bold border-b pb-1 text-emerald-700">圖表計算說明：</p>
                         <ul className="text-xs space-y-2 list-disc pl-4">
@@ -1758,7 +1757,7 @@ useEffect(() => {
                       <HelpCircle className="w-5 h-5" />
                     </button>
                   </TooltipTrigger>
-                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f4fafb] shadow-xl border-slate-200 text-slate-700 z-50">
+                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f4fafb] shadow-xl border-emerald-200 text-slate-700 z-50">
                       <div className="space-y-3">
                         <p className="font-bold border-b pb-1 text-emerald-700">圖表計算說明：</p>
                         <ul className="text-xs space-y-2 list-disc pl-4">

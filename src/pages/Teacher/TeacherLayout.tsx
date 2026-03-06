@@ -1,9 +1,9 @@
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { Outlet, NavLink, useNavigate, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import TeacherAIPanel from "@/pages/Teacher/TeacherAIPanel";
 import { Avatar, AvatarImage, AvatarFallback, } from "@/components/ui/avatar";
-import studentAvatar from "@/assets/student-avatar.jpg";
 import {
+  SchoolIcon,
   BarChart3,
   Sparkles,
   Bot,
@@ -13,42 +13,43 @@ import { useUserContext } from "@/contexts/UserContext";
 
 export default function TeacherLayout() {
   const navigate = useNavigate();
-  const { userSn, role, userInfo } = useUserContext();
+  // 1. 引入 isLoading
+  const { userSn, role, userInfo, isLoading, logout } = useUserContext();
 
   const [aiOpen, setAiOpen] = useState(true);
   const [infoOpen, setInfoOpen] = useState(false);
-
-  // 1. 新增一個 refreshKey 狀態
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // 2. 定義重整函數：每次點擊就讓 key 加 1
   const handleContentRefresh = () => {
     setRefreshKey(prev => prev + 1);
   };
 
   /* =====================
-     登入
+     登入與權限保護邏輯
      ===================== */
-  useEffect(() => {
-    if (!userSn) {
-      navigate("/login", { replace: true });
-      return;
-    }
+  
+  // 2. 處理載入中：防止重新整理時 state 暫時為 null 導致被剔除
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-[#f9f8fc]">
+        <div className="flex flex-col items-center gap-2">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+          <span className="text-sm text-violet-600 font-medium">系統讀取中...</span>
+        </div>
+      </div>
+    );
+  }
 
-    if (role !== "teacher") {
-      navigate("/", { replace: true });
-    }
-  }, [userSn, role, navigate]);
-
-  // 尚未初始化完成時不 render（避免閃爍）
+  // 3. 確定載入完成後，判斷是否有權限
+  // 如果沒登入，導向 /teacher/login (依照你的 App.tsx 路徑)
   if (!userSn || !userInfo || role !== "teacher") {
-    return null;
+    return <Navigate to="/teacher/login" replace />;
   }
 
   const ICON_SIZE = 18;
 
   return (
-    <div className="flex h-screen w-full bg-[#f8fafc] overflow-hidden">
+    <div className="flex h-screen w-full bg-[#f9f8fc] overflow-hidden">
       <div className="flex-1 flex flex-col min-w-0">
 
         {/* =====================
@@ -61,11 +62,6 @@ export default function TeacherLayout() {
           ===================== */}
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2">
-              {/* Logo 圖示 (若需要可取消註釋)
-              <div className="w-12 h-12 flex items-center justify-center">
-                <img src={myLogo} alt="Logo" className="h-15 w-auto" />
-              </div> 
-              */}
               
               {/* Muti-Edu 點擊可重新整理頁面 */}
               <button 
@@ -85,34 +81,12 @@ export default function TeacherLayout() {
                 <span className="text-sm font-semibold text-violet-800"> 教師 </span>
 
               </div>
-
-              {/* 下拉資訊卡 */}
-              {userInfo && (
-                <div className="absolute top-full mt-2 left-0 w-80 
-                                invisible opacity-0 group-hover:visible group-hover:opacity-100
-                                bg-[#e3e4e6] border rounded-lg shadow-xl
-                                p-4 text-sm text-slate-700 z-50
-                                transition-all duration-200 transform origin-top-left scale-95 group-hover:scale-100">
-                  
-                  {/* 資訊卡內容 */}
-                  <div className="space-y-1 leading-relaxed">
-
-                    <div className="font-mono text-[14px] text-slate-800">
-                      <span className="font-bold">{userInfo.city}</span> {userInfo.organization_id} 國小 <br/>
-                    </div>
-                 
-                  </div>
-
-                  {/* 小箭頭 (選用，增加視覺指引) */}
-                  <div className="absolute -top-1.5 left-6 w-3 h-3 bg-[#e3e4e6] border-t border-l rotate-45"></div>
-                </div>
-              )}
             </div>
 
-
-            <span className="text-sm font-semibold text-violet-800 opacity-80">{userInfo.city}</span> 
-            <span className="text-sm font-semibold text-violet-800 opacity-80">{userInfo.organization_id} 國小</span>
-
+  
+              <span className="text-base font-semibold text-violet-800 opacity-80">{userInfo.city}</span>
+              <span className="text-base font-semibold text-violet-800 opacity-80">{userInfo.organization_id} 國小</span>
+            
           </div>
 
           {/* =====================
@@ -150,7 +124,7 @@ export default function TeacherLayout() {
         </header>
 
         {/* ===================== Page Content ===================== */}
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="flex-1 overflow-y-auto p-4">
           <div key={refreshKey} className="h-full">
             <Outlet />
           </div>

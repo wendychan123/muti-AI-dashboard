@@ -1,5 +1,16 @@
 import { useEffect, useState } from "react";
-import { X, Sparkles, Bot, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import {
+  X,
+  Bot,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle2,
+  BarChart,
+} from "lucide-react";
+
+/* =========================
+   Types
+========================= */
 
 interface AIEventPayload {
   questions?: string[];
@@ -15,12 +26,41 @@ interface AIMessage {
   collapsed: boolean;
 }
 
-export default function StudentAiPanel({
+
+/* =========================
+   Component
+========================= */
+
+export default function TeacherAIPanel({
   onClose,
 }: {
   onClose: () => void;
 }) {
+  /* =========================
+     State
+  ========================= */
+
   const [messages, setMessages] = useState<AIMessage[]>([]);
+  const [selectedCharts, setSelectedCharts] = useState<string[]>([]);
+  const [toolOpen, setToolOpen] = useState(true);
+
+  /* =========================
+     可選圖表
+  ========================= */
+
+  const chartOptions = [
+    { id: "diagnostic", label: "教學診斷指標" },
+    { id: "participation", label: "作答參與度" },
+    { id: "practice_trend", label: "練習投入走勢" },
+    { id: "performance_trend", label: "學習成效走勢" },
+    { id: "proficiency", label: "能力指標精熟度" },
+    { id: "student_risk", label: "高風險學生與弱點指標" },
+  ];
+
+
+  /* =========================
+     監聽 teacher-ai-update
+  ========================= */
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -28,7 +68,7 @@ export default function StudentAiPanel({
       if (!detail) return;
 
       setMessages(prev => {
-        // 如果是 loading → 新增一筆
+        // Loading → 新增一筆
         if (detail.loading) {
           return [
             {
@@ -41,52 +81,143 @@ export default function StudentAiPanel({
           ];
         }
 
-        // 如果是完成 → 更新最新一筆
+        // 完成 → 更新最新 loading
         if (detail.loading === false && detail.content) {
-            const index = prev.findIndex(m => m.status === "loading");
+          const index = prev.findIndex(m => m.status === "loading");
+          if (index === -1) return prev;
 
-            if (index === -1) return prev;
-
-            return prev.map((m, i) =>
-                i === index
-                ? {
-                    ...m,
-                    status: "done",
-                    content: detail.content,
-                    }
-                : m
-            );
-            }
-
+          return prev.map((m, i) =>
+            i === index
+              ? {
+                  ...m,
+                  status: "done",
+                  content: detail.content,
+                }
+              : m
+          );
+        }
 
         return prev;
       });
     };
 
-    window.addEventListener("student-ai-update", handler);
+    window.addEventListener("teacher-ai-update", handler);
     return () =>
-      window.removeEventListener("student-ai-update", handler);
+      window.removeEventListener("teacher-ai-update", handler);
   }, []);
+
+  /* =========================
+     多圖分析觸發
+  ========================= */
+
+  const handleAnalysis = () => {
+    if (selectedCharts.length === 0) return;
+
+    window.dispatchEvent(
+      new CustomEvent("teacher-ai-multi-request", {
+        detail: {
+          charts: selectedCharts,
+        },
+      })
+    );
+
+    // 分析後清空勾選
+    setSelectedCharts([]);
+  };
+
+  /* =========================
+     UI
+  ========================= */
 
   return (
     <aside className="w-[320px] h-full bg-white border-l flex flex-col">
       {/* Header */}
-      <div className="h-14 flex items-center justify-between px-5">
-        <div className="flex items-center gap-2 font-semibold text-slate-800">
-          <Bot className="w-5 h-5 text-violet-600" />
-          AI 學習助手
+      <div className="h-14 flex items-center justify-between px-5 ">
+        <div className="flex items-center justify-center gap-2 font-semibold text-slate-800 w-full">
+          AI 教學助手
         </div>
         <button onClick={onClose}>
           <X className="w-5 h-5 text-slate-500 hover:text-slate-800" />
         </button>
       </div>
 
-      {/* Content */}
+      {/* 分析工具（可收合） */}
+      <div className="px-4">
+        <div className="border rounded-lg bg-violet-50 text-xs">
+
+          {/* Header（可點擊收合） */}
+          <button
+            onClick={() => setToolOpen(prev => !prev)}
+            className="w-full flex items-center justify-between px-3 py-3"
+          >
+            <div className="flex items-center gap-1 text-xs font-bold text-violet-700">
+              <BarChart className="w-4 h-4 text-violet-600" />
+              選擇要分析的圖表
+              {selectedCharts.length > 0 && (
+                <span className="ml-2 text-xs text-violet-600 font-normal">
+                  （已選 {selectedCharts.length} 項）
+                </span>
+              )}
+            </div>
+
+            {toolOpen ? (
+              <ChevronUp className="w-4 h-4 text-violet-600" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-violet-600" />
+            )}
+          </button>
+
+          {/* Content */}
+          {toolOpen && (
+            <div className="px-3 pb-3 space-y-2">
+
+              {chartOptions.map(option => (
+                <label
+                  key={option.id}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"                    
+                    className="rounded border-gray-300 text-violet-600 focus:ring-violet-500 accent-violet-600 cursor-pointer"
+                    checked={selectedCharts.includes(option.id)}
+                    onChange={() =>
+                      setSelectedCharts(prev =>
+                        prev.includes(option.id)
+                          ? prev.filter(c => c !== option.id)
+                          : [...prev, option.id]
+                      )
+                    }
+                  />
+                  {option.label}
+                </label>
+              ))}
+
+              <button
+                onClick={handleAnalysis}
+                disabled={selectedCharts.length === 0}
+                className={`w-full mt-2 py-1 rounded text-white transition ${
+                  selectedCharts.length === 0
+                    ? "bg-slate-300 cursor-not-allowed"
+                    : "bg-violet-600 hover:bg-violet-700"
+                }`}
+              >
+                開始分析
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 訊息列表 */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 text-sm">
-        {messages.length === 0 && (
-          <div className="text-slate-400 text-center mt-10">
-            尚未產生 AI 分析
+         {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-40 text-slate-400">
+            <Bot className="w-10 h-10 mb-2 opacity-20" />
+            <p className="text-xs">請勾選圖表（可複選）</p>
+            <p className="text-xs">或點擊圖表旁的機器人圖示</p>
+            <p className="text-xs">開始分析</p>
           </div>
+
         )}
 
         {messages.map(msg => (
@@ -94,7 +225,7 @@ export default function StudentAiPanel({
             key={msg.id}
             className="border rounded-lg bg-slate-50"
           >
-            {/* Message Header */}
+            {/* Header */}
             <button
               onClick={() =>
                 setMessages(prev =>
@@ -109,7 +240,7 @@ export default function StudentAiPanel({
             >
               <div className="flex items-start gap-2 text-left">
                 {msg.status === "done" ? (
-                  <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5" />
+                  <CheckCircle2 className="w-4 h-4 text-violet-600 mt-0.5" />
                 ) : (
                   <span className="animate-pulse text-slate-400">⏳</span>
                 )}
@@ -117,7 +248,8 @@ export default function StudentAiPanel({
                 <div>
                   {msg.questions.length > 0 && (
                     <div className="font-medium text-slate-800">
-                      分析項目：{msg.questions.join("、")}
+                      【分析項目】<br />
+                      {msg.questions.join("、")}
                     </div>
                   )}
 
@@ -136,9 +268,9 @@ export default function StudentAiPanel({
               )}
             </button>
 
-            {/* Message Body */}
+            {/* Body */}
             {!msg.collapsed && msg.content && (
-              <div className="px-3 pb-3 text-slate-700 whitespace-pre-line">
+              <div className="px-4 pb-3 text-slate-700 whitespace-pre-line">
                 {msg.content}
               </div>
             )}

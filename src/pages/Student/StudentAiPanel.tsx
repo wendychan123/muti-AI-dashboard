@@ -49,6 +49,8 @@ export default function StudentAiPanel({
 
   const chartOptions = [
     { id: "總覽", label: "練習狀況表現" },
+    { id: "投入走勢", label: "練習投入走勢" }, 
+    { id: "成效走勢", label: "學習成效走勢" },
     { id: "投入", label: "能力指標投入" },
     { id: "歷程", label: "學習歷程表現" },
     { id: "差距", label: "能力指標差距" },
@@ -65,7 +67,7 @@ export default function StudentAiPanel({
       if (!detail) return;
 
       setMessages(prev => {
-        // 🔹 Loading → 新增一筆
+        // Loading → 新增一筆
         if (detail.loading) {
           return [
             {
@@ -130,9 +132,8 @@ export default function StudentAiPanel({
     <aside className="w-[320px] h-full bg-white border-l flex flex-col">
       {/* Header */}
       <div className="h-14 flex items-center justify-between px-5 ">
-        <div className="flex items-center gap-2 font-semibold text-slate-800">
-          <Bot className="w-5 h-5 text-blue-600" />
-          AI 學習助手
+        <div className="flex items-center justify-center gap-2 font-semibold text-slate-800 w-full">
+         AI 學習助手
         </div>
         <button onClick={onClose}>
           <X className="w-5 h-5 text-slate-500 hover:text-slate-800" />
@@ -176,6 +177,7 @@ export default function StudentAiPanel({
                 >
                   <input
                     type="checkbox"
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 accent-blue-600 cursor-pointer"
                     checked={selectedCharts.includes(option.label)}
                     onChange={() =>
                       setSelectedCharts(prev =>
@@ -208,8 +210,11 @@ export default function StudentAiPanel({
       {/* 訊息列表 */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 text-sm">
         {messages.length === 0 && (
-          <div className="text-slate-400 text-center mt-10">
-            尚未產生 AI 分析
+          <div className="flex flex-col items-center justify-center h-40 text-slate-400">
+            <Bot className="w-10 h-10 mb-2 opacity-20" />
+            <p className="text-xs">請勾選圖表（可複選）</p>
+            <p className="text-xs">或點擊圖表旁的機器人圖示</p>
+            <p className="text-xs">開始分析</p>
           </div>
         )}
 

@@ -1,23 +1,54 @@
 // src/pages/StudentLogin.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GraduationCap, User  } from "lucide-react";
+import { Bot } from "lucide-react";
 
 import { useUserContext } from "@/contexts/UserContext";
 import { supabase } from "@/lib/supabase";
-import educationBg from "@/assets/education-bg.jpg";
 
 export default function Login() {
   const navigate = useNavigate();
   const { setUserSn, setRole, setUserInfo } = useUserContext();
 
+  // 1. 預設填入第一個常用 ID
   const [userSnInput, setUserSnInput] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  // 2. 存放從資料庫抓取的學生 ID 列表
+  const [studentList, setStudentList] = useState<string[]>([]);
+  const [fetchingList, setFetchingList] = useState(false);
+
+  /* =====================
+     自動抓取學生列表
+     ===================== */
+  useEffect(() => {
+    const fetchStudentIds = async () => {
+      setFetchingList(true);
+      try {
+        const { data, error } = await supabase
+          .from("user_data")
+          .select("user_id")
+          .eq("role", "student"); 
+
+        if (!error && data) {
+          // 提取 user_id 並過濾掉重複或空值
+          const ids = data.map((item: any) => item.user_id).filter(Boolean);
+          setStudentList(ids);
+        }
+      } catch (err) {
+        console.error("無法取得學生列表:", err);
+      } finally {
+        setFetchingList(false);
+      }
+    };
+
+    fetchStudentIds();
+  }, []);
 
   /* =====================
      登入處理（Supabase）
@@ -29,7 +60,6 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // 查 user table（不用 single，避免異常資料直接 throw）
       const { data, error } = await supabase
         .from("user_data")
         .select("*")
@@ -41,27 +71,20 @@ export default function Login() {
         return;
       }
 
-      if (!data) {
-        alert("查無此使用者編號（user_sn）");
+      if (!data || data.length === 0) {
+        alert("查無此使用者 (user_id)");
         return;
       }
 
       const user = data[0];
-
-      // 寫入 UserContext（一次完成）
       setUserSn(user.user_sn);
       setRole(user.role);
       setUserInfo(user);
 
-      // 依角色導向正確的 Layout
-      switch (user.role) {
-        case "student":
-          navigate("/student", { replace: true });
-          break;
-        
-        default:
-          console.warn("未知角色:", user.role);
-          alert("使用者角色異常，請聯絡管理者");
+      if (user.role === "student") {
+        navigate("/student", { replace: true });
+      } else {
+        alert("使用者角色錯誤");
       }
     } finally {
       setLoading(false);
@@ -69,7 +92,9 @@ export default function Login() {
   };
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-[#d0f0f2] flex flex-col items-center justify-center p-4">
+    <div className="relative min-h-screen w-full overflow-hidden bg-[#d0f0f2] flex flex-col items-center justify-center p-4 font-sans">
+      
+      {/* 背景裝飾線條 */}
       {/* --- 背景裝飾 (模擬截圖中的白色線條) --- */}
       <div className="absolute inset-0 pointer-events-none">
          {/* 大 V 形線條 1 */}
@@ -81,33 +106,27 @@ export default function Login() {
         <div className="absolute top-[-10%] right-[15%] w-[1px] h-[120vh] bg-white/30 transform skew-x-[25deg]" />
       </div>
 
-      {/* --- 頂部 Logo 區 (模擬) --- */}
-      <div className="relative z-10 mb-2 flex flex-col items-center gap-2">
-        {/* 標題 */}
-        <div className="flex items-center gap-3">
-            <div className="text-[#3c6e71] font-bold text-center sm:text-center">
-                <h1 className="text-2xl sm:text-3xl tracking-wide drop-shadow-sm">多層級教育智慧儀表板</h1>
-                <p className="text-base sm:text-lg text-[#3c6e71]/80 tracking-wider mt-1">AI-Powered Multi-LOD Dashboard</p>
-            </div> 
+
+      {/* 標題區 */}
+      <div className="relative z-10 mb-6 flex flex-col items-center gap-2">
+        <div className="text-[#3c6e71] font-bold text-center">
+          <h1 className="text-2xl sm:text-3xl tracking-wide drop-shadow-sm">多層級教育智慧儀表板</h1>
+          <p className="text-sm sm:text-base text-[#3c6e71]/70 tracking-wider mt-1 uppercase">AI-Powered Multi-LOD Dashboard</p>
         </div>
       </div>
 
-      {/* --- 主要登入卡片 --- */}
-      <Card className="relative z-10 w-full max-w-[450px] border-none bg-white/50 shadow-2xl backdrop-blur-md rounded-2xl overflow-hidden">
-        
-        
-
-        <CardHeader className="pb-6 pt-8">
-          <CardTitle className="text-center text-2xl sm:text-3xl font-bold text-[#2c5c60] drop-shadow-sm">
+      {/* 登入卡片 */}
+      <Card className="relative z-10 w-full max-w-[450px] border-none bg-white/40 shadow-2xl backdrop-blur-md rounded-2xl overflow-hidden">
+        <CardHeader className="pb-6 pt-8 text-center">
+          <CardTitle className="ext-center text-2xl sm:text-3xl font-bold text-[#2c5c60] drop-shadow-sm">
             學生系統登入
           </CardTitle>
-           {/* 提示語 */}
-           <div className="mt-4 px-8 text-sm sm:text-base text-red-600/80 text-center font-medium">
-            請輸入測試帳號以進入系統
+          <div className="mt-4 px-8 text-sm text-red-600/80 text-center font-medium">
+            請輸入或選擇測試帳號進入系統
           </div>
         </CardHeader>
 
-        <CardContent className="px-6 pb-8 pt-2">
+        <CardContent className="px-8 pb-8 pt-2">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -115,58 +134,83 @@ export default function Login() {
             }}
             className="space-y-6"
           >
-            {/* 模仿截圖的表單樣式：Label 在左，Input 在右 */}
             <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                    <Label 
-                        htmlFor="userSn" 
-                        className="w-18 text-right font-medium text-[#2c5c60] text-base"
-                    >
-                        學生帳號
-                    </Label>
-                    <Input
-                        id="userSn"
-                        type="text"
-                        placeholder="請輸入 user_id"
-                        className="flex-1 bg-white/90 border-1 focus-visible:ring-2 focus-visible:ring-[#4ecdc4] h-10 shadow-inner"
-                        value={userSnInput}
-                        onChange={(e) => setUserSnInput(e.target.value)}
-                    />
-                </div>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                <Label htmlFor="userid" className="sm:w-25 sm:text-right font-bold text-[#2c5c60]">
+                  學生帳號
+                </Label>
+                <Input
+                  id="userSn"
+                  type="text"
+                  placeholder="請輸入 user_id"
+                  className="flex-1 bg-white/80 border-slate-200 focus-visible:ring-[#4ecdc4] h-11"
+                  value={userSnInput}
+                  onChange={(e) => setUserSnInput(e.target.value)}
+                />
+              </div>
             </div>
 
-            <div className="space-y-3 pt-2">
-                <Button
+            <div className="space-y-3 ">
+              <Button
                 type="submit"
                 disabled={!userSnInput.trim() || loading}
-                className="w-full bg-[#45c7c1] hover:bg-[#3bbeb8] text-white font-bold py-5 text-lg rounded shadow-md transition-all active:scale-[0.98]"
-                >
+                className="w-full bg-[#45c7c1] hover:bg-[#3bbeb8] text-white font-bold py-4 text-base rounded-lg shadow-md transition-all active:scale-[0.98]"
+              >
                 {loading ? "登入中…" : "登入"}
-                </Button>
-                
-                <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full bg-white hover:bg-gray-50 text-[#45c7c1] border border-[#45c7c1] font-bold py-5 text-lg rounded shadow-sm"
-                    onClick={() => navigate("/")}
-                >
-                    返回首頁
-                </Button>
+              </Button>
+              
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full bg-white/50 hover:bg-white text-[#45c7c1] border border-[#45c7c1] font-bold py-4 text-base rounded-lg"
+                onClick={() => navigate("/")}
+              >
+                返回首頁
+              </Button>
             </div>
 
-            {/* 測試帳號提示區 */}
-            <div className="mt-2 pt-0 border-t border-white/30 space-y-1 text-center">
-                <p className="text-xs text-[#2c5c60]/80 font-bold mb-1">｜測試帳號 ID｜</p>
-                <div className="flex justify-center gap-4 text-xs text-[#2c5c60]/70">
-                    <span className="font-mono">
-                      1c9747bb111f88d3cf38f5b168c3e3c8<br/>
-                      033bfaeae392b5eb3d430ee86f86952e<br/>
-                      083bc7148b0e08870728a56f7c0563db
-                    </span>
-                </div>
+            {/* 可滾動的測試帳號 ID 列表 */}
+            <div className="mt-6 pt-4 border-t border-[#3c6e71]/20">
+              <p className="text-xs text-[#2c5c60] font-bold text-center mb-3 flex items-center justify-center gap-1">
+                 ｜ 測試帳號列表 (點擊可填入) ｜
+              </p>
+              
+              <div className="
+                max-h-[150px] 
+                overflow-y-auto 
+                bg-white/40 
+                rounded-xl 
+                p-3
+                border border-[#3c6e71]/10
+                scrollbar-thin scrollbar-thumb-slate-300
+              ">
+                {fetchingList ? (
+                  <div className="text-center py-4 text-xs text-slate-400 animate-pulse">正在讀取學生名單...</div>
+                ) : studentList.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {studentList.map((id) => (
+                      <div
+                        key={id}
+                        onClick={() => setUserSnInput(id)}
+                        className={`
+                          text-[12px] font-mono p-1 rounded-md cursor-pointer transition-all text-center
+                          ${userSnInput === id 
+                            ? "bg-[#45c7c1]/90 text-white shadow-sm" 
+                            : "text-[#2c5c60]/80 hover:bg-[#45c7c1]/10 hover:text-[#2c5c60]"}
+                        `}
+                      >
+                        {id}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-xs text-slate-400">尚無學生資料</div>
+                )}
+              </div>
+              <p className="text-[10px] text-[#2c5c60]/40 text-center mt-2 font-medium">
+                目前共有 {studentList.length} 位學生測試帳號
+              </p>
             </div>
-
-
           </form>
         </CardContent>
       </Card>

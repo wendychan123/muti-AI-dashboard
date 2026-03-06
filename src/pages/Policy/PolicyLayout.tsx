@@ -94,13 +94,13 @@ export default function PolicyLayout() {
               "
             >
               <LogOut className="w-4 h-4" />
-              返回首頁
+              登出
             </button>
           </div>
         </header>
 
         {/* ===================== Page Content ===================== */}
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="flex-1 overflow-y-auto p-6">
           <div key={refreshKey} className="h-full">
             <Outlet />
           </div>

@@ -1,7 +1,7 @@
 // src/pages/StudentLayout.tsx
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import StudentAIPanel from "@/pages/Student/StudentAiPanel";
+import StudentAIPanel from "@/pages/Student/StudentAIPanel";
 import { Avatar, AvatarImage, AvatarFallback, } from "@/components/ui/avatar";
 import studentAvatar from "@/assets/student-avatar.jpg";
 import {
@@ -13,6 +13,7 @@ import {
 import { useUserContext } from "@/contexts/UserContext";
 
 export default function StudentLayout() {
+  
   const navigate = useNavigate();
   const { userSn, userInfo } = useUserContext();
   const [aiOpen, setAiOpen] = useState(true);
@@ -70,39 +71,30 @@ export default function StudentLayout() {
               </button>
             </div>
 
-            {/* 身份標籤 (包含 Tooltip 功能) */}
+            
+
+              {/* 身份標籤 (包含 Tooltip 功能) */}
             <div className="relative ml-2 group"> 
               {/* 標籤主體 */}
               <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 rounded-full border border-blue-500/20 cursor-default">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-700"></span>
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
                 
-                <span className="text-sm font-semibold text-blue-700">
-                  學生
-                </span>
+                <span className="text-sm font-semibold text-blue-700"> 學生 </span>
 
-                {/* 使用者簡稱  
-                <span className="text-sm text-sky-800 font-semibold">
-                  {userSn}
-                </span> */}
               </div>
-
+           
               {/* 下拉資訊卡 */}
               {userInfo && (
-                <div className="absolute top-full mt-2 left-0 w-80 
+                <div className="absolute top-full mt-2 left-0 w-[380px]
                                 invisible opacity-0 group-hover:visible group-hover:opacity-100
-                                bg-[#e3e4e6] border rounded-lg shadow-xl
+                                bg-[#ebf0ff] border rounded-lg shadow-xl
                                 p-4 text-sm text-slate-700 z-50
                                 transition-all duration-200 transform origin-top-left scale-95 group-hover:scale-100">
                   
                   {/* 資訊卡內容 */}
                   <div className="space-y-1 leading-relaxed">
 
-                    <div className="font-mono text-[14px] text-slate-800">
-                      <span className="font-bold">{userInfo.city}</span> {userInfo.organization_id} 國小 <br/>
-                      {userInfo.grade} 年 {userInfo.class} 班
-                    </div>
-
-                    <div className="font-mono text-[10px] text-slate-500">
+                    <div className="font-semibold text-[12px] text-slate-800">
                       ID：{userInfo.user_id} <br/>
                       OpenID：{userInfo.OpenID_sub}
                     </div>
@@ -111,10 +103,20 @@ export default function StudentLayout() {
                   </div>
 
                   {/* 小箭頭 (選用，增加視覺指引) */}
-                  <div className="absolute -top-1.5 left-6 w-3 h-3 bg-[#e3e4e6] border-t border-l rotate-45"></div>
+                  <div className="absolute -top-1.5 left-6 w-3 h-3 bg-[#ebf0ff] border-t border-l rotate-45"></div>
                 </div>
               )}
             </div>
+
+            <span className="px-1 text-base font-semibold text-blue-700 opacity-80">{userInfo.city}</span>
+            <span className="text-base font-semibold text-blue-700 opacity-80">{userInfo.organization_id} 國小</span>
+            <span className="text-base font-semibold text-blue-700 opacity-80">{userInfo.grade}年{userInfo.class}班</span>
+              
+                 {/* 使用者簡稱  
+                <span className="text-sm text-sky-800 font-semibold">
+                  {userSn}
+                </span> */}
+
           </div>
 
           {/* =====================
@@ -152,7 +154,7 @@ export default function StudentLayout() {
         </header>
 
         {/* ===================== Page Content ===================== */}
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="flex-1 overflow-y-auto p-6">
           <div key={refreshKey} className="h-full">
             <Outlet />
           </div>

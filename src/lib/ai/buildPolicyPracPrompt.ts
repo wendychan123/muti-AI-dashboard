@@ -1,5 +1,5 @@
 export type PolicyExplainTarget =
-  | "overview"         // 總覽練習概況
+  | "policy_overview"         // 總覽練習概況
   | "development_index"         // 學力發展指標（四象限）
   | "regional_gap"          // 區域學習差距（排名/比較）
   | "gap_trend"        // 平均差距趨勢
@@ -7,7 +7,7 @@ export type PolicyExplainTarget =
   | "effect_trend";     // 學習成效趨勢
 
 const POLICY_CHART_LABEL_MAP: Record<PolicyExplainTarget, string> = {
-  overview: "總覽練習概況（整體投入與表現）",
+  policy_overview: "總覽練習概況（整體投入與表現）",
   development_index: "學力發展指標（投入 × 成效四象限）",
   regional_gap: "區域學習差距（橫向比較）",
   gap_trend: "平均差距趨勢（公平性變動）",
@@ -128,7 +128,7 @@ ${
 
 ---------------------------------------------------
 
-【輸出格式規範（務必遵守）】
+【輸出格式規範】
 - 主項目請使用「•」
 - 子說明請使用「  ◦」(縮排兩空格)
 - 每個段落請空一行
@@ -169,7 +169,7 @@ ${
 
 ｜具體行動建議
 •（列出 3 點）
-◦ 每一點需包含「策略動作 + 目的 + 對象」
+◦ 每一點需包含「策略動作 + 目的 + 針對對象」
 ◦ 必須屬於政策層級（資源配置、支持方案、分層輔導、監測機制）
 ◦ 不可給學生個別建議
 ◦ 不可假設未提供之數據

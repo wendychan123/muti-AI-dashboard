@@ -5,7 +5,6 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
-import { supabase } from "@/lib/supabase";
 
 /* =====================
    型別定義
@@ -23,8 +22,6 @@ export interface UserInfo {
   class?: number | null;
 }
 
-
-
 /* =====================
    Context Value
    ===================== */
@@ -33,12 +30,14 @@ export interface UserContextValue {
   userSn: string | null;
   role: UserRole | null;
   userInfo: UserInfo | null;
+  
+  /* === 關鍵：載入狀態 === */
+  isLoading: boolean; 
 
   /* === 資訊 === */
   organizationId: number | null;
   gradeId: number | null;
   classId: number | null;
-
 
   /* === UI 狀態 === */
   dateRange: {
@@ -58,36 +57,68 @@ export interface UserContextValue {
   logout: () => void;
 }
 
-/* =====================
-   Context
-   ===================== */
 const UserContext = createContext<UserContextValue | null>(null);
 
 /* =====================
    Provider
    ===================== */
 export function UserProvider({ children }: { children: ReactNode }) {
+  
   const [userSn, setUserSn] = useState<string | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  
+  // 直接在初始值階段讀取，這樣 isLoading 在第一時間就能拿到資料
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(() => {
+    const saved = localStorage.getItem("app_user_info");
+    return saved ? JSON.parse(saved) : null;
+  });
 
-  /* === 攤平後欄位 === */
-  const organizationId = userInfo?.organization_id ?? null;
-  const gradeId = userInfo?.grade ?? null;
-  const classId = userInfo?.class ?? null;
+  const [isLoading, setIsLoading] = useState(false); // 因為上面直接讀了，這裡可以預設為 false
 
-
-  /* === UI 狀態 === */
   const [dateRange, setDateRange] = useState({
     start: "",
     end: "",
   });
 
+  /* === 2. 初始化：從 localStorage 恢復數據 === */
+  useEffect(() => {
+    const saved = localStorage.getItem("app_user_info");
+    if (saved) {
+      try {
+        const parsed: UserInfo = JSON.parse(saved);
+        setUserInfo(parsed);
+        setUserSn(parsed.user_sn);
+        setRole(parsed.role);
+      } catch (err) {
+        console.error("解析 LocalStorage 失敗", err);
+        localStorage.removeItem("app_user_info");
+      }
+    }
+    // 恢復完成後，關閉載入狀態
+    setIsLoading(false);
+  }, []);
+
+  /* === 3. 自動同步：當 userInfo 變更時，更新 localStorage 與衍生欄位 === */
+  useEffect(() => {
+    if (userInfo) {
+      localStorage.setItem("app_user_info", JSON.stringify(userInfo));
+      setUserSn(userInfo.user_sn);
+      setRole(userInfo.role);
+    } else {
+      // 如果 userInfo 為 null，通常是登出或初始狀態
+      localStorage.removeItem("app_user_info");
+      setUserSn(null);
+      setRole(null);
+    }
+  }, [userInfo]);
+
+  /* === 衍生欄位 (Derived State) === */
+  const organizationId = userInfo?.organization_id ?? null;
+  const gradeId = userInfo?.grade ?? null;
+  const classId = userInfo?.class ?? null;
 
   /* === 登出 === */
   const logout = () => {
-    setUserSn(null);
-    setRole(null);
     setUserInfo(null);
     setDateRange({ start: "", end: "" });
   };
@@ -98,6 +129,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         userSn,
         role,
         userInfo,
+        isLoading, // 務必回傳此狀態
 
         organizationId,
         gradeId,
@@ -116,9 +148,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/* =====================
-   Hook
-   ===================== */
 export function useUserContext() {
   const ctx = useContext(UserContext);
   if (!ctx) {

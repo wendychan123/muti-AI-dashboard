@@ -64,15 +64,19 @@ export default async function handler(
     let apiKey: string | undefined;
 
     if (role === "policy") {
+      // 政策分析/教育管理者
       apiKey = process.env.GEMINI_API_KEY_1;
+    } else if (role === "teacher" || role === "teacher_diagnostic") {
+      // 老師端：診斷分析專用 (新增部分)
+      apiKey = process.env.GEMINI_API_KEY_2;
     } else {
-      // student
+      // 學生端或其他預設
       apiKey = process.env.GEMINI_API_KEY_3;
     }
 
     if (!apiKey) {
       return res.status(500).json({
-        error: "Missing Gemini API key for role",
+        error: `Missing Gemini API key for role: ${role}`,
       });
     }
 

@@ -95,17 +95,22 @@ interface PracDetailRow {
 }
 
 type DiffBarRow = {
+  indicator: string;
   indicate_name: string;
   studentAvg: number;
   classAvg: number;
   diff: number;
 };
 
+
+
 type ExplainTarget =
-  | "daily_overview"
-  | "indicator_effect"
-  | "learning_process"
-  | "indicator_gap";
+  | "daily_overview"    // 練習狀況表現
+  | "practice_trend"    // 練習投入走勢
+  | "score_trend"       // 學習成效走勢
+  | "indicator_effect"  // 能力指標投入
+  | "learning_process"  // 學習歷程表現
+  | "indicator_gap";    // 能力指標差距
 
 
 
@@ -128,6 +133,7 @@ export default function StudentPrac() {
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"day" | "week" | "month">("day");
 
 
   // Filters
@@ -509,9 +515,10 @@ const belowClassAvgStats = useMemo(() => {
     const makeShortLabel = (name: string, idx: number) =>
       `能力指標 ${idx + 1}`;
     return {
-      xShort: sorted.map((_, idx) =>
-        makeShortLabel(_.indicate_name, idx)
+      xShort1: sorted.map((_, idx) =>
+        makeShortLabel(_.indicator, idx)
       ),
+      xShort: sorted.map(d => d.indicator),
       xFull: sorted.map(d => d.indicate_name),
       yBar: sorted.map(d => d.in_prac_count),
       yLine: sorted.map(d =>
@@ -527,26 +534,6 @@ const belowClassAvgStats = useMemo(() => {
       })),
     };
   }, [filteredIndicators]);
-
-  const chart1ClassAvgScore = useMemo(() => {
-  if (!chart1Data.xFull.length || !OrgIndicatorData.length) return null;
-
-  // 取出 chart1 使用到的指標名稱
-  const indicatorsInChart = new Set(chart1Data.xFull);
-
-  // 找到班級中「相同科目＋相同指標」的資料
-  const matched = OrgIndicatorData.filter(
-    c =>
-      indicatorsInChart.has(c.indicate_name) &&
-      (selectedSubject === "all" || c.subject_name === selectedSubject)
-  );
-
-  if (!matched.length) return null;
-
-  // 班級在這些指標的平均正確率
-  return _.meanBy(matched, "class_avg_score_rate");
-  }, [chart1Data, OrgIndicatorData, selectedSubject]);
-
   
 
   // 中位數計算
@@ -682,12 +669,13 @@ const belowClassAvgStats = useMemo(() => {
           );
 
           return classRow
-            ? {
-                subject_name,
-                indicate_name,
-                class_avg_score_rate: classRow.school_avg_score_rate
-              }
-            : null;
+        ? {
+            subject_name,
+            indicator: classRow.indicator, 
+            indicate_name,
+            class_avg_score_rate: classRow.school_avg_score_rate
+          }
+        : null;
         })
         .filter(Boolean);
     }, [activeIndicators, OrgIndicatorData]);
@@ -721,6 +709,15 @@ const belowClassAvgStats = useMemo(() => {
   const diffBarData = useMemo<DiffBarRow[]>(() => {
   if (!filteredAttempts.length || !matchedClassIndicators.length) return [];
 
+  /* =========================
+    對過長的指標名稱進行換行
+  ========================= */
+  const splitLongText = (str: string, len: number = 10) => {
+    if (!str) return "";
+    const regex = new RegExp(`.{1,${len}}`, "g");
+    return str.match(regex)?.join("<br>") || str;
+  };
+
   // 每個能力指標的學生平均
   const studentByIndicator: Record<string, number> = _.mapValues(
     _.groupBy(filteredAttempts, "indicate_name"),
@@ -738,13 +735,15 @@ const belowClassAvgStats = useMemo(() => {
       if (!classRow) return;
 
       const classAvg = classRow.class_avg_score_rate;
+      const formattedName = splitLongText(indicate_name, 20);
 
       rows.push({
-        indicate_name,
-        studentAvg: Math.round(studentAvg),
-        classAvg: Math.round(classAvg),
-        diff: Math.round(studentAvg - classAvg),
-      });
+      indicator: classRow.indicator || "", 
+      indicate_name: formattedName,
+      studentAvg: Math.round(studentAvg),
+      classAvg: Math.round(classRow.class_avg_score_rate),
+      diff: Math.round(studentAvg - classRow.class_avg_score_rate),
+    });
     }
   );
 
@@ -753,14 +752,72 @@ const belowClassAvgStats = useMemo(() => {
 }, [filteredAttempts, matchedClassIndicators]);
 
 const formatDateTime = (iso: string) => {
+  if (!iso) return "";
+  
   const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}
-          ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  return d.toLocaleString('zh-TW', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    timeZone: 'UTC' 
+  }).replace(/\//g, '-'); 
 };
 
 
+/* =========================
+     練習投入與學習成效走勢
+========================= */
+const trendData = useMemo(() => {
+  // 1. 強制斷言 attemptsData 為 AttemptRow 陣列，避免 unknown 報錯
+  const rawData = (attemptsData || []) as AttemptRow[];
+
+  // 2. 進行過濾
+  const filtered: AttemptRow[] = rawData.filter((d) => {
+    const matchSubject = selectedSubject === "all" || d.subject_name === selectedSubject;
+    const matchIndicator = selectedIndicator === "all" || d.indicate_name === selectedIndicator;
+    return matchSubject && matchIndicator;
+  });
+
+  
+  if (filtered.length === 0) return [];
+
+  // 3. 根據 viewMode 進行分組
+  const grouped = _.groupBy(filtered, (r) => {
+    const d = dayjs(r.date);
+    if (viewMode === "day") return d.format("YYYY-MM-DD");
+    if (viewMode === "week") return d.startOf("week").format("YYYY-MM-DD");
+    return d.startOf("month").format("YYYY-MM-DD");
+  });
+
+  // 4. 計算並回傳格式化後的陣列
+  return Object.entries(grouped).map(([date, rows]) => {
+    const currentRows = rows as AttemptRow[];
+    
+    const totalPrac = currentRows.length;
+    const totalTimeMin = _.sumBy(currentRows, "during_time") / 60;
+    
+    const totalItems = _.sumBy(currentRows, "items_count");
+    const weightScoreSum = _.sumBy(currentRows, (r) => (r.score_rate || 0) * (r.items_count || 0));
+    const avgScore = totalItems > 0 ? weightScoreSum / totalItems : 0;
+
+    return {
+      date,
+      totalPrac,
+      totalTimeMin: Math.round(totalTimeMin * 10) / 10,
+      avgScore: Math.round(avgScore),
+    };
+  }).sort((a, b) => a.date.localeCompare(b.date));
+
+}, [attemptsData, viewMode, selectedSubject, selectedIndicator]);
+
+  
+/* =========================
+   AI 助手
+========================= */
 const runAIForChart = async (chart: ExplainTarget) => {
   setGeminiLoading(true);
 
@@ -778,9 +835,12 @@ const runAIForChart = async (chart: ExplainTarget) => {
     },
 
     chartData: {
+      practiceTrend: trendData, 
+      scoreTrend: trendData,
       indicatorEffect: chart1Data.meta,
       learningProcess: chart3Data,
       indicatorGap: diffBarData
+      
     }
   });
 
@@ -858,6 +918,8 @@ useEffect(() => {
       },
 
       chartData: {
+          practiceTrend: trendData, 
+          scoreTrend: trendData,
           indicatorEffect: chart1Data.meta,
           learningProcess: chart3Data,
           indicatorGap: diffBarData
@@ -911,6 +973,7 @@ useEffect(() => {
     window.removeEventListener("student-ai-multi-request", handler);
   };
 }, [
+  trendData,
   selectedDate,
   selectedSubject,
   selectedIndicator,
@@ -945,6 +1008,16 @@ const EXPLAIN_CHART_OPTIONS: {
     label: "能力指標差距",
     description: "學生與該校平均的差距",
   },
+  {
+    key: "practice_trend",
+    label: "練習投入走勢",
+    description: "分析練習時間與次數的規律性",
+  },
+  {
+    key: "score_trend",
+    label: "學習成效走勢",
+    description: "分析正確率隨時間進步的幅度",
+  },
 ];
 
 const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
@@ -955,10 +1028,13 @@ const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
 
 const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
   "練習狀況表現": "daily_overview",
+  "練習投入走勢": "practice_trend",
+  "學習成效走勢": "score_trend",
   "能力指標投入": "indicator_effect",
   "學習歷程表現": "learning_process",
   "能力指標差距": "indicator_gap",
 };
+
 
 
 
@@ -968,7 +1044,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
      ========================= */
 
   return (
-    <div className="min-h-screen bg-slate-50 md:p-0 space-y-4">
+    <div className="min-h-screen p-4 space-y-6">
 
       {/* 1. Header & Filter */}
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
@@ -1025,7 +1101,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
               ${
                 geminiLoading
                   ? "bg-slate-300 text-slate-600 cursor-not-allowed"
-                  : "bg-indigo-500 text-white hover:bg-indigo-700"
+                  : "bg-blue-500 text-white hover:bg-blue-700"
               }
             `}
           >
@@ -1063,7 +1139,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
             <CardTitle className="text-sm font-medium">總練習次數</CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold">{processedStats.count}</div>
+            <div className="text-2xl font-bold text-blue-700">{processedStats.count}</div>
           </CardContent>
         </Card>
 
@@ -1074,7 +1150,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
           </CardHeader>
 
           <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold text-blue-700">
               {processedStats.totalTime} 秒
             </div>
 
@@ -1111,7 +1187,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
         </CardHeader>
 
         <CardContent className="p-4 pt-0">
-          <div className="text-2xl font-bold">
+          <div className="text-2xl font-bold text-blue-700">
             {avgScoreCompare.studentAvg}%
           </div>
 
@@ -1139,17 +1215,17 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
 
         {/* KPI 5: 低於班級平均 */}
         <Card className={`${belowClassAvgStats.count > 0 ? "border-red-300 bg-red-50/50"
-              : "border-green-300 bg-green-50/50"}`}>
+              : "border-blue-300 bg-blue-50/50"}`}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
             <CardTitle className="text-sm font-medium">低於校平均</CardTitle>
           </CardHeader>
 
           <CardContent className="space-y-1">
             <div 
-            className={`text-2xl font-bold text-green-600 ${
+            className={`text-2xl font-bold ${
               belowClassAvgStats.count > 0
-                  ? "text-red-600"
-                  : "text-green-600"
+                  ? "text-red-700"
+                  : "text-blue-700"
               }`}
             >
               {belowClassAvgStats.count > 0 ? "是" : "否"}
@@ -1166,23 +1242,23 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
         <Card
           className={
             processedStats.reachedGoal
-              ? "border-green-300 bg-green-50/50"
+              ? "border-blue-300 bg-blue-50/50"
               : "border-red-300 bg-red-50/50"
           }
         >
-          <CardHeader className="pb-2 p-4">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
             <CardTitle className="text-sm font-medium">
               已達學習目標
             </CardTitle>
           </CardHeader>
 
-          <CardContent className="p-4 pt-0 space-y-2">
+          <CardContent className="space-y-1">
             {/* 主狀態 */}
             <div
               className={`text-2xl font-bold ${
                 processedStats.reachedGoal
-                  ? "text-green-600"
-                  : "text-red-600"
+                  ? "text-blue-700"
+                  : "text-red-700"
               }`}
             >
               {processedStats.reachedGoal ? "是" : "否"}
@@ -1252,7 +1328,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                   </TooltipTrigger>
                     <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
                       <div className="space-y-3">
-                        <p className="font-bold border-b pb-1 text-indigo-700">圖表計算說明：</p>
+                        <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
                         <ul className="text-xs space-y-2 list-disc pl-4">
                           <li><b>練習次數：</b>學生在該指標上的投入總量。</li>
                           <li><b>平均正確率：</b>學生對該指標的理解程度。</li>
@@ -1273,9 +1349,9 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                   flex items-center justify-center
                   w-8 h-8
                   rounded-full
-                  text-indigo-600
-                  hover:bg-indigo-50
-                  hover:border-indigo-300
+                  text-blue-600
+                  hover:bg-blue-50
+                  hover:border-blue-300
                   transition
                   shadow-sm
                 "
@@ -1285,7 +1361,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
             </div>
           </CardHeader>
 
-          <CardContent className="h-[350px] w-full">
+          <CardContent className="h-[300px] w-full">
             <Plot
               data={[
                 {
@@ -1295,9 +1371,9 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                   name: "練習次數",
                   marker: { color: "#bfdbfe" },
                   opacity: 0.8,
-                  hovertemplate:
-                    "<b>%{customdata}</b><br>練習次數：%{y}<extra></extra>",
                   customdata: chart1Data.xFull, 
+                  hovertemplate:
+                    "<b>%{x}</b><br><b>%{customdata}</b><br>練習次數：%{y}<extra></extra>", 
                 },
                 {
                   x: chart1Data.xShort,
@@ -1314,9 +1390,8 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                 },
               ]}
               layout={{
-                autosize: true,
-                margin: { l: 40, r: 50, t: 60, b: 180 },
-
+                height: 300,
+                margin: { t: 60, r: 40, b: 80, l: 40 },
                 xaxis: {
                   tickangle: -30,
                   tickfont: { size: 11 },
@@ -1332,7 +1407,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                   title: "平均正確率 (%)",
                   overlaying: "y",
                   side: "right",
-                  range: [ 0, Math.max(100, Math.max(...chart1Data.yLine) + 10)],
+                  range: [0, 110],
                   showgrid: false,
                 },
 
@@ -1378,15 +1453,19 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
 
                 legend: {
                   orientation: "h",
-                  y: 1.15,
+                  yanchor: "bottom",
+                  y: 1.1, 
+                  xanchor: "center",
+                  x: 0.5,
+                  font: { size: 11 }
                 },
 
                 font: { family: "inherit" },
               }}
               
               useResizeHandler
-              style={{ width: "100%" }}
               config={{ displayModeBar: false, responsive: true }}
+              style={{ width: "100%", height: "100%" }}
             />
           </CardContent>
         </Card>
@@ -1429,7 +1508,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                   </TooltipTrigger>
                     <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
                       <div className="space-y-3">
-                        <p className="font-bold border-b pb-1 text-indigo-700">圖表計算說明：</p>
+                        <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
                         <ul className="text-xs space-y-2 list-disc pl-4">
                           <li><b>圓點：</b>學生在該指標上每一次練習的紀錄。</li>
                           <li><b>答題速度（X軸）：</b>往左代表思考愈快，往右代表你花比較多時間仔細推敲。</li>
@@ -1450,9 +1529,9 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                   flex items-center justify-center
                   w-8 h-8
                   rounded-full
-                  text-indigo-600
-                  hover:bg-indigo-50
-                  hover:border-indigo-300
+                  text-blue-600
+                  hover:bg-blue-50
+                  hover:border-blue-300
                   transition
                   shadow-sm
                 "
@@ -1465,7 +1544,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
           
           
 
-          <CardContent className="h-[350px]">
+          <CardContent className="h-[300px]">
             <Plot
               data={[
                 // ===== 歷次作答 =====
@@ -1483,7 +1562,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                     line: { color: "white", width: 2 },
                   },
                   hovertemplate:
-                    "<b>%{text}</b>" +
+                    "<b>第%{text}次</b>" +
                     "<br>作答時間：%{x:.1f} 秒" +
                     "<br>正確率：%{y:.0f}%" +
                     "<br><b>%{customdata}</b>" +
@@ -1511,8 +1590,9 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                 },
               ]}
               layout={{
-                autosize: true,
-                margin: { l: 40, r: 20, t: 20, b: 40 },
+                height: 300,
+                margin: { t: 20, r: 10, b: 60, l: 30 }, 
+                
 
                 xaxis: {
                   title: "平均每題作答時間（秒）",
@@ -1606,7 +1686,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                     </TooltipTrigger>
                       <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
                         <div className="space-y-3">
-                          <p className="font-bold border-b pb-1 text-indigo-700">圖表計算說明：</p>
+                          <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
                           <ul className="text-xs space-y-2 list-disc pl-4">
                             <li><b>中間基準線 (0%)：</b>代表全校同學的平均分。</li>
                             <li><b>綠色向右 (+)：</b>代表你在這個知識點表現得比全校平均更好。</li>
@@ -1627,9 +1707,9 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                     flex items-center justify-center
                     w-8 h-8
                     rounded-full
-                    text-indigo-600
-                    hover:bg-indigo-50
-                    hover:border-indigo-300
+                    text-blue-600
+                    hover:bg-blue-50
+                    hover:border-blue-300
                     transition
                     shadow-sm
                   "
@@ -1641,33 +1721,37 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
 
 
 
-        <CardContent className="h-[350px]">
+        <CardContent className="h-[300px]">
           <Plot
             data={[
               {
                 type: "bar",
                 orientation: "h",
                 x: diffBarData.map(d => d.diff),
-                y: diffBarData.map(d => d.indicate_name),
+                                y: diffBarData.map(d => d.indicator), 
                 marker: {
-                  color: diffBarData.map(d =>
-                    d.diff >= 0 ? "#16a34a" : "#dc2626"
-                  ),
+                  color: diffBarData.map(d => (d.diff >= 0 ? "#16a34a" : "#dc2626")),
                 },
-                text: diffBarData.map(d =>
-                  `${d.diff >= 0 ? "+" : ""}${d.diff}%`
-                ),
-                textposition: "inside",
+                text: diffBarData.map(d => `${d.diff >= 0 ? "+" : ""}${d.diff}%`),
+                textposition: "text-[12px] outside",
                 
                 hovertemplate:
-                  "<b>%{y}</b><br>" +
-                  "學生平均：%{customdata[0]}%<br>" +
-                  "該校平均：%{customdata[1]}%<br>" +
+                  "<b>%{y}</b><br>" +                
+                  "<b>%{customdata[0]}</b><br><br>" +    
+                  "學生平均：%{customdata[1]}%<br>" +
+                  "該校平均：%{customdata[2]}%<br>" +
                   "差距：%{x}%<extra></extra>",
+                
+                
                 customdata: diffBarData.map(d => [
-                  d.studentAvg,
-                  d.classAvg,
+                  d.indicate_name, // [0]
+                  d.studentAvg,    // [1]
+                  d.classAvg,      // [2]     
                 ]),
+                hoverlabel: {
+                  align: "left",    // 文字靠左
+                  font: { size: 13}
+                }
               },
             ]}
             layout={{
@@ -1723,13 +1807,276 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
         </CardContent>
       </Card>
       </div>
+
+
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* ===== 練習投入走勢圖 ===== */}
+            <Card className="col-span-1 relative">
+              {loading && (
+                <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+                  <Activity className="animate-spin mr-2 w-4 h-4" />
+                  <span className="text-sm text-slate-600">資料分析中...</span>
+                </div>
+              )}
+    
+                <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
+                {/* 左側：標題 */}
+                <CardTitle className="text-xl font-bold ">
+                  練習投入走勢
+                  <span className="px-2 text-xs text-blue-600">（ 科目：{selectedSubject}）</span>
+                </CardTitle>
+    
+                {/* 右側：按鈕群組 */}
+                <div className="flex items-center gap-1">
+                  {/* 圖表說明 Tooltip */}
+                  <TooltipProvider delayDuration={100}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button 
+                        className="
+                            flex items-center justify-center
+                            w-8 h-8
+                            rounded-full
+                            text-slate-400
+                            hover:bg-slate-100
+                            hover:text-slate-600
+                            transition
+                            "
+                        >
+                          <HelpCircle className="w-4 h-4" />
+                        </button>
+                      </TooltipTrigger>
+                        <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f8fafc] shadow-2xl border-blue-200 text-slate-700 z-50">
+                          <div className="space-y-3">
+                            <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
+                            <ul className="text-xs space-y-2 list-disc pl-4">
+                              <li>
+                                <b className="text-blue-600">活躍學生數 (長條圖)：</b>
+                                指該日/週/月班級內有實際進行作答的學生人數
+                              </li>
+                              <li>
+                                <b className="text-blue-600">練習總次數 (折線圖)：</b>
+                                全校學生完成練習題的累計總量。
+                              </li>
+                            </ul>
+                              <p className="text-[12px] text-slate-400 pt-1 border-t">
+                                ※ 透過此圖可觀察使用參與度與學習投入強度是否隨課程進度波動。
+                              </p>
+                          </div>
+                        </TooltipContent>                    
+                    </Tooltip>
+                  </TooltipProvider>
+    
+                  {/* AI 分析按鈕 */}
+                  <button
+                    onClick={() => runAIForChart("practice_trend")}
+                    className="
+                      flex items-center justify-center
+                      w-8 h-8
+                      rounded-full
+                      text-blue-500
+                      hover:bg-blue-50
+                      transition
+                    "
+                  >
+                    <Bot className="w-4 h-4" />
+                  </button>
+                </div>
+              </CardHeader>
+    
+    
+              {/* 日 / 週 / 月 切換按鈕 */}
+                <div className="flex items-center gap-1 mr-2 px-8">
+                  {["day", "week", "month"].map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setViewMode(mode as any)}
+                      className={`px-3 py-1 text-xs rounded-md transition
+                        ${
+                          viewMode === mode
+                            ? "bg-blue-600 text-white shadow"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                    >
+                      {mode === "day" ? "日線" : mode === "week" ? "週線" : "月線"}
+                    </button>
+                  ))}
+                </div>
+                
+    
+              <CardContent className="h-[350px] w-full">
+                <Plot
+                  data={[
+                    {
+                      x: trendData.map(t => t.date),
+                      y: trendData.map(t => t.totalTimeMin),
+                      type: "bar",
+                      name: "投入時間 (分)",
+                      marker: { color: "rgba(59, 130, 246, 0.3)" }, // 藍色系
+                      hovertemplate: "投入時間：%{y} 分鐘<extra></extra>",
+                    },
+                    {
+                      x: trendData.map(t => t.date),
+                      y: trendData.map(t => t.totalPrac),
+                      type: "scatter",
+                      mode: "lines+markers",
+                      name: "練習次數",
+                      line: { color: "#2563eb", width: 3 },
+                      yaxis: "y2",
+                      hovertemplate: "練習次數：%{y} 次<extra></extra>",
+                    },
+                  ]}
+                  layout={{
+                    height: 350,
+                    margin: { t: 40, l: 50, r: 50, b: 80 },
+                    xaxis: { type: "category", tickangle: -35, tickfont: { size: 10 } },
+                    yaxis: { title: "投入時間 (分)", side: "left", showgrid: true },
+                    yaxis2: { title: "練習次數", overlaying: "y", side: "right", showgrid: false },
+                    legend: { orientation: "h", y: -0.3, x: 0.5, xanchor: "center" },
+                    hovermode: "x unified",
+                  }}
+                  config={{ displayModeBar: false, responsive: true }}
+                  style={{ width: "100%", height: "100%" }}
+                />
+              </CardContent>
+            </Card>
+    
+            {/* ===== 學習成效走勢圖 ===== */}
+           <Card className="col-span-1 relative">
+              {loading && (
+                <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+                  <Activity className="animate-spin mr-2 w-4 h-4" />
+                  <span className="text-sm text-slate-600">資料分析中...</span>
+                </div>
+              )}
+    
+              <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
+                {/* 左側：標題 */}
+                <CardTitle className="text-xl font-bold ">
+                  學習成效走勢
+                  <span className="px-2 text-xs text-blue-600">（ 科目：{selectedSubject} ）</span>
+                </CardTitle>
+    
+                {/* 右側：按鈕群組 */}
+                <div className="flex items-center gap-1">
+                  {/* 圖表說明 Tooltip */}
+                  <TooltipProvider delayDuration={100}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button className="
+                            flex items-center justify-center
+                            w-8 h-8
+                            rounded-full
+                            text-slate-400
+                            hover:bg-slate-100
+                            hover:text-slate-600
+                            transition
+                            "
+                        >
+                          <HelpCircle className="w-4 h-4" />
+                        </button>
+                      </TooltipTrigger>
+                        <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f8fafc] shadow-2xl border-blue-200 text-slate-700 z-50">
+                          <div className="space-y-3">
+                            <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
+                            <ul className="text-xs space-y-2 list-disc pl-4">
+                              <li>
+                                <b className="text-blue-700 font-bold">學校平均：</b>
+                                顯示目前該校在特定單元下的平均正確率走勢，反映全校整體的理解程度。
+                              </li>
+                              <li>
+                                <b className="text-red-600 font-bold">全校平均：</b>
+                                作為基準線以判斷該校表現優於或低於整體該科平均。
+                              </li>
+                            </ul>
+                              <p className="text-[12px] text-slate-400 pt-1 border-t">
+                                ※ 透過此圖觀察曲線波動較大時，代表單元難度或教學進度可能有劇烈變化；若低於基準線，則建議進行補救教學。
+                              </p>                       
+                          </div>
+                        </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+    
+                  {/* AI 分析按鈕 */}
+                  <button
+                    onClick={() => runAIForChart("score_trend")}
+                    className="
+                      flex items-center justify-center
+                      w-8 h-8
+                      rounded-full
+                      text-blue-500
+                      hover:bg-blue-50
+                      transition
+                    "
+                  >
+                    <Bot className="w-4 h-4" />
+                  </button>
+                </div>
+              </CardHeader>
+    
+              
+              {/* 日 / 週 / 月 切換按鈕 */}
+              <div className="flex items-center gap-1 mr-2 px-8">
+                {["day", "week", "month"].map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setViewMode(mode as any)}
+                    className={`px-3 py-1 text-xs rounded-md transition
+                      ${
+                        viewMode === mode
+                          ? "bg-blue-600 text-white"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                  >
+                    {mode === "day" ? "日線" : mode === "week" ? "週線" : "月線"}
+                  </button>
+                ))}
+              </div>
+              
+    
+              <CardContent className="h-[350px] w-full">
+                <Plot
+                  data={[
+                    {
+                      x: trendData.map(t => t.date),
+                      y: trendData.map(t => t.avgScore),
+                      type: "scatter",
+                      mode: "lines+markers",
+                      name: "我的正確率",
+                      line: { color: "#2563eb", width: 3, shape: 'spline' }, 
+                      hovertemplate: "我的正確率：%{y}%<extra></extra>",
+                    },
+                    // 基準線：使用該學生的全局平均或校平均
+                    {
+                      x: trendData.map(t => t.date),
+                      y: trendData.map(() => avgScoreCompare.classAvg || 0),
+                      type: "scatter",
+                      mode: "lines",
+                      name: `全校平均 (${avgScoreCompare.classAvg}%)`,
+                      line: { color: "#ef4444", width: 2, dash: "dash" },
+                      hoverinfo: "skip", 
+                    },
+                  ]}
+                  layout={{
+                    height: 350,
+                    margin: { t: 40, l: 50, r: 40, b: 80 },
+                    xaxis: { type: "category", tickangle: -35, tickfont: { size: 10 } },
+                    yaxis: { title: "正確率 (%)", range: [0, 105], ticksuffix: "%" },
+                    legend: { orientation: "h", y: -0.3, x: 0.5, xanchor: "center" },
+                    hovermode: "x unified",
+                  }}
+                  style={{ width: "100%", height: "100%" }}
+                  config={{ displayModeBar: false, responsive: true }}
+                />
+              </CardContent>
+            </Card>
+          </div>
     
 
 
     <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
-      {/* 4. Detailed Table (保留歷史紀錄) */}
       {/* 詳細練習紀錄 */}
-      <Card className="relative">
+      <Card className="col-span-1 shadow-sm relative overflow-hidden">
 
         {loading && (
             <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
@@ -1738,32 +2085,34 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
             </div>
           )}
 
-        <CardHeader>
-          <CardTitle>詳細練習紀錄</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between py-4 pb-2">
+          <CardTitle className="text-xl font-bold text-slate-700">
+            詳細練習紀錄
+            </CardTitle>
           <CardDescription></CardDescription>
         </CardHeader>
 
-        <CardContent>
-          <div className="overflow-auto border rounded-md">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-xs text-slate-500">
-                <tr>
-                  <th className="px-4 py-2 text-left">練習日期</th>
+        <CardContent className="p-0 pt-2">
+          <div className="max-h-[350px] overflow-y-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="sticky top-0 bg-slate-50 z-10">
+                <tr className="text-xs text-slate-500 border-b">
+                  <th className="p-3 px-8 w-60 ">練習日期</th>
                   
                   {Array.from({ length: maxItemCount }).map((_, i) => (
-                    <th key={i} className="px-4 py-3 text-center">
+                    <th key={i} className="p-3 w-40 text-center">
                       題目 {i + 1}
                     </th>
                   ))}
-                  <th className="px-3 py-2 text-right">平均每題(ms)</th>
-                  <th className="px-3 py-2 text-right">正確率</th>
+                  <th className="p-3 w-40 text-center">平均每題(ms)</th>
+                  <th className="w-40 text-center">正確率</th>
                 </tr>
               </thead>
 
               <tbody>
                 {detailedRows.map((row) => (
                   <tr key={row.prac_answer_sn} className="border-t">
-                    <td className="px-3 py-2 font-mono">
+                    <td className="px-4 py-2 font-mono">
                       {formatDateTime(row.date)}
                     </td>
 
@@ -1786,15 +2135,15 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                       );
                     })}
 
-                    <td className="px-3 py-2 text-right font-mono">
+                    <td className="px-3 py-2 text-center font-base">
                       {Math.round(row.avg_item_time_ms)}
                     </td>
 
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-3 py-2 text-center">
                       <span
                           className={`px-2 py-1 rounded-full text-xs font-bold ${
                             row.score_rate >= 80
-                              ? "bg-green-100 text-green-700"
+                              ? "bg-blue-100 text-blue-700"
                               : row.score_rate < 40
                               ? "bg-red-100 text-red-700"
                               : "bg-yellow-100 text-yellow-700"
@@ -1811,7 +2160,6 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
         </CardContent>
       </Card>
     </div>
-
 
 
       

@@ -39,8 +39,9 @@ export default function App() {
               {/* ===== 公共入口 ===== */}
               <Route path="/" element={<HomePage />} />
               
-              {/* ===== 登入路由拆分 ===== */}
-              {/* 原本的 /login 可以保留作為預設（導向學生）或直接移除 */}
+              {/* ===== 登入路由優化 ===== */}
+              {/* 解決你截圖中出現 /login 導致 404 的問題 */}
+              <Route path="/login" element={<Navigate to="/student/login" replace />} />
               <Route path="/student/login" element={<StudentLogin />} />
               <Route path="/teacher/login" element={<TeacherLogin />} />
 
@@ -48,9 +49,9 @@ export default function App() {
               {/* ===== Student 區（需登入） ===== */}
               {/* ============================= */}
               <Route path="/student" element={<StudentLayout />}>
+                {/* 使用 relative path 導向子路由 */}
                 <Route index element={<Navigate to="practice" replace />} />
                 <Route path="practice" element={<StudentPrac />} />
-                {/* 如果在 StudentLayout 內沒登入，應導向 /student/login */}
               </Route>
 
               {/* ============================= */}
@@ -59,18 +60,17 @@ export default function App() {
               <Route path="/teacher" element={<TeacherLayout />}>
                 <Route index element={<Navigate to="practice" replace />} />
                 <Route path="practice" element={<TeacherPrac />} />
-                {/* 如果在 TeacherLayout 內沒登入，應導向 /teacher/login */}
               </Route>
 
               {/* ============================= */}
-              {/* ===== PolicyMaker 區（不變） ===== */}
+              {/* ===== PolicyMaker 區 ===== */}
               {/* ============================= */}
               <Route path="/policymaker" element={<PolicyLayout />}>
                 <Route index element={<Navigate to="practice" replace />} />
                 <Route path="practice" element={<PolicyPrac />} />
               </Route>
 
-              {/* ===== 404 ===== */}
+              {/* ===== 404 捕獲 ===== */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
