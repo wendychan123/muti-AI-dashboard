@@ -854,12 +854,13 @@ useEffect(() => {
      Render
   ========================= */
   return (
-    <div className="min-h-screen p-0 space-y-4">
+    <div className="min-h-screen p-4 space-y-6">
       {/* ===== 篩選器列 ===== */}
-      <div className="flex flex-wrap items-center gap-2 p-3 ">
-        <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
-          <Filter className="w-4 h-4" />
-        </div>
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3 p-2 pb-1">
+          <div className="p-1 text-slate-400">
+            <Filter className="w-5 h-5"/>
+          </div>
 
         {/* 縣市 */}
         <span className="text-sm">縣市：</span>
@@ -934,14 +935,19 @@ useEffect(() => {
               </>
             )}
           </button>
+          </div>
 
-        {/* 資料期間顯示 */}
-        <div className="ml-auto text-xs text-slate-400 whitespace-nowrap">
-          {periodLabel}
+        </div>
+
+       {/* 資料期間顯示 */}
+        <div className="flex justify-end px-4 -mt-1">
+          <span className="text-xs text-slate-400">
+            {periodLabel}
+          </span>
         </div>
 
         
-      </div>
+      
 
       
 
