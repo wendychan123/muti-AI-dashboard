@@ -14,8 +14,14 @@ const HomePage = () => {
     id: "policymaker",
     title: "管理者",
     description: "總覽校務數據\n輔助教學策略與資源配置",
-    icon: <Users className="w-10 h-10 md:w-12 md:h-12 text-white" />,
-    color: "bg-gradient-to-br from-blue-600 to-indigo-600",
+    icon: (
+      <img 
+        src="/src/assets/policyIP.png" 
+        alt="管理者" 
+        className="w-25 h-25 md:w-40 md:h-40 object-contain transition-transform group-hover:scale-110" 
+      />
+    ),
+    color: "bg-gradient-to-br from-teal-500 to-teal-700",
     path: "/policymaker/practice",
     requiresLogin: false,
   },
@@ -23,8 +29,14 @@ const HomePage = () => {
     id: "teacher",
     title: "教師",
     description: "作答練習狀況\n掌握校內學習成效與進度",
-    icon: <BookOpen className="w-10 h-10 md:w-12 md:h-12 text-white" />,
-    color: "bg-gradient-to-br from-teal-500 to-teal-600",
+    icon: (
+      <img 
+        src="/src/assets/teacherIP.png" 
+        alt="教師" 
+        className="w-25 h-25 md:w-40 md:h-40 object-contain transition-transform group-hover:scale-110" 
+      />
+    ),
+    color: "bg-gradient-to-br from-indigo-500 to-indigo-700",
     path: "/teacher/login",
     requiresLogin: true
     // isComingSoon: true,
@@ -33,8 +45,14 @@ const HomePage = () => {
     id: "student",
     title: "學生",
     description: "個人練習表現\n獲取個人學習診斷與建議",
-    icon: <GraduationCap className="w-10 h-10 md:w-12 md:h-12 text-white" />,
-    color: "bg-gradient-to-br from-cyan-500 to-cyan-600",
+    icon: (
+      <img 
+        src="/src/assets/studentIP.png" 
+        alt="學生" 
+        className="w-25 h-25 md:w-40 md:h-40 object-contain transition-transform group-hover:scale-110" 
+      />
+    ),
+    color: "bg-gradient-to-br from-blue-400 to-sky-600",
     path: "/student/login",
     requiresLogin: true,
   },
@@ -76,16 +94,9 @@ const handleRoleClick = (role) => {
 
       <div className="relative z-10">
         {/* Header */}
-        <header className="bg-white/90 backdrop-blur-md border-b border-gray-200 shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center shadow-sm">
-                  <div className="w-4 h-4 sm:w-5 sm:h-5 bg-white rounded-sm"></div>
-                </div>
-                <h1 className="text-xl sm:text-2xl font-bold text-foreground">
-                  多層級教育智慧儀表板
-                </h1>
+        <header className="bg-white border-b border-gray-100 shadow-sm px-6 py-3 flex justify-between items-center">
+            <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-gray-700">多層級教育智慧儀表板</h1>
               </div>
 
               {/* Header Buttons */}
@@ -117,72 +128,68 @@ const handleRoleClick = (role) => {
                   </svg>
                 </button>
               </div>
-            </div>
-          </div>
         </header>
 
         {/* Main */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20 md:py-24">
+        <main className="max-w-7xl mx-auto px-8 py-16 ">
           <div className="max-w-5xl mx-auto">
             <div className="mb-10 sm:mb-12 text-center sm:text-left">
-              <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-3 sm:mb-4">
+              {/* <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-3 sm:mb-4">
                 多層級身份
               </h2>
-              <div className="w-20 sm:w-24 h-1 bg-primary mx-auto sm:mx-0"></div>
+              <div className="w-20 sm:w-24 h-1 bg-primary mx-auto sm:mx-0"></div> */}
             </div>
 
             {/* Responsive Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-3 gap-6 sm:gap-12">
               {roles.map((role) => (
                 <Card
-                  key={role.id}
-                  onClick={() => handleRoleClick(role)}
-                  className="group cursor-pointer hover:shadow-xl active:scale-[0.98] transition-all duration-300 hover:-translate-y-1 sm:hover:-translate-y-2 overflow-hidden bg-white/95 backdrop-blur-sm rounded-2xl"
-                >
-                  <div
-                    className={`${role.color} p-6 sm:p-8 text-center relative overflow-hidden`}
+                    key={role.id}
+                    onClick={() => handleRoleClick(role)}
+                    className="group cursor-pointer hover:shadow-xl active:scale-[0.98] transition-all duration-400 hover:-translate-y-1 sm:hover:-translate-y-2 overflow-hidden bg-white/90 backdrop-blur-sm rounded-2xl border-none"
                   >
-                    <div className="absolute inset-0 bg-black/10"></div>
-                    <div className="relative z-10">
-                      <div className="mb-3 sm:mb-4 flex justify-center">
-                        {role.icon}
+                    {/* 上端改為白色背景 */}
+                    <div className="bg-white p-5 sm:p-6 text-center relative overflow-hidden">
+                      <div className="relative z-10">
+                        <div className="mb-3 sm:mb-2 flex justify-center ">
+                          {role.icon}
+                        </div>
+                        {/* 標題改為深色文字，以配合白色背景 */}
+                        <h3 className="relative top-1 text-xl sm:text-2xl font-bold text-slate-800 mb-1 sm:mb-0">
+                          {role.title}
+                        </h3>
                       </div>
-                      <h3 className="text-xl sm:text-2xl font-bold text-white mb-1 sm:mb-2">
-                        {role.title}
-                      </h3>
-                      {/* {role.isComingSoon && (
-                        <span className="inline-block mt-1 px-2 py-0.5 bg-black/30 backdrop-blur-md rounded text-xs text-white border border-white/20">
-                          開發中
-                        </span>
-                      )} */}
+                      
+                      {/* 裝飾圓圈改為淺灰色/淡色系
+                      <div className="absolute top-3 right-3 sm:top-4 sm:right-4 w-12 h-12 sm:w-16 sm:h-16 bg-slate-50 rounded-full -z-0"></div>
+                      <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 w-6 h-6 sm:w-8 sm:h-8 bg-slate-50 rounded-full -z-0"></div>  */}
                     </div>
-                    <div className="absolute top-3 right-3 sm:top-4 sm:right-4 w-12 h-12 sm:w-16 sm:h-16 bg-white/10 rounded-full"></div>
-                    <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 w-6 h-6 sm:w-8 sm:h-8 bg-white/10 rounded-full"></div>
-                  </div>
 
-                  <CardContent className="p-5 sm:p-6 bg-white/95">
-                    <div className="flex items-center justify-between">
-                      <p className="text-muted-foreground whitespace-pre-line text-sm sm:text-base leading-relaxed text-left">
-                        {role.description}
-                      </p>
-                      <div className="ml-3 sm:ml-4 text-muted-foreground group-hover:text-primary transition-colors">
-                        <svg
-                          className="w-5 h-5 sm:w-6 sm:h-6"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 5l7 7-7 7"
-                          />
-                        </svg>
+                    {/* 下方 CardContent 帶入角色顏色 */}
+                    <CardContent className={`p-5 sm:p-5 ${role.color} transition-colors duration-300`}>
+                      <div className="flex items-center justify-between">
+                        {/* 描述文字改為白色，以在深色背景上清楚顯示 */}
+                        <p className="text-white/90 whitespace-pre-line text-sm sm:text-base leading-relaxed text-left font-medium">
+                          {role.description}
+                        </p>
+                        <div className="ml-3 sm:ml-4 text-white group-hover:translate-x-1 transition-transform">
+                          <svg
+                            className="w-5 h-5 sm:w-6 sm:h-6"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2.5}
+                              d="M9 5l7 7-7 7"
+                            />
+                          </svg>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
               ))}
             </div>
           </div>

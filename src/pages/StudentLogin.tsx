@@ -92,7 +92,7 @@ export default function Login() {
   };
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-[#d0f0f2] flex flex-col items-center justify-center p-4 font-sans">
+    <div className="relative min-h-screen w-full overflow-hidden bg-[#d0e2f2]/50 flex flex-col items-center justify-center p-4 font-sans">
       
       {/* 背景裝飾線條 */}
       {/* --- 背景裝飾 (模擬截圖中的白色線條) --- */}
@@ -109,16 +109,16 @@ export default function Login() {
 
       {/* 標題區 */}
       <div className="relative z-10 mb-6 flex flex-col items-center gap-2">
-        <div className="text-[#3c6e71] font-bold text-center">
+        <div className="text-[#176abd] font-bold text-center">
           <h1 className="text-2xl sm:text-3xl tracking-wide drop-shadow-sm">多層級教育智慧儀表板</h1>
-          <p className="text-sm sm:text-base text-[#3c6e71]/70 tracking-wider mt-1 uppercase">AI-Powered Multi-LOD Dashboard</p>
+          <p className="text-sm sm:text-base text-[#176abd]/70 tracking-wider mt-1 uppercase">AI-Powered Multi-LOD Dashboard</p>
         </div>
       </div>
 
       {/* 登入卡片 */}
       <Card className="relative z-10 w-full max-w-[450px] border-none bg-white/40 shadow-2xl backdrop-blur-md rounded-2xl overflow-hidden">
         <CardHeader className="pb-6 pt-8 text-center">
-          <CardTitle className="ext-center text-2xl sm:text-3xl font-bold text-[#2c5c60] drop-shadow-sm">
+          <CardTitle className="ext-center text-2xl sm:text-3xl font-bold text-[#105fad] drop-shadow-sm">
             學生系統登入
           </CardTitle>
           <div className="mt-4 px-8 text-sm text-red-600/80 text-center font-medium">
@@ -136,14 +136,14 @@ export default function Login() {
           >
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                <Label htmlFor="userid" className="sm:w-25 sm:text-right font-bold text-[#2c5c60]">
+                <Label htmlFor="userid" className="sm:w-25 sm:text-right font-bold text-[#105fad]">
                   學生帳號
                 </Label>
                 <Input
                   id="userSn"
                   type="text"
                   placeholder="請輸入 user_id"
-                  className="flex-1 bg-white/80 border-slate-200 focus-visible:ring-[#4ecdc4] h-11"
+                  className="flex-1 bg-white/80 border-slate-200 focus-visible:ring-[#105fad] h-11"
                   value={userSnInput}
                   onChange={(e) => setUserSnInput(e.target.value)}
                 />
@@ -154,7 +154,7 @@ export default function Login() {
               <Button
                 type="submit"
                 disabled={!userSnInput.trim() || loading}
-                className="w-full bg-[#45c7c1] hover:bg-[#3bbeb8] text-white font-bold py-4 text-base rounded-lg shadow-md transition-all active:scale-[0.98]"
+                className="w-full bg-[#176abd] hover:bg-[#0a5094] text-white font-bold py-4 text-base rounded-lg shadow-md transition-all active:scale-[0.98]"
               >
                 {loading ? "登入中…" : "登入"}
               </Button>
@@ -162,7 +162,7 @@ export default function Login() {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full bg-white/50 hover:bg-white text-[#45c7c1] border border-[#45c7c1] font-bold py-4 text-base rounded-lg"
+                className="w-full bg-white/50 hover:bg-white text-[#176abd] border border-[#176abd] font-bold py-4 text-base rounded-lg"
                 onClick={() => navigate("/")}
               >
                 返回首頁
@@ -170,8 +170,8 @@ export default function Login() {
             </div>
 
             {/* 可滾動的測試帳號 ID 列表 */}
-            <div className="mt-6 pt-4 border-t border-[#3c6e71]/20">
-              <p className="text-xs text-[#2c5c60] font-bold text-center mb-3 flex items-center justify-center gap-1">
+            <div className="mt-6 pt-4 border-t border-[#176abd]/20">
+              <p className="text-xs text-[#176abd] font-bold text-center mb-3 flex items-center justify-center gap-1">
                  ｜ 測試帳號列表 (點擊可填入) ｜
               </p>
               
@@ -181,7 +181,7 @@ export default function Login() {
                 bg-white/40 
                 rounded-xl 
                 p-3
-                border border-[#3c6e71]/10
+                border border-[#176abd]/10
                 scrollbar-thin scrollbar-thumb-slate-300
               ">
                 {fetchingList ? (
@@ -195,8 +195,8 @@ export default function Login() {
                         className={`
                           text-[12px] font-mono p-1 rounded-md cursor-pointer transition-all text-center
                           ${userSnInput === id 
-                            ? "bg-[#45c7c1]/90 text-white shadow-sm" 
-                            : "text-[#2c5c60]/80 hover:bg-[#45c7c1]/10 hover:text-[#2c5c60]"}
+                            ? "bg-[#49a0f5]/90 text-white shadow-sm" 
+                            : "text-[#247bd1]/80 hover:bg-[#49a0f5]/10 hover:text-[#247bd1]"}
                         `}
                       >
                         {id}
@@ -204,10 +204,10 @@ export default function Login() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-4 text-xs text-slate-400">尚無學生資料</div>
+                  <div className="text-center py-4 text-xs text-blue-400">尚無學生資料</div>
                 )}
               </div>
-              <p className="text-[10px] text-[#2c5c60]/40 text-center mt-2 font-medium">
+              <p className="text-[10px] text-[#176abd]/50 text-center mt-2 font-medium">
                 目前共有 {studentList.length} 位學生測試帳號
               </p>
             </div>

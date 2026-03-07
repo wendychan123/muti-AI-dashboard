@@ -130,7 +130,7 @@ export default function TeacherLogin() {
   };
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-[#d0f0f2] flex flex-col items-center justify-center p-4">
+    <div className="relative min-h-screen w-full overflow-hidden bg-[#ece6f4]/50 flex flex-col items-center justify-center p-4">
 
     {/* --- 背景裝飾 (模擬截圖中的白色線條) --- */}
       <div className="absolute inset-0 pointer-events-none">
@@ -144,12 +144,12 @@ export default function TeacherLogin() {
       </div>
 
       {/* --- 頂部 Logo 區 (模擬) --- */}
-      <div className="relative z-10 mb-2 flex flex-col items-center gap-2">
+      <div className="relative z-10 mb-5 flex flex-col items-center gap-2">
         {/* 標題 */}
         <div className="flex items-center gap-3">
-            <div className="text-[#3c6e71] font-bold text-center sm:text-center">
+            <div className="text-[#3f0c5e] font-bold text-center sm:text-center">
                 <h1 className="text-2xl sm:text-3xl tracking-wide drop-shadow-sm">多層級教育智慧儀表板</h1>
-                <p className="text-base sm:text-lg text-[#3c6e71]/80 tracking-wider mt-1">AI-Powered Multi-LOD Dashboard</p>
+                <p className="text-base sm:text-lg text-[#3f0c5e]/80 tracking-wider mt-1">AI-Powered Multi-LOD Dashboard</p>
             </div> 
         </div>
       </div>
@@ -158,7 +158,7 @@ export default function TeacherLogin() {
 
       <Card className="relative z-10 w-full max-w-[450px] border-none bg-white/50 shadow-2xl backdrop-blur-md rounded-2xl overflow-hidden">
         <CardHeader className="pt-8 pb-8">
-          <CardTitle className="text-center text-2xl sm:text-3xl font-bold  text-[#2c5c60] drop-shadow-sm">
+          <CardTitle className="text-center text-2xl sm:text-3xl font-bold  text-[#3f0c5e] drop-shadow-sm">
             教師系統登入
           </CardTitle>
 
@@ -174,7 +174,7 @@ export default function TeacherLogin() {
 
           {/* 所屬縣市 */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-            <Label className="w-24 text-center font-medium text-[#2c5c60] text-base">
+            <Label className="w-24 text-center font-medium text-[#3f0c5e] text-base">
               所屬縣市
             </Label>
             <Select
@@ -196,7 +196,7 @@ export default function TeacherLogin() {
 
           {/* 所屬學校 */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-            <Label className="w-24 text-center font-medium text-[#2c5c60] text-base">
+            <Label className="w-24 text-center font-medium text-[#3f0c5e] text-base">
               所屬學校
             </Label>
             <Select
@@ -225,7 +225,7 @@ export default function TeacherLogin() {
             <Button
               onClick={handleLogin}
               disabled={!selectedCity || !selectedSchool || loading}
-              className="w-full bg-[#45c7c1] hover:bg-[#3bbeb8] text-white font-bold py-5 text-lg rounded shadow-md transition-all active:scale-[0.98]"
+              className="w-full bg-[#58339e] hover:bg-[#743bbe] text-white font-bold py-5 text-lg rounded shadow-md transition-all active:scale-[0.98]"
             >
               {loading ? "登入中…" : "登入"}
             </Button>
@@ -233,7 +233,7 @@ export default function TeacherLogin() {
             <Button
               variant="outline"
               onClick={() => navigate("/")}
-              className="w-full bg-white hover:bg-gray-50 text-[#45c7c1] border border-[#45c7c1] font-bold py-5 text-lg rounded shadow-sm"
+              className="w-full bg-white hover:bg-gray-50 text-[#7245c7] border border-[#7245c7] font-bold py-5 text-lg rounded shadow-sm"
             >
               返回首頁
             </Button>
