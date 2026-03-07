@@ -736,81 +736,84 @@ const formatHoverText = (str: string, maxLength = 22) => {
 
 
       {/* =========================
-                KPI 區
-      ========================= */}
+          KPI 區 (參考圖設計)
+    ========================= */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
 
         {/* KPI 1: 學生母數 */}
-        <Card className="border">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-            <CardTitle className="text-sm font-medium">練習學生數</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-              <div className="text-2xl font-bold text-violet-900">
-                {kpi.totalStudents}
-              </div>
-            </CardContent>
-        </Card>
+        <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
+          <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
+            練習學生數
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center p-4">
+            <div className="text-3xl font-black text-slate-800 tracking-tight">
+              {kpi.totalStudents.toLocaleString()}
+            </div>
+          </div>
+        </div>
 
         {/* KPI 2: 平均正確率 */}
-        <Card className="border">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-            <CardTitle className="text-sm font-medium">平均答對率</CardTitle>
-            </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold text-violet-900">
+        <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
+          <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
+            平均答對率
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center p-4">
+            <div className="text-3xl font-black tracking-tight text-slate-800">
               {kpi.avgScore.toFixed(1)}%
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* KPI 3: 練習時數 */}
-        <Card className="border">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-            <CardTitle className="text-sm font-medium">平均練習時數</CardTitle>
-          </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-2xl font-bold text-violet-900">
-                {(kpi.totalTime / (kpi.totalStudents || 1) / 60).toFixed(0)}分
-              </div>
-            </CardContent>
-        </Card>
+        <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
+          <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
+            平均練習時間
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center p-4">
+            <div className="text-3xl font-black text-slate-800 tracking-tight text-green-600">
+              {(kpi.totalTime / (kpi.totalStudents || 1) / 60).toFixed(0)} <span className="text-lg">分</span>
+            </div>
+          </div>
+        </div>
 
-
-        {/* KPI 4: 未精熟能力指標數 (修改為可點擊) */}
-        <Card 
-          className="bg-rose-50 border-rose-200 cursor-pointer hover:shadow-md transition-all active:scale-95"
-          onClick={scrollToUnmastered} // 點擊觸發跳轉
+        {/* KPI 4: 未精熟能力指標數 (可點擊) */}
+        <div 
+          onClick={scrollToUnmastered}
+          className="flex flex-col border border-rose-200 rounded-md overflow-hidden shadow-sm bg-white cursor-pointer hover:shadow-md transition-all active:scale-95 group"
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-            <CardTitle className="text-sm font-medium">未精熟能力指標數</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold text-rose-700">
+          <div className="bg-rose-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-rose-200 group-hover:bg-rose-600">
+            未精熟能力指標
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center p-4">
+            <div className="text-3xl font-black text-rose-600 tracking-tight">
               {kpi.notMasteredIndicators}
             </div>
-            <p className="text-[10px] text-rose-400 mt-1">點擊查看詳細清單</p>
-          </CardContent>
-        </Card>
+            <div className="text-[11px] text-slate-500  animate-pulse">點擊查看清單</div>
+          </div>
+        </div>
 
-        {/* KPI 5: 未精熟人數 */}
-        
-        <Card 
-            className={`cursor-pointer transition-all hover:shadow-md active:scale-95 ${isRiskOnly ? 'ring-2 ring-rose-500 bg-rose-100' : 'bg-rose-50 border-rose-200'}`}
-            onClick={handleKPI5Click}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-              <CardTitle className="text-sm font-medium">未精熟人數</CardTitle>
-              {isRiskOnly && <span className="text-[10px] bg-rose-500 text-white px-1.5 rounded-full">篩選中</span>}
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-2xl font-bold text-rose-700">
-                {kpi.notMasteredStudents}
-              </div>
-              <p className="text-[10px] text-rose-400 mt-1">點擊可過濾下方名單</p>
-            </CardContent>
-          </Card>
-        
+        {/* KPI 5: 未精熟人數 (可過濾) */}
+        <div 
+          onClick={handleKPI5Click}
+          className={`flex flex-col border rounded-md overflow-hidden shadow-sm transition-all cursor-pointer active:scale-95 group ${
+            isRiskOnly ? 'ring-2 ring-rose-500 bg-rose-50 border-red-900' : 'bg-white border-rose-200'
+          }`}
+        >
+          <div className={`text-white text-sm font-bold py-2.5 px-3 text-center border-b ${
+            isRiskOnly ? 'bg-rose-500 border-rose-200' : 'bg-rose-500 border-rose-200 group-hover:bg-rose-600'
+          }`}>
+            {isRiskOnly ? '正在篩選名單' : '未精熟人數'}
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center p-4">
+            <div className={`text-3xl font-black tracking-tight ${kpi.notMasteredStudents > 0 ? "text-rose-600" : "text-slate-800"}`}>
+              {kpi.notMasteredStudents}
+            </div>
+            <div className={`text-[11px] ${isRiskOnly ? 'text-rose-600' : 'text-slate-400'}`}>
+              {isRiskOnly ? '點擊取消過濾' : '點擊查看名單'}
+            </div>
+          </div>
+        </div>
+
       </div>
 
 

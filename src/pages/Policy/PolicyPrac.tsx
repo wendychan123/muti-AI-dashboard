@@ -947,55 +947,52 @@ useEffect(() => {
         </div>
 
         
-      
-
-      
+    
 
       {/* =========================
-                KPI 區
-      ========================= */}
+        KPI 區 
+    ========================= */}
       {kpiCompare && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
           {/* KPI 1: 學生母數 */}
-          <Card className="border">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-              <CardTitle className="text-sm font-medium">練習學生數</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-3xl font-bold text-green-900">
+          <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
+            <div className="bg-slate-500 text-white text-base font-bold py-2.5 px-3 text-center border-b border-slate-200">
+              練習學生數
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center p-4">
+              <div className="text-3xl font-black text-slate-800 tracking-tight">
                 {kpiCompare.current.total_students.toLocaleString()}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* KPI 2: 平均答題正確率 */}
           {(() => {
             const cur = kpiCompare.current.avg_score_rate;
             const base = kpiCompare.baseline.avg_score_rate;
             const c = compareArrow(cur, base, 0.05);
-            const badge = trafficLightForRate(cur, base);
 
             return (
-              <Card className={`border ${badge}`}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-                  <CardTitle className="text-sm font-medium">平均答題正確率</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
+              <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
+                <div className="bg-slate-500 text-white text-base font-bold py-2.5 px-3 text-center border-b border-slate-200">
+                  平均答題正確率
+                </div>
+                <div className="flex-1 flex flex-col items-center justify-center p-4">
                   <div className="flex items-end gap-2">
-                    <div className="text-3xl font-bold text-green-900">
-                      {cur.toFixed(1)}%
-                    </div>
-                    <div className={`text-2xl font-semibold ${c.cls}`}>
-                      ({c.arrow})
-                    </div>
-                  </div>
-                  <div className="text-xs mt-2 opacity-50">
-                    全部縣市：{base.toFixed(1)}%（差 {c.diff >= 0 ? "+" : ""}
-                    {c.diff.toFixed(1)}）
-                  </div>
-                </CardContent>
-              </Card>
+                          <div className="text-3xl font-black text-slate-800 tracking-tight">
+                            {cur.toFixed(1)}
+                          </div>
+                          <div className={`text-2xl font-bold  ${c.cls}`}>
+                            ({c.arrow})
+                          </div>
+                        </div>
+                        <div className="text-xs mt-1 opacity-50">
+                          全部縣市 {base.toFixed(1)} %（差 {c.diff >= 0 ? "+" : ""}
+                          {c.diff.toFixed(1)} %）
+                        </div>
+                </div>
+              </div>
             );
           })()}
 
@@ -1004,95 +1001,53 @@ useEffect(() => {
             const cur = kpiCompare.current.avg_prac_per_student;
             const base = kpiCompare.baseline.avg_prac_per_student;
             const c = compareArrow(cur, base, 0.01);
-            const badge = trafficLightForPrac(cur, base);
 
             return (
-              <Card className={`border ${badge}`}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-                  <CardTitle className="text-sm font-medium">人均練習次數</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
+              <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
+                <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
+                  人均練習次數
+                </div>
+                <div className="flex-1 flex flex-col items-center justify-center p-4">
                   <div className="flex items-end gap-2">
-                    <div className="text-3xl font-bold text-green-900">
-                      {cur.toFixed(2)}
-                    </div>
-                    <div className={`text-2xl font-semibold ${c.cls}`}>
-                      ({c.arrow})
-                    </div>
-                  </div>
-                  <div className="text-xs mt-2 opacity-50">
-                    全部縣市：{base.toFixed(2)}（差 {c.diff >= 0 ? "+" : ""}
-                    {c.diff.toFixed(2)}）
-                  </div>
-                </CardContent>
-              </Card>
+                          <div className="text-3xl font-black text-slate-800 tracking-tight">
+                            {cur.toFixed(1)}
+                          </div>
+                          <div className={`text-2xl font-bold ${c.cls}`}>
+                            ({c.arrow})
+                          </div>
+                        </div>
+                        <div className="text-xs mt-1 opacity-50">
+                          全部縣市 {base.toFixed(1)} 次（差 {c.diff >= 0 ? "+" : ""}
+                          {c.diff.toFixed(1)}）
+                        </div>
+                </div>
+              </div>
             );
           })()}
 
-          {/* KPI 4: 校際差距（反向：越小越好；↑↓代表相對 baseline 的變化，但顏色仍按“越小越好”） */}
+          {/* KPI 4: 校際差距 */}
           {(() => {
-            const raw = kpiCurrent?.school_score_std;
-
-            const value =
-              typeof raw === "number" && Number.isFinite(raw)
-                ? raw
-                : null;
-
-            if (value === null) {
-              return (
-                <Card className="border bg-slate-50">
-                  <CardHeader className="pb-2 p-4">
-                    <CardTitle className="text-sm font-medium">
-                      平均校際差距
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 pt-0">
-                    <div className="text-3xl font-bold text-slate-400">
-                      —
-                    </div>
-                    <div className="text-xs mt-2 opacity-40">
-                      無足夠資料
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            }
-            // ===== 政策燈號邏輯 =====
-            let bgColor = "bg-emerald-50 border-emerald-200";
-            let textColor = "text-green-900";
+            const value = kpiCurrent?.school_score_std || 0;
+            let statusColor = "font-black";
             let label = "表現均衡";
 
-            if (value > 3) {
-              bgColor = "bg-rose-50 border-rose-200";
-              label = "差距偏大";
-            } else if (value > 1.5) {
-              bgColor = "bg-amber-50 border-amber-200";
-              label = "中度差距";
-            }
+            if (value > 3) { statusColor = "text-red-500"; label = "差距偏大"; }
+            else if (value > 1.5) { statusColor = "text-red-500"; label = "中度差距"; }
 
             return (
-              <Card className={`border ${bgColor}`}>
-                <CardHeader className="pb-2 p-4">
-                  <CardTitle className="text-sm font-medium">
-                    平均校際差距
-                  </CardTitle>
-                </CardHeader>
-
-                <CardContent className="p-4 pt-0">
-                  <div className="flex items-end gap-2">
-
-                    <div className={`text-3xl font-bold ${textColor}`}>
-                      {value.toFixed(2)}
-                    </div>
-
-                    <div className="text-xs mt-2 opacity-60">
-                      ({label})
-                    </div>
+              <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
+                <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
+                  平均校際差距
+                </div>
+                <div className="flex-1 flex flex-col items-center justify-center p-4">
+                  <div className={`text-3xl font-black tracking-tight ${statusColor}`}>
+                    {value.toFixed(2)}
                   </div>
-
-                  
-                </CardContent>
-              </Card>
+                  <div className="text-[12px] text-slate-400  mt-1">
+                    {label}
+                  </div>
+                </div>
+              </div>
             );
           })()}
         </div>

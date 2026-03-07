@@ -1127,161 +1127,104 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
           </span>
         </div>
 
-      
 
-       
-      {/* 2. KPI Cards */}
+      {/* 2. KPI Cards  */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         
         {/* KPI 1: 次數 */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-            <CardTitle className="text-sm font-medium">總練習次數</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold text-blue-700">{processedStats.count}</div>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
+          <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
+            總練習次數
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center p-4">
+            <div className="text-3xl font-black text-slate-700 tracking-tight">
+              {processedStats.count.toLocaleString()}
+            </div>
+          </div>
+        </div>
 
         {/* KPI 2: 時間 */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-            <CardTitle className="text-sm font-medium">投入時間</CardTitle>
-          </CardHeader>
-
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold text-blue-700">
-              {processedStats.totalTime} 秒
+        <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
+          <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
+            平均投入時間
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center p-4">
+            <div className="text-2xl font-black text-slate-700 tracking-tight">
+              {processedStats.totalTime} <span className="text-base">秒</span>
             </div>
-
             {avgSpeedCompare.classAvgSec != null && (
-              <p className="text-xs text-slate-500">
-                校平均 {avgSpeedCompare.classAvgSec} 秒　
-                <span
-                  className={
-                    Number(avgSpeedCompare.diff) < 0
-                      ? "text-green-600"
-                      : Number(avgSpeedCompare.diff) > 0
-                      ? "text-red-600"
-                      : "text-slate-400"
-                  }
-                >
-                  (
-                  {Number(avgSpeedCompare.diff) === 0
-                    ? " — "
-                    : Number(avgSpeedCompare.diff) < 0
-                    ? `快 ${Math.abs(Number(avgSpeedCompare.diff))} 秒`
-                    : `慢 ${Math.abs(Number(avgSpeedCompare.diff))} 秒`}
-                  )
+              <div className="text-[11px] mt-1 font-medium">
+                <span className="text-slate-500">校平均 {avgSpeedCompare.classAvgSec} 秒</span>
+                <span className={`ml-1 ${
+                  Number(avgSpeedCompare.diff) < 0 ? "text-green-500" : "text-red-500"
+                }`}>
+                  {Number(avgSpeedCompare.diff) === 0 ? " (→)" : 
+                  Number(avgSpeedCompare.diff) < 0 ? ` (快 ${Math.abs(Number(avgSpeedCompare.diff))}s)` : ` (慢 ${Math.abs(Number(avgSpeedCompare.diff))}s)`}
                 </span>
-              </p>
+              </div>
             )}
-          </CardContent>
-        </Card>
-
+          </div>
+        </div>
 
         {/* KPI 3: 平均正確率 */}
-       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-          <CardTitle className="text-sm font-medium">平均正確率</CardTitle>
-        </CardHeader>
-
-        <CardContent className="p-4 pt-0">
-          <div className="text-2xl font-bold text-blue-700">
-            {avgScoreCompare.studentAvg}%
+        <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
+          <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
+            平均正確率
           </div>
-
-          {avgScoreCompare.classAvg !== null && (
-            <p className="text-xs text-slate-500">
-              校平均 {avgScoreCompare.classAvg}%　
+          <div className="flex-1 flex flex-col items-center justify-center p-4">
+            <div className="text-2xl font-black text-slate-700 tracking-tight">
+              {avgScoreCompare.studentAvg} %
+            </div>
+            <div className="text-[11px] text-slate-400 font-medium mt-1">
+              <span className="text-slate-500">校平均 {avgScoreCompare.classAvg} % </span>
               <span
-                className={
-                  avgScoreCompare.diff >= 0
-                    ? "text-green-600"
-                    : "text-red-600"
-                }
-              >
-                ({avgScoreCompare.diff >= 0 ? "+" : ""}
-                {avgScoreCompare.diff}%)
-              </span>
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-
-        
-
-
-        {/* KPI 5: 低於班級平均 */}
-        <Card className={`${belowClassAvgStats.count > 0 ? "border-red-300 bg-red-50/50"
-              : "border-blue-300 bg-blue-50/50"}`}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-            <CardTitle className="text-sm font-medium">低於校平均</CardTitle>
-          </CardHeader>
-
-          <CardContent className="space-y-1">
-            <div 
-            className={`text-2xl font-bold ${
-              belowClassAvgStats.count > 0
-                  ? "text-red-700"
-                  : "text-blue-700"
-              }`}
-            >
-              {belowClassAvgStats.count > 0 ? "是" : "否"}
+                      className={
+                        avgScoreCompare.diff >= 0
+                          ? "text-green-500"
+                          : "text-red-500"
+                      }
+                    >
+                      ({avgScoreCompare.diff >= 0 ? "+" : ""}
+                      {avgScoreCompare.diff}%)
+                    </span>
             </div>
+          </div>
+        </div>
 
-            <p className="text-xs text-slate-500">
+        {/* KPI 4: 低於校平均 */}
+        <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
+          <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
+            指標表現狀態
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center p-4">
+            <div className={`text-2xl font-medium tracking-tight ${
+              belowClassAvgStats.count > 0 ? "text-red-500" : "text-green-600"
+            }`}>
+              {belowClassAvgStats.count > 0 ? "警告" : "良好"}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-2">
               該校總練習人數 {belowClassAvgStats.classPracPeople} 人
-            </p>
-          </CardContent>
-        </Card>
-
-
-        {/* KPI 6：已達學習目標 */}
-        <Card
-          className={
-            processedStats.reachedGoal
-              ? "border-blue-300 bg-blue-50/50"
-              : "border-red-300 bg-red-50/50"
-          }
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-            <CardTitle className="text-sm font-medium">
-              已達學習目標
-            </CardTitle>
-          </CardHeader>
-
-          <CardContent className="space-y-1">
-            {/* 主狀態 */}
-            <div
-              className={`text-2xl font-bold ${
-                processedStats.reachedGoal
-                  ? "text-blue-700"
-                  : "text-red-700"
-              }`}
-            >
-              {processedStats.reachedGoal ? "是" : "否"}
             </div>
+          </div>
+        </div>
 
-            {/* 說明 */}
-            <div className="text-xs text-slate-600 space-y-1">
-              <div>
-                已克服弱點：
-                <span className="font-medium text-slate-800 ml-1">
-                  {processedStats.improvedCount}
-                </span>
-              </div>
-              <div>
-                練習已滿分：
-                <span className="font-medium text-slate-800 ml-1">
-                  {processedStats.perfectCount}
-                </span>
-              </div>
+        {/* KPI 5：目標達成率 */}
+        <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
+          <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
+            目標完成率
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center p-4">
+            <div className={`text-2xl font-black tracking-tight ${
+              processedStats.reachedGoal ? "text-green-600" : "text-red-500"
+            }`}>
+              {processedStats.reachedGoal ? "100.00%" : "尚未達成"}
             </div>
-          </CardContent>
-        </Card>
-
+            <div className="flex gap-2 mt-2 font-medium">
+              <span className="text-[11px] bg-slate-100 px-1 rounded text-slate-500">克服弱點：{processedStats.improvedCount}</span>
+              <span className="text-[11px] bg-slate-100 px-1 rounded text-slate-500">達成滿分：{processedStats.perfectCount}</span>
+            </div>
+          </div>
+        </div>
 
       </div>
 
