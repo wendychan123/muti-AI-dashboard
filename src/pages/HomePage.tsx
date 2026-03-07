@@ -4,6 +4,9 @@ import { useNavigate } from "react-router-dom";
 import { GraduationCap, Users, BookOpen, Maximize, Minimize } from "lucide-react";
 import { useState } from "react";
 import educationBg from "@/assets/education-bg.jpg";
+import PolicyIP from "@/assets/policyIP.jpg";
+import TeacherIP from "@/assets/teacherIP.jpg";
+import StudentIP from "@/assets/studentIP.jpg";
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -15,10 +18,11 @@ const HomePage = () => {
     title: "管理者",
     description: "總覽校務數據\n輔助教學策略與資源配置",
     icon: (
-      <img 
-        src="/src/assets/policyIP.jpg" 
-        alt="管理者" 
-        className="w-25 h-25 md:w-40 md:h-40 object-contain transition-transform group-hover:scale-110" 
+      <div 
+        style={{ backgroundImage: `url(${PolicyIP})` }}
+        className="w-25 h-25 md:w-40 md:h-40 bg-contain bg-center bg-no-repeat transition-transform group-hover:scale-110"
+        role="img"
+        aria-label="管理者"
       />
     ),
     color: "bg-gradient-to-br from-teal-500 to-teal-700",
@@ -30,10 +34,11 @@ const HomePage = () => {
     title: "教師",
     description: "作答練習狀況\n掌握校內學習成效與進度",
     icon: (
-      <img 
-        src="/src/assets/teacherIP.jpg" 
-        alt="教師" 
-        className="w-25 h-25 md:w-40 md:h-40 object-contain transition-transform group-hover:scale-110" 
+      <div 
+        style={{ backgroundImage: `url(${TeacherIP})` }}
+        className="w-25 h-25 md:w-40 md:h-40 bg-contain bg-center bg-no-repeat transition-transform group-hover:scale-110"
+        role="img"
+        aria-label="教師"
       />
     ),
     color: "bg-gradient-to-br from-indigo-500 to-indigo-700",
@@ -46,10 +51,11 @@ const HomePage = () => {
     title: "學生",
     description: "個人練習表現\n獲取個人學習診斷與建議",
     icon: (
-      <img 
-        src="/src/assets/studentIP.jpg" 
-        alt="學生" 
-        className="w-25 h-25 md:w-40 md:h-40 object-contain transition-transform group-hover:scale-110" 
+      <div 
+        style={{ backgroundImage: `url(${StudentIP})` }}
+        className="w-25 h-25 md:w-40 md:h-40 bg-contain bg-center bg-no-repeat transition-transform group-hover:scale-110"
+        role="img"
+        aria-label="學生"
       />
     ),
     color: "bg-gradient-to-br from-blue-400 to-sky-600",
