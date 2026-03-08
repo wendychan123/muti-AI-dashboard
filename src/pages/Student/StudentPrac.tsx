@@ -2030,7 +2030,9 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
 
         <CardHeader className="flex flex-row items-center justify-between py-4 pb-2">
           <CardTitle className="text-xl font-bold text-slate-700">
-            詳細練習紀錄
+            詳細練習紀錄 
+            <span className="px-2 text-xs text-blue-600">（ {selectedSubject} | {selectedIndicator} ）</span>
+           
             </CardTitle>
           <CardDescription></CardDescription>
         </CardHeader>

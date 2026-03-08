@@ -24,6 +24,7 @@ interface AIMessage {
   status: "loading" | "done";
   content?: string;
   collapsed: boolean;
+  showDetail: boolean;
 }
 
 /* =========================
@@ -75,12 +76,13 @@ export default function StudentAiPanel({
               questions: detail.questions || [],
               status: "loading",
               collapsed: false,
+              showDetail: false,  // 預設不顯示詳細
             },
             ...prev.map(m => ({ ...m, collapsed: true })),
           ];
         }
 
-        // 🔹 完成 → 更新最新 loading
+        // 完成 → 更新最新 loading
         if (detail.loading === false && detail.content) {
           const index = prev.findIndex(m => m.status === "loading");
           if (index === -1) return prev;
@@ -104,6 +106,15 @@ export default function StudentAiPanel({
     return () =>
       window.removeEventListener("student-ai-update", handler);
   }, []);
+
+  /* =========================
+     詳細內容
+  ========================= */
+  const toggleDetail = (id: string) => {
+    setMessages(prev =>
+      prev.map(m => (m.id === id ? { ...m, showDetail: !m.showDetail } : m))
+    );
+  };
 
   /* =========================
      多圖分析觸發
@@ -218,62 +229,71 @@ export default function StudentAiPanel({
           </div>
         )}
 
-        {messages.map(msg => (
-          <div
-            key={msg.id}
-            className="border rounded-lg bg-slate-50"
-          >
-            {/* Header */}
-            <button
-              onClick={() =>
-                setMessages(prev =>
-                  prev.map(m =>
-                    m.id === msg.id
-                      ? { ...m, collapsed: !m.collapsed }
-                      : m
-                  )
-                )
-              }
-              className="w-full flex items-start justify-between p-3 gap-2"
-            >
-              <div className="flex items-start gap-2 text-left">
-                {msg.status === "done" ? (
-                  <CheckCircle2 className="w-4 h-4 text-blue-600 mt-0.5" />
-                ) : (
-                  <span className="animate-pulse text-slate-400">⏳</span>
-                )}
+       {messages.map(msg => {
+          // 使用分隔符號拆分內容
+          const parts = msg.content?.split("===詳細分析===") || [];
+          const summary = parts[0]?.replace("｜快讀總結", "").trim() || "";
+          const details = parts[1]?.trim() || "";
 
-                <div>
-                  {msg.questions.length > 0 && (
-                    <div className="font-medium text-slate-800">
-                      【分析項目】<br />
-                      {msg.questions.join("、")}
-                    </div>
-                  )}
-
-                  <div className="text-xs text-slate-500 mt-1">
-                    {msg.status === "loading"
-                      ? "分析中…"
-                      : "分析完成"}
+          return (
+            <div key={msg.id} className="border rounded-lg bg-slate-50 overflow-hidden">
+              {/* Header (標題與收合按鈕) */}
+              <button
+                onClick={() => setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, collapsed: !m.collapsed } : m))}
+                className="w-full flex items-start justify-between p-3 gap-2 bg-white border-b border-slate-100"
+              >
+                <div className="flex items-start gap-2 text-left">
+                  {msg.status === "done" ? <CheckCircle2 className="w-4 h-4 text-blue-600 mt-0.5" /> : <span className="animate-pulse text-slate-400">⏳</span>}
+                  <div>
+                    {msg.questions.length > 0 && (
+                      <div className="font-bold text-slate-800 text-[12px]">
+                        分析：{msg.questions.join("、")}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
+                {msg.collapsed ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronUp className="w-4 h-4 text-slate-400" />}
+              </button>
 
-              {msg.collapsed ? (
-                <ChevronDown className="w-4 h-4 text-slate-400" />
-              ) : (
-                <ChevronUp className="w-4 h-4 text-slate-400" />
-              )}
-            </button>
+              {/* Body */}
+              {!msg.collapsed && msg.content && (
+                  <div className="p-4">
+                    {/* 簡短總結：永遠顯示 */}
+                    <div className="bg-blue-200/50 p-3 rounded-lg border-blue-800 text-slate-700 leading-relaxed">
+                      <div className="text-[13px] font-bold text-blue-600 mb-1 uppercase tracking-widest">學習建議摘要</div>
+                      {summary}
+                    </div>
 
-            {/* Body */}
-            {!msg.collapsed && msg.content && (
-              <div className="px-4 pb-3 text-slate-700 whitespace-pre-line">
-                {msg.content}
+                    {/* 詳細分析：點擊才顯示 */}
+                    {details && (
+                      <div className="mt-3">
+                        {!msg.showDetail ? (
+                          <button
+                            onClick={() => toggleDetail(msg.id)}
+                            className="w-full py-2 text-xs text-blue-600 hover:bg-blue-50 rounded border border-dashed border-blue-200 font-medium transition-colors"
+                          >
+                            展開詳細分析 ↓
+                          </button>
+                        ) : (
+                          <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-300">
+                            <div className="text-slate-600 text-xs leading-relaxed whitespace-pre-line border-t pt-3 mt-1">
+                              {details}
+                            </div>
+                            <button
+                              onClick={() => toggleDetail(msg.id)}
+                              className="text-[12px] text-blue-500 hover:text-blue-800 flex items-center justify-center w-full"
+                            >
+                              收起詳細分析 ↑
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        ))}
+            );
+          })}
       </div>
     </aside>
   );

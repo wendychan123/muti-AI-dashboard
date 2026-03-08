@@ -26,6 +26,7 @@ interface AIMessage {
   status: "loading" | "done";
   content?: string;
   collapsed: boolean;
+  showDetail?: boolean;
 }
 
 /* =========================
@@ -105,6 +106,15 @@ export default function PolicyAIPanel({
     return () =>
       window.removeEventListener("policy-ai-update", handler);
   }, []);
+
+  /* =========================
+     詳細內容處理
+  ========================= */
+  const toggleDetail = (id: string) => {
+    setMessages(prev =>
+      prev.map(m => (m.id === id ? { ...m, showDetail: !m.showDetail } : m))
+    );
+  };
 
   /* =========================
      多圖整合分析
@@ -221,60 +231,77 @@ export default function PolicyAIPanel({
           </div>
         )}
 
-        {messages.map(msg => (
-          <div
-            key={msg.id}
-            className="border rounded-lg bg-slate-50"
-          >
-            <button
-              onClick={() =>
-                setMessages(prev =>
-                  prev.map(m =>
-                    m.id === msg.id
-                      ? { ...m, collapsed: !m.collapsed }
-                      : m
-                  )
-                )
-              }
-              className="w-full flex items-start justify-between p-3 gap-2"
-            >
-              <div className="flex items-start gap-2 text-left">
-                {msg.status === "done" ? (
-                  <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5" />
-                ) : (
-                  <span className="animate-pulse text-slate-400">⏳</span>
-                )}
+        {messages.map(msg => {
+          // 🔹 解析結構化回覆
+          const parts = msg.content?.split("===詳細分析===") || [];
+          const summary = parts[0]?.replace("｜快讀總結", "").trim() || "";
+          const details = parts[1]?.trim() || "";
 
-                <div>
-                  {msg.questions.length > 0 && (
-                    <div className="font-medium text-slate-800">
-                      【分析項目】<br />
-                      {msg.questions.join("、")}
-                    </div>
+          return (
+            <div key={msg.id} className="border rounded-lg bg-white overflow-hidden shadow-sm">
+              {/* Header: 分析項目 */}
+              <button
+                onClick={() => setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, collapsed: !m.collapsed } : m))}
+                className="w-full flex items-start justify-between p-3 gap-2 bg-slate-50/50 border-b border-slate-100"
+              >
+                <div className="flex items-start gap-2 text-left">
+                  {msg.status === "done" ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5" />
+                  ) : (
+                    <span className="animate-pulse text-slate-400">⏳</span>
                   )}
-
-                  <div className="text-xs text-slate-500 mt-1">
-                    {msg.status === "loading"
-                      ? "分析中…"
-                      : "分析完成"}
+                  <div>
+                    {msg.questions.length > 0 && (
+                      <div className="font-bold text-slate-800 text-[12px] ">
+                        分析：{msg.questions.map(q => q).join("、")}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
+                {msg.collapsed ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronUp className="w-4 h-4 text-slate-400" />}
+              </button>
 
-              {msg.collapsed ? (
-                <ChevronDown className="w-4 h-4 text-slate-400" />
-              ) : (
-                <ChevronUp className="w-4 h-4 text-slate-400" />
+              {/* Body */}
+              {!msg.collapsed && msg.content && (
+                <div className="p-4">
+                  {/* 🔹 決策摘要 (Emerald 色系) */}
+                  <div className="bg-emerald-50 p-3 rounded-lg border-emerald-500 text-slate-700 leading-relaxed text-[13px] font-medium">
+                    <div className="text-[13px] font-bold text-emerald-600 mb-1 uppercase tracking-widest">
+                       決策建議摘要
+                    </div>
+                    {summary || msg.content}
+                  </div>
+
+                  {/* 🔹 詳細內容 */}
+                  {details && (
+                    <div className="mt-3">
+                      {!msg.showDetail ? (
+                        <button
+                          onClick={() => toggleDetail(msg.id)}
+                          className="w-full py-2 text-xs text-emerald-600 hover:bg-emerald-50 rounded border border-dashed border-emerald-200 font-medium transition-colors"
+                        >
+                          查看詳細分析 ↓
+                        </button>
+                      ) : (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-300">
+                          <div className="text-slate-600 text-xs leading-relaxed whitespace-pre-line border-t pt-3 mt-1">
+                            {details}
+                          </div>
+                          <button
+                            onClick={() => toggleDetail(msg.id)}
+                            className="text-[12px] text-emerald-500 hover:text-emerald-800 flex items-center justify-center w-full"
+                          >
+                            隱藏詳細內容 ↑
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
-            </button>
-
-            {!msg.collapsed && msg.content && (
-              <div className="px-3 pb-3 text-slate-700 whitespace-pre-line">
-                {msg.content}
-              </div>
-            )}
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
     </aside>
   );
