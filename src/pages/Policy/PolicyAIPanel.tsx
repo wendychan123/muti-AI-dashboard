@@ -50,6 +50,7 @@ export default function PolicyAIPanel({
     id: PolicyExplainTarget;
     label: string;
   }[] = [
+    { id: "policy_overview", label: "總覽練習概況" },
     { id: "development_index", label: "練習診斷指標" },
     { id: "regional_gap", label: "區域學習差距" },
     { id: "gap_trend", label: "平均差距走勢" },
