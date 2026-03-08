@@ -1,18 +1,18 @@
 export type PolicyExplainTarget =
   | "policy_overview"         // 總覽練習概況
-  | "development_index"         // 學力發展指標（四象限）
-  | "regional_gap"          // 區域學習差距（排名/比較）
-  | "gap_trend"        // 平均差距趨勢
-  | "practice_trend"   // 練習投入趨勢
-  | "effect_trend";     // 學習成效趨勢
+  | "development_index"         // 練習診斷指標
+  | "regional_gap"          // 區域學習差距
+  | "gap_trend"        // 平均差距走勢
+  | "practice_trend"   // 練習投入走勢
+  | "effect_trend";     // 學習成效走勢
 
 const POLICY_CHART_LABEL_MAP: Record<PolicyExplainTarget, string> = {
-  policy_overview: "總覽練習概況（整體投入與表現）",
-  development_index: "學力發展指標（投入 × 成效四象限）",
-  regional_gap: "區域學習差距（橫向比較）",
-  gap_trend: "平均差距趨勢（公平性變動）",
-  practice_trend: "練習投入趨勢",
-  effect_trend: "學習成效趨勢",
+  policy_overview: "總覽練習概況",
+  development_index: "練習診斷指標",
+  regional_gap: "區域學習差距",
+  gap_trend: "平均差距走勢",
+  practice_trend: "練習投入走勢",
+  effect_trend: "學習成效走勢",
 };
 
 

@@ -8,7 +8,7 @@ export type TeacherPracChartTarget =
   | "student_risk";      // 待關注學生
 
 const TEACHER_CHART_LABEL_MAP: Record<TeacherPracChartTarget, string> = {
-  teacher_overview: "全班練習概況總覽",
+  teacher_overview: "總覽練習表現",
   diagnostic: "教學診斷指標",
   participation: "作答參與度",
   practice_trend: "練習投入走勢",
