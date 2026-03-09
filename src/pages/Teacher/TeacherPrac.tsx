@@ -783,7 +783,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
             <div className="text-3xl font-black text-slate-800 tracking-tight">
               {kpi.totalStudents.toLocaleString()}
             </div>
-            <div className="text-[11px] text-slate-500 ">總學生數{kpi.totalSchoolStudents.toLocaleString()}人（參與率{kpi.participationRate.toFixed(1)}%）</div>
+            <div className="text-[11px] text-slate-400 ">總學生數{kpi.totalSchoolStudents.toLocaleString()}人（參與率{kpi.participationRate.toFixed(1)}%）</div>
           </div>
         </div>
 
@@ -1158,6 +1158,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
             {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold ">
               練習投入走勢
+              <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
             </CardTitle>
 
             {/* 右側：按鈕群組 */}
@@ -1288,6 +1289,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
             {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold ">
               學習成效走勢
+              <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
             </CardTitle>
 
             {/* 右側：按鈕群組 */}

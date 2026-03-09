@@ -1523,6 +1523,7 @@ useEffect(() => {
             {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold ">
               練習投入走勢
+              <span className="px-2 text-xs text-green-600">（ 科目：{selectedSubject} ）</span>
             </CardTitle>
 
             {/* 右側：按鈕群組 */}
@@ -1696,6 +1697,7 @@ useEffect(() => {
             {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold ">
               學習成效走勢
+              <span className="px-2 text-xs text-green-600">（ 科目：{selectedSubject} ）</span>
             </CardTitle>
             
 
