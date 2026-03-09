@@ -1440,6 +1440,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
             {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold text-slate-700">
               能力指標精熟度
+              <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
             </CardTitle>
 
             {/* 右側：按鈕群組 */}
@@ -1592,7 +1593,9 @@ const formatHoverText = (str: string, maxLength = 22) => {
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-2">
             {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold text-slate-700">
-              高風險學生與弱點指標 {isRiskOnly && <span className="px-2 text-xs font-normal text-rose-500">（已過濾未精熟名單）</span>}
+              高風險學生與弱點指標 <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
+              
+              {isRiskOnly && <span className="px-2 text-xs font-normal bg-rose-500 text-white">（已過濾未精熟名單）</span>}
             </CardTitle>
               
               {/* Tooltip 說明 */}
