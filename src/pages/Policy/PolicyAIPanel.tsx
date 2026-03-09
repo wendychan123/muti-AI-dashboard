@@ -265,18 +265,20 @@ export default function PolicyAIPanel({
               {/* Body */}
               {!msg.collapsed && msg.content && (
                 <div className="p-4">
-                  {/* 🔹 決策摘要 (Emerald 色系) */}
-                  <div className="bg-emerald-50 p-3 rounded-lg border-emerald-500 text-slate-700 leading-relaxed text-[13px] font-medium">
+                  {/* 🔹 1. 決策摘要：只要沒折疊 (collapsed=false)，這部分就應該永遠存在 */}
+                  <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100 text-slate-700 leading-relaxed text-[13px] font-medium">
                     <div className="text-[13px] font-bold text-emerald-600 mb-1 uppercase tracking-widest">
-                       決策建議摘要
+                      決策建議摘要
                     </div>
+                    {/* 修正點：確保即使沒有詳細內容標記，也能顯示完整內容 */}
                     {summary || msg.content}
                   </div>
 
-                  {/* 🔹 詳細內容 */}
+                  {/* 🔹 2. 詳細內容控制區 */}
                   {details && (
                     <div className="mt-3">
                       {!msg.showDetail ? (
+                        // 狀態 A：詳細內容被收起來了，顯示「查看」按鈕
                         <button
                           onClick={() => toggleDetail(msg.id)}
                           className="w-full py-2 text-xs text-emerald-600 hover:bg-emerald-50 rounded border border-dashed border-emerald-200 font-medium transition-colors"
@@ -284,13 +286,15 @@ export default function PolicyAIPanel({
                           查看詳細分析 ↓
                         </button>
                       ) : (
+                        // 狀態 B：詳細內容展開中
                         <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-300">
-                          <div className="text-slate-600 text-xs leading-relaxed whitespace-pre-line border-t pt-3 mt-1">
+                          <div className="text-slate-600 text-[12px] leading-relaxed whitespace-pre-line border-t border-slate-100 pt-3 mt-1">
                             {details}
                           </div>
+                          {/* 🔹 關鍵修正：點擊這個按鈕只會讓 showDetail 變回 false，摘要依然會在上面 */}
                           <button
                             onClick={() => toggleDetail(msg.id)}
-                            className="text-[12px] text-emerald-500 hover:text-emerald-800 flex items-center justify-center w-full"
+                            className="py-2 text-[12px] text-emerald-500 hover:text-emerald-700 flex items-center justify-center w-full font-medium"
                           >
                             隱藏詳細內容 ↑
                           </button>
