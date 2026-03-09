@@ -3,6 +3,7 @@ import { useUserContext } from "@/contexts/UserContext";
 import { supabase } from "@/lib/supabase";
 import dayjs from "dayjs";
 import Plot from "react-plotly.js";
+import _ from "lodash";
 import { buildTeacherPracPrompt } from "@/lib/ai/buildTeacherPracPrompt";
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,6 +58,12 @@ interface StudentAlert {
   mastery_status: string;
 }
 
+interface SchoolSummary {
+  organization_id: string;
+  grade: number;
+  total_school_students: number; 
+}
+
 type TeacherPracChartTarget = 
   | "teacher_overview"   // 總覽
   | "diagnostic"         // 教學診斷指標 (四象限)
@@ -89,6 +96,7 @@ export default function TeacherPrac() {
   const organizationId = userInfo?.organization_id;
 
   const [pracData, setPracData] = useState<SchoolPracDaily[]>([]);
+  const [schoolSummary, setSchoolSummary] = useState<SchoolSummary[]>([]);
   const [indicatorSummary, setIndicatorSummary] = useState<IndicatorSummary[]>([]);
   const [alertData, setAlertData] = useState<StudentAlert[]>([]);
 
@@ -129,6 +137,12 @@ export default function TeacherPrac() {
           .select("*")
           .eq("organization_id", organizationId);
 
+        const { data: summary } = await supabase
+          .from("school_summary")
+          .select("*")
+          .eq("organization_id", organizationId);
+
+        setSchoolSummary(summary ?? []);
         setPracData(prac ?? []);
         setIndicatorSummary(indicator ?? []);
         setAlertData(alert ?? []);
@@ -399,10 +413,28 @@ const filteredDisplayList = useMemo(() => {
     const scoreWeighted = filteredPrac.reduce((s, r) => s + r.avg_score_rate * r.total_prac_count, 0);
     const avgScore = totalPrac > 0 ? scoreWeighted / totalPrac : 0;
     
-    // 學生數統計 (從練習紀錄中提取不重複學生)
+    
+    // 精確的學校總學生數計算
+    let totalSchoolStudents = 0;
+    if (selectedGrade === ALL_GRADE) {
+      // 全部年級：加總所有年級的人數 (利用 uniqBy 避免重複計算，如果資料表設計是按指標分的話)
+      // 若 school_summary 是每個年級一筆，直接加總即可
+      totalSchoolStudents = _.sumBy(schoolSummary, "total_school_students");
+    } else {
+      // 特定年級：篩選該年級的人數
+      const gradeData = schoolSummary.find(s => s.grade === Number(selectedGrade));
+      totalSchoolStudents = gradeData?.total_school_students || 0;
+    }
+
+    
+
+    // 練習學生數統計 (從練習紀錄中提取不重複學生)
     const practicedStudents = new Set(filteredAlert.map(a=>a.user_id)) 
     const totalStudents = practicedStudents.size
     const avgPracPerStudent = totalStudents > 0 ? totalPrac / totalStudents : 0;
+    const participationRate = totalSchoolStudents > 0 
+      ? (totalStudents / totalSchoolStudents) * 100 
+      : 0;
 
     // --- 關鍵修正：確保與表格按鈕完全一致 ---
     
@@ -418,14 +450,16 @@ const filteredDisplayList = useMemo(() => {
     ).size;
 
     return { 
-      totalStudents, 
+      totalStudents,
+      totalSchoolStudents, 
+      participationRate,
       avgScore, 
       avgPracPerStudent, 
       totalTime, 
       notMasteredStudents, 
       notMasteredIndicators 
     };
-  }, [filteredPrac, filteredAlert, proficiencyList]);
+  }, [filteredPrac, filteredAlert, proficiencyList, schoolSummary, selectedGrade]);
 
 /* =========================
      教學投入四象限圖
@@ -749,6 +783,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
             <div className="text-3xl font-black text-slate-800 tracking-tight">
               {kpi.totalStudents.toLocaleString()}
             </div>
+            <div className="text-[11px] text-slate-500 ">總學生數{kpi.totalSchoolStudents.toLocaleString()}人（參與率{kpi.participationRate.toFixed(1)}%）</div>
           </div>
         </div>
 

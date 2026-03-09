@@ -372,50 +372,43 @@ export default function StudentPrac() {
 
 
   /// 低於班級平均
-const belowClassAvgStats = useMemo(() => {
-  if (!filteredAttempts.length || !OrgIndicatorData.length) {
-    return {
-      count: 0,
-      classPracPeople: null,
-    };
-  }
-
-  // ① 每個能力指標只取「最新一次作答」
-  const latestByIndicator = _.mapValues(
-    _.groupBy(filteredAttempts, "indicate_name"),
-    arr => _.maxBy(arr, "date")
-  );
-
-  let count = 0;
-
-  // ② 計算「低於班級平均的能力指標數」
-  Object.values(latestByIndicator).forEach((latest: any) => {
-    if (!latest) return;
-
-    const schoolRow = OrgIndicatorData.find(
-      c =>
-        c.subject_name === latest.subject_name &&
-        c.indicate_name === latest.indicate_name
-    );
-
-    if (!schoolRow) return;
-
-    if (latest.score_rate < schoolRow.school_avg_score_rate) {
-      count++;
+/// KPI4：指標表現狀態 (修改後：只要有過一次 100% 就算克服)
+  const belowClassAvgStats = useMemo(() => {
+    if (!filteredAttempts.length) {
+      return {
+        count: 0,
+        classPracPeople: null,
+      };
     }
-  });
 
-  // ③ 班級練習人數：只取一次（不依 indicator）
-  const classPracPeople =
-    OrgIndicatorData.length > 0
-      ? Math.max(...OrgIndicatorData.map(c => c.participant_count || 0))
-      : null;
+    // 1. 先將目前的練習紀錄按「能力指標」分組
+    const attemptsByIndicator = _.groupBy(filteredAttempts, "indicate_name");
 
-  return {
-    count,
-    classPracPeople,
-  };
-}, [filteredAttempts, OrgIndicatorData]);
+    let struggleCount = 0;
+
+    // 2. 檢查每一個指標的紀錄
+    Object.values(attemptsByIndicator).forEach((attempts: AttemptRow[]) => {
+      // 現在 TypeScript 知道 attempts 是陣列，就能使用 .some 了
+      const hasPerfectRecord = attempts.some(a => 
+        (a.score_rate >= 0.99 && a.score_rate <= 1) || a.score_rate === 100
+      );
+      
+      if (!hasPerfectRecord) {
+        struggleCount++;
+      }
+    });
+
+    // 3. 獲取班級練習人數 (維持原樣)
+    const classPracPeople =
+      OrgIndicatorData.length > 0
+        ? Math.max(...OrgIndicatorData.map(c => c.participant_count || 0))
+        : null;
+
+    return {
+      count: struggleCount, // 這裡的 count 代表「尚未拿過滿分的指標數量」
+      classPracPeople,
+    };
+  }, [filteredAttempts, OrgIndicatorData]);
 
 
 
@@ -1197,13 +1190,15 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
             指標表現狀態
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
-            <div className={`text-2xl font-medium tracking-tight ${
-              belowClassAvgStats.count > 0 ? "text-red-500" : "text-green-600"
+            <div className={`text-2xl font-black tracking-tight ${
+              belowClassAvgStats.count > 0 ? "text-red-500" : "text-blue-600"
             }`}>
-              {belowClassAvgStats.count > 0 ? "警告" : "良好"}
+              {belowClassAvgStats.count > 0 ? "需加強" : "表現良好"}
             </div>
-            <div className="text-[11px] text-slate-500 mt-2">
-              該校總練習人數 {belowClassAvgStats.classPracPeople} 人
+            <div className="text-[11px] text-slate-500 mt-2 text-center">
+              {belowClassAvgStats.count > 0 
+                ? `尚有 ${belowClassAvgStats.count} 項指標未達滿分` 
+                : "已完成所有指標且滿分"}
             </div>
           </div>
         </div>
@@ -1215,7 +1210,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
             <div className={`text-2xl font-black tracking-tight ${
-              processedStats.reachedGoal ? "text-green-600" : "text-red-500"
+              processedStats.reachedGoal ? "text-blue-600" : "text-red-500"
             }`}>
               {processedStats.reachedGoal ? "100.00%" : "尚未達成"}
             </div>
@@ -1317,6 +1312,10 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                   customdata: chart1Data.xFull, 
                   hovertemplate:
                     "<b>%{x}</b><br><b>%{customdata}</b><br>練習次數：%{y}<extra></extra>", 
+                  hoverlabel: {
+                    align: "left",    // 文字靠左
+                    font: { size: 13}
+                  }
                 },
                 {
                   x: chart1Data.xShort,
@@ -1330,6 +1329,10 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                   hovertemplate:
                     "<b>%{customdata}</b><br>平均正確率：%{y}%<extra></extra>",
                   customdata: chart1Data.xFull,
+                  hoverlabel: {
+                    align: "left",    // 文字靠左
+                    font: { size: 13}
+                  }
                 },
               ]}
               layout={{
@@ -1407,8 +1410,8 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
               }}
               
               useResizeHandler
-              config={{ displayModeBar: false, responsive: true }}
               style={{ width: "100%", height: "100%" }}
+              config={{ displayModeBar: false, responsive: true }}
             />
           </CardContent>
         </Card>
@@ -1585,6 +1588,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
               }}
               useResizeHandler
               style={{ width: "100%", height: "100%" }}
+              config={{ displayModeBar: false, responsive: true }}
             />
           </CardContent>
         </Card>
@@ -1743,9 +1747,10 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
 
               font: { family: "inherit" },
             }}
-            config={{ responsive: true }}
+            
             useResizeHandler
             style={{ width: "100%", height: "100%" }}
+            config={{ displayModeBar: false, responsive: true }}
           />
         </CardContent>
       </Card>
@@ -1924,8 +1929,8 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                             <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
                             <ul className="text-xs space-y-2 list-disc pl-4">
                               <li>
-                                <b className="text-blue-700 font-bold">學校平均：</b>
-                                顯示目前該校在特定單元下的平均正確率走勢，反映全校整體的理解程度。
+                                <b className="text-blue-700 font-bold">我的正確率：</b>
+                                顯示目前在特定單元下的平均正確率走勢。
                               </li>
                               <li>
                                 <b className="text-red-600 font-bold">全校平均：</b>
@@ -1987,7 +1992,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                       mode: "lines+markers",
                       name: "我的正確率",
                       line: { color: "#2563eb", width: 3, shape: 'spline' }, 
-                      hovertemplate: "我的正確率：%{y}%<extra></extra>",
+                      hovertemplate: "我的正確率：%{y} <extra></extra>",
                     },
                     // 基準線：使用該學生的全局平均或校平均
                     {
