@@ -894,7 +894,7 @@ useEffect(() => {
 
         {/* 日期區間 */}
         <div className="flex items-center gap-2 text-sm">
-          <span>使用時數區間：</span>
+          <span>時間區間：</span>
           <input
             type="date"
             value={startDate ?? ""}
@@ -1004,7 +1004,7 @@ useEffect(() => {
 
             return (
               <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
-                <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
+                <div className="bg-slate-500 text-white text-base font-bold py-2.5 px-3 text-center border-b border-slate-200">
                   人均練習次數
                 </div>
                 <div className="flex-1 flex flex-col items-center justify-center p-4">
@@ -1028,7 +1028,7 @@ useEffect(() => {
           {/* KPI 4: 校際差距 */}
           {(() => {
             const value = kpiCurrent?.school_score_std || 0;
-            let statusColor = "font-black";
+            let statusColor = "text-green-600";
             let label = "表現均衡";
 
             if (value > 3) { statusColor = "text-red-500"; label = "差距偏大"; }
@@ -1036,7 +1036,7 @@ useEffect(() => {
 
             return (
               <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
-                <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
+                <div className="bg-slate-500 text-white text-base font-bold py-2.5 px-3 text-center border-b border-slate-200">
                   平均校際差距
                 </div>
                 <div className="flex-1 flex flex-col items-center justify-center p-4">
@@ -1136,6 +1136,12 @@ useEffect(() => {
                     mode: "markers+text",
                     type: "scatter",
                     textposition: "top center",
+                    
+                    hovertemplate: 
+                      "人均練習次數: %{x:.1f} 次<br>" + 
+                      "平均答題正確率: %{y:.1f}%<br>" +
+                      "<extra></extra>",
+                    
                     marker: {
                           size: 16,
                           color: "rgba(0, 0, 0, 0.47)",
@@ -1143,7 +1149,14 @@ useEffect(() => {
                             color: "#f4f800ff",
                             width: 4,
                           },
-                        },
+                    },
+                    
+                    hoverlabel: {
+                      bgcolor: "rgba(0, 0, 0, 0.63)",  // 懸停框背景色
+                      font: { color: "#fff" },    // 懸停框文字顏色
+                      align: "left",
+                      namelength: -1
+                    }
                   },
                 ]}
                 layout={{
@@ -1237,6 +1250,7 @@ useEffect(() => {
             {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold ">
               區域學習差距
+              <span className="px-2 text-[9px] text-green-600">（ 科目：{selectedSubject} ）</span>
             </CardTitle>
 
             {/* 右側：按鈕群組 */}
@@ -1415,6 +1429,7 @@ useEffect(() => {
             {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold ">
               平均差距走勢
+              <span className="px-2 text-[9px] text-green-600">（ 科目：{selectedSubject} ）</span>
             </CardTitle>
          
 

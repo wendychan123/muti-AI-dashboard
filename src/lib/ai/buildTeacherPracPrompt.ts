@@ -65,7 +65,7 @@ export function buildTeacherPracPrompt(params: BuildTeacherPracPromptParams): st
 
 【班級關鍵 KPI】
 • 參與學生數：${fmtInt(stats.totalStudents)} 位
-• 班級平均正確率：${fmt1(stats.avgScore)}%
+• 全校平均正確率：${fmt1(stats.avgScore)}%
 • 每人平均練習次數：${fmt1(stats.avgPracPerStudent)} 次
 • 未精熟學生數：${fmtInt(stats.notMasteredStudents)} 位（需優先關注）
 • 未精熟能力指標數：${fmtInt(stats.notMasteredIndicators)} 項
@@ -110,7 +110,7 @@ ${
 第一部分：
 (此處請勿出現「｜快讀總結」字樣)
 這部分請控制在 3 句話內。
-- 第一句：總結該校/班級目前的教學健康狀態（如：進度穩定、出現分化、投入不足等）。
+- 第一句：總結該學校目前的教學健康狀態（如：進度穩定、出現分化、投入不足等）。
 - 第二句：指出最迫切需要老師介入的「指標」或「學生群體」。
 - 第三句：給出一個最核心的教學建議動作。
 
