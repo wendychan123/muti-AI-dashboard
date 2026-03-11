@@ -94,13 +94,15 @@ interface PracDetailRow {
   score_rate: number;
 }
 
-type DiffBarRow = {
-  indicator: string;
-  indicate_name: string;
-  studentAvg: number;
-  classAvg: number;
-  diff: number;
-};
+interface DiffBarRow {
+  indicator: string;       // 指標代號 (如 S1)
+  indicate_name: string;   // 指標名稱
+  classAvg: number;        // 全校/班級平均
+  latestScore: number;     // 個人最新分數
+  historicalAvg: number;   // 個人歷次平均
+  latestDiff: number;      // 最新分數與校平均的差距
+  avgDiff: number;         // 歷次平均與校平均的差距
+}
 
 
 
@@ -309,6 +311,26 @@ export default function StudentPrac() {
   // 3. KPI 與 最新狀態
   const processedStats = useMemo(() => {
   const totalCount = filteredAttempts.length;
+    
+    // 1. 找出符合目前過濾條件的校級資料
+    const matchedOrgRows = OrgIndicatorData.filter(d => {
+      const matchSubject = selectedSubject === "all" || d.subject_name === selectedSubject;
+      const matchIndicator = selectedIndicator === "all" || d.indicate_name === selectedIndicator;
+      return matchSubject && matchIndicator;
+    });
+
+    // 2. 練習人數 (userCount)：
+    // 若選「全部科目」，取各指標中參與人數的最大值（代表該校有多少人參與過這類練習）
+    const userCount = matchedOrgRows.length > 0 
+      ? Math.max(...matchedOrgRows.map(d => d.participant_count || 0)) 
+      : 0;
+
+    // 3. 全校平均練習次數 (schoolAvgCount)：
+    // 邏輯：該範圍內的校總練習次數加總 / 參與人數
+    const schoolTotalPracSum = _.sumBy(matchedOrgRows, "school_prac_count");
+    const schoolAvgCount = userCount > 0 
+      ? (schoolTotalPracSum / userCount).toFixed(1) 
+      : "0.0";
   const totalTime = _.sumBy(filteredAttempts, "during_time");
 
   const avgScore =
@@ -324,8 +346,8 @@ export default function StudentPrac() {
     "indicate_name"
   );
 
-  let improvedCount = 0; // 克服弱點：曾不及格 → 現在滿分 (逆轉勝)
-  let perfectCount = 0;  // 達成滿分：最新一次 100% (包含所有滿分指標)
+  let improvedCount = 0; // 克服弱點：曾不及格 → 現在滿分
+  let perfectCount = 0;  // 達成滿分：一直都很優秀 → 現在滿分
   let struggleCount = 0; // 目前仍低分：最新一次不及格
 
   // 門檻值定義
@@ -354,33 +376,36 @@ export default function StudentPrac() {
     const latestScore = Number(latest.score_rate);
 
     // 2. 核心邏輯判定
+    // 只要歷史紀錄中有「任何一筆」低於及格線，everLow 即為 true
     const everLow = sorted.some(a => checkIsLow(a.score_rate));
     const isLatestPerfect = checkIsPerfect(latestScore);
 
-    // 3. 分類統計 (取消 else，讓判定可以同時成立)
-    
-    // A. 只要最後一次是滿分，就計入「達成滿分」
+    // 3. 分類統計
     if (isLatestPerfect) {
-      perfectCount++;
-
-      // B. 在滿分的指標中，如果歷史中曾經低分過，額外計入「克服弱點」
       if (everLow) {
+        // 符合您的需求：曾經低分 (例如 50% 或 0.5)，現在滿分
         improvedCount++; 
+      } else {
+        // 從未低分過，且現在滿分
+        perfectCount++;  
       }
     }
 
-    // C. 判定目前是否仍處於掙扎狀態 (最新一次不及格)
+    // 4. 判定目前是否仍處於掙扎狀態 (最新一次不及格)
     if (checkIsLow(latestScore)) {
       struggleCount++;
     }
+
   });
 
-  // 目標達成邏輯：沒有人在掙扎，且至少有一個指標達到滿分
-  const reachedGoal = struggleCount === 0 && perfectCount > 0;
+  // 目標達成邏輯：沒有人在掙扎，且至少有人達到滿分
+  const reachedGoal = struggleCount === 0 && (improvedCount > 0 || perfectCount > 0);
 
 
   return {
     count: totalCount,
+    userCount,          
+    schoolAvgCount,
     totalTime: Math.round(totalTime),
     avgScore: Math.round(avgScore * 100),
     avgSpeedSec,
@@ -719,51 +744,48 @@ export default function StudentPrac() {
       };
     }, [filteredAttempts, matchedClassIndicators]);
 
-  //圖表三：差距條形圖資料（學生 vs 班級）
+  // 圖表三：差距條形圖資料（學生最新表現 vs 班級平均）
   const diffBarData = useMemo<DiffBarRow[]>(() => {
-  if (!filteredAttempts.length || !matchedClassIndicators.length) return [];
+    if (!filteredAttempts.length || !matchedClassIndicators.length) return [];
 
-  /* =========================
-    對過長的指標名稱進行換行
-  ========================= */
-  const splitLongText = (str: string, len: number = 10) => {
-    if (!str) return "";
-    const regex = new RegExp(`.{1,${len}}`, "g");
-    return str.match(regex)?.join("<br>") || str;
-  };
+    const splitLongText = (str: string, len: number = 20) => {
+      if (!str) return "";
+      const regex = new RegExp(`.{1,${len}}`, "g");
+      return str.match(regex)?.join("<br>") || str;
+    };
 
-  // 每個能力指標的學生平均
-  const studentByIndicator: Record<string, number> = _.mapValues(
-    _.groupBy(filteredAttempts, "indicate_name"),
-    rows => _.meanBy(rows, "score_rate")
-  );
+    // 取得每個指標的數據分組
+    const groups = _.groupBy(filteredAttempts, "indicate_name");
 
-  const rows: DiffBarRow[] = [];
-
-  Object.entries(studentByIndicator).forEach(
-    ([indicate_name, studentAvg]) => {
-      const classRow = matchedClassIndicators.find(
-        c => c.indicate_name === indicate_name
-      );
-
-      if (!classRow) return;
+    const rows = Object.entries(groups).map(([indicate_name, attempts]) => {
+      const classRow = matchedClassIndicators.find(c => c.indicate_name === indicate_name);
+      if (!classRow) return null;
 
       const classAvg = classRow.class_avg_score_rate;
-      const formattedName = splitLongText(indicate_name, 20);
+      
+      // A. 最新一次表現
+      const sorted = _.orderBy(attempts, ["date", "prac_answer_sn"], ["asc", "asc"]);
+      const latestScore = sorted[sorted.length - 1].score_rate;
+      const latestDiff = Math.round(latestScore - classAvg);
 
-      rows.push({
-      indicator: classRow.indicator || "", 
-      indicate_name: formattedName,
-      studentAvg: Math.round(studentAvg),
-      classAvg: Math.round(classRow.class_avg_score_rate),
-      diff: Math.round(studentAvg - classRow.class_avg_score_rate),
-    });
-    }
-  );
+      // B. 個人歷次平均
+      const historicalAvg = _.meanBy(attempts, "score_rate");
+      const avgDiff = Math.round(historicalAvg - classAvg);
 
-  // 低於班級的放後面
-  return _.orderBy(rows, ["diff"], ["asc"]);
-}, [filteredAttempts, matchedClassIndicators]);
+      return {
+        indicator: classRow.indicator || "",
+        indicate_name: splitLongText(indicate_name, 20),
+        latestScore: Math.round(latestScore),
+        historicalAvg: Math.round(historicalAvg),
+        classAvg: Math.round(classAvg),
+        latestDiff,
+        avgDiff
+      };
+    }).filter(Boolean);
+
+    // 依「最新表現差距」排序
+    return _.orderBy(rows, ["latestDiff"], ["asc"]);
+  }, [filteredAttempts, matchedClassIndicators]);
 
 const formatDateTime = (iso: string) => {
   if (!iso) return "";
@@ -1154,6 +1176,15 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
             <div className="text-3xl font-black text-slate-700 tracking-tight">
               {processedStats.count.toLocaleString()}
             </div>
+            
+            <div className="gap-2 mt-2 font-medium">
+              <span className="text-[11px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
+                全校練習：{processedStats.userCount}人
+              </span><br/>
+              <span className="text-[11px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
+                全校人均練習：{processedStats.schoolAvgCount}次
+              </span>
+            </div>
           </div>
         </div>
 
@@ -1235,9 +1266,9 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
             }`}>
               {processedStats.reachedGoal ? "100.00%" : "尚未達成"}
             </div>
-            <div className="flex gap-2 mt-2 font-medium">
-              <span className="text-[11px] bg-slate-100 px-1 rounded text-slate-500">克服弱點：{processedStats.improvedCount}</span>
-              <span className="text-[11px] bg-slate-100 px-1 rounded text-slate-500">達成滿分：{processedStats.perfectCount}</span>
+            <div className="gap-2 mt-2 font-medium">
+              <span className="text-[11px] bg-slate-100 px-1 rounded text-slate-500">克服弱點：{processedStats.improvedCount}</span><br/>
+              <span className="text-[11px] bg-slate-100 px-1 rounded text-slate-500">初次精熟：{processedStats.perfectCount}</span>
             </div>
           </div>
         </div>
@@ -1657,8 +1688,9 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                           <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
                           <ul className="text-xs space-y-2 list-disc pl-4">
                             <li><b>中間基準線 (0%)：</b>代表全校同學的平均分。</li>
-                            <li><b>綠色向右 (+)：</b>代表你在這個知識點表現得比全校平均更好。</li>
-                            <li><b>紅色向左 (-)：</b>代表你目前稍微落後平均，需優先複習。</li>
+                            <li><b>學生表現：</b>採用你對該指標<b>「最後一次練習」</b>的成績計算。</li>
+                            <li><b>綠色向右 (+)：</b>代表你目前的精熟度已超越全校平均。</li>
+                            <li><b>紅色向左 (-)：</b>代表你目前的掌握度尚低於全校平均。</li>
                           </ul>
                           <p className="text-[12px] text-slate-400 pt-1 border-t">
                             ※ 透過此圖可以快速抓出你的強項與弱項，讓你的學習更有效率。
@@ -1692,52 +1724,97 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
         <CardContent className="h-[300px]">
           <Plot
             data={[
+              // 第一組：個人歷次平均（相對於校平均的差距）
               {
                 type: "bar",
                 orientation: "h",
-                x: diffBarData.map(d => d.diff),
-                                y: diffBarData.map(d => d.indicator), 
+                name: "個人歷次平均",
+                // 這裡 x 軸請對應您在 diffBarData 算出的 avgDiff
+                x: diffBarData.map(d => d.avgDiff),
+                y: diffBarData.map(d => d.indicator),
                 marker: {
-                  color: diffBarData.map(d => (d.diff >= 0 ? "#16a34a" : "#dc2626")),
+                  color: "#a7afb9ff", // 建議使用中性的灰色，代表歷史背景參考
                 },
-                text: diffBarData.map(d => `${d.diff >= 0 ? "+" : ""}${d.diff}%`),
-                textposition: "text-[12px] outside",
-                
-                hovertemplate:
-                  "<b>%{y}</b><br>" +                
-                  "<b>%{customdata[0]}</b><br><br>" +    
-                  "學生平均：%{customdata[1]}%<br>" +
-                  "該校平均：%{customdata[2]}%<br>" +
-                  "差距：%{x}%<extra></extra>",
-                
-                
+                text: diffBarData.map(d => `${d.avgDiff >= 0 ? "+" : ""}${d.avgDiff}%`),
+                textposition: "inside", // 放在條形內部，避免干擾最新成績的數值
                 customdata: diffBarData.map(d => [
-                  d.indicate_name, // [0]
-                  d.studentAvg,    // [1]
-                  d.classAvg,      // [2]     
+                  d.indicate_name, 
+                  d.historicalAvg, // [1] 個人平均原值
+                  d.classAvg       // [2] 校平均原值
                 ]),
-                hoverlabel: {
-                  align: "left",    // 文字靠左
-                  font: { size: 13}
-                }
+                hovertemplate:
+                  "<b>%{y} - %{customdata[0]}</b><br>" +
+                  "個人平均：%{customdata[1]}%<br>" +
+                  "全校平均：%{customdata[2]}%<br>" +
+                  "歷史差距：%{x}%<extra></extra>",
+                hoverlabel: { align: "left", font: { size: 13 } }
+              },
+              // 第二組：個人最新表現（相對於校平均的差距）
+              {
+                type: "bar",
+                orientation: "h",
+                name: "最新一次表現",
+                // 這裡 x 軸請對應您在 diffBarData 算出的 latestDiff
+                x: diffBarData.map(d => d.latestDiff),
+                y: diffBarData.map(d => d.indicator),
+                marker: {
+                  // 根據最新差距決定顏色：綠色代表領先校平均，紅色代表落後
+                  color: diffBarData.map(d => (d.latestDiff >= 0 ? "#16a34a" : "#dc2626")),
+                },
+                text: diffBarData.map(d => `${d.latestDiff >= 0 ? "+" : ""}${d.latestDiff}%`),
+                textposition: "inside", // 放在外部，強調目前的精熟狀態
+                customdata: diffBarData.map(d => [
+                  d.indicate_name, 
+                  d.latestScore, // [1] 最新得分原值
+                  d.classAvg     // [2] 校平均原值
+                ]),
+                hovertemplate:
+                  "<b>%{y} - %{customdata[0]}</b><br>" +
+                  "最新表現：%{customdata[1]}%<br>" +
+                  "全校平均：%{customdata[2]}%<br>" +
+                  "目前差距：%{x}%<extra></extra>",
+                hoverlabel: { align: "left", font: { size: 13 } }
               },
             ]}
             layout={{
               autosize: true,
-              margin: { l: 80, r: 60, t: 20, b: 40 },
+              // 啟用分組模式並調整間距
+              barmode: "group", 
+              bargap: 0.15,      // 不同指標間的間距
+              bargroupgap: 0.05, // 同指標兩根條形間的間距
+              
+              // 增加 margin t 以便放下圖例
+              margin: { l: 80, r: 60, t: 50, b: 40 },
+
+              // 顯示圖例 (Legend)
+              showlegend: true,
+              legend: {
+                orientation: "h", // 橫向排列
+                yanchor: "bottom",
+                y: 1.05,          // 放在圖表正上方
+                xanchor: "right",
+                x: 1,
+                font: { size: 10 }
+              },
 
               xaxis: {
-                title: "學生 − 校平均（%）",
+                title: "與校平均差距（%）",
                 zeroline: true,
                 zerolinewidth: 2,
                 zerolinecolor: "#94a3b8",
                 gridcolor: "#f1f5f9",
+                // 確保 0 基準線左右對稱或動態調整
+                range: [
+                  Math.min(...diffBarData.flatMap(d => [d.latestDiff, d.avgDiff])) - 15,
+                  Math.max(...diffBarData.flatMap(d => [d.latestDiff, d.avgDiff])) + 15
+                ]
               },
 
               yaxis: {
                 automargin: true,
               },
 
+              // 0 基準線裝飾
               shapes: [
                 {
                   type: "line",
@@ -1747,8 +1824,8 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                   y0: 0,
                   y1: 1,
                   line: {
-                    color: "#000000ff",
-                    width: 3,
+                    color: "#475569",
+                    width: 2,
                     dash: "dash",
                   },
                 },
@@ -1757,18 +1834,17 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
               annotations: [
                 {
                   x: 0,
-                  y: 1,
+                  y: 1.02,
                   yref: "paper",
-                  text: "校平均 = 0",
+                  text: "校平均",
                   showarrow: false,
-                  font: { size: 11, color: "#64748b" },
-                  yanchor: "bottom",
+                  font: { size: 11, color: "#64748b", weight: "bold" },
+                  xanchor: "center",
                 },
               ],
 
               font: { family: "inherit" },
             }}
-            
             useResizeHandler
             style={{ width: "100%", height: "100%" }}
             config={{ displayModeBar: false, responsive: true }}
