@@ -62,6 +62,8 @@ interface SchoolSummary {
   organization_id: string;
   grade: number;
   total_students: number; 
+  avg_score_rate:number;
+  total_prac_count:number
 }
 
 type TeacherPracChartTarget = 
@@ -114,7 +116,7 @@ export default function TeacherPrac() {
   Load Data
   ========================= */
   useEffect(() => {
-    if (!organizationId) {
+    if (!organizationId || !userInfo?.city) {
       setLoading(false); 
       return;
     }
@@ -140,7 +142,7 @@ export default function TeacherPrac() {
         const { data: summary } = await supabase
           .from("school_summary")
           .select("*")
-          .eq("organization_id", organizationId);
+          .eq("city", userInfo.city);
 
         setSchoolSummary(summary ?? []);
         setPracData(prac ?? []);
@@ -154,7 +156,7 @@ export default function TeacherPrac() {
     };
     
     loadData();
-  }, [organizationId]);
+  }, [organizationId, userInfo?.city]);
 
   /* =========================
       篩選邏輯
@@ -404,62 +406,80 @@ const filteredDisplayList = useMemo(() => {
   /* =========================
      KPI
   ========================= */
+/* =========================
+     KPI 計算邏輯 (最終正確版)
+  ========================= */
 const kpi = useMemo(() => {
-  // 1. 基本總量統計 (來自練習紀錄 filteredPrac)
+  // --- 1. 基本數據 (來自 filteredPrac，代表本校且受篩選器影響的練習數據) ---
   const totalPrac = filteredPrac.reduce((s, r) => s + (r.total_prac_count || 0), 0);
   const totalTime = filteredPrac.reduce((s, r) => s + (r.total_time_sec || 0), 0);
-
-  // 2. 整體平均正確率（加權）
   const scoreWeighted = filteredPrac.reduce((s, r) => s + (r.avg_score_rate || 0) * (r.total_prac_count || 0), 0);
   const avgScore = totalPrac > 0 ? scoreWeighted / totalPrac : 0;
 
-  // 3. 學校總學生數計算 (對應新版 SQL: city, organization_id, grade)
-  let totalSchoolStudents = 0;
+  // --- 2. 縣市比較邏輯 (基準線) ---
+  
+  // A. 判定該行政區內有多少間不重複的學校
+  // uniqueSchools 會列出 schoolSummary 中所有不同的 organization_id
+  const uniqueSchools = _.uniqBy(schoolSummary, "organization_id");
+  const hasMultipleSchools = uniqueSchools.length > 1;
 
+  // B. 根據選擇的年級篩選出「全縣市」的資料列
+  const cityMatchedRows = selectedGrade === ALL_GRADE 
+    ? schoolSummary 
+    : schoolSummary.filter(s => String(s.grade) === String(selectedGrade));
+
+  // C. 計算全市加權平均
+  const cityTotalPrac = _.sumBy(cityMatchedRows, "total_prac_count");
+  const cityScoreWeighted = cityMatchedRows.reduce((s, r) => s + ((r.avg_score_rate || 0) * (r.total_prac_count || 0)), 0);
+  const cityAvgScore = cityTotalPrac > 0 ? cityScoreWeighted / cityTotalPrac : 0;
+
+  // --- 3. 學生人數計算 (精確鎖定「本校」) ---
+  // 使用您提供的 userInfo?.organization_id 作為比對基準
+  const currentOrgId = userInfo?.organization_id;
+
+  // 從包含全縣市的 schoolSummary 中過濾出僅屬於本校的列
+  const currentSchoolRows = schoolSummary.filter(s => String(s.organization_id) === String(currentOrgId));
+
+  let totalSchoolStudents = 0;
   if (selectedGrade === ALL_GRADE) {
-    // 全部年級：將 schoolSummary 裡所有年級的人數加總
-    // 註：因為 SQL 主鍵已含 grade，這裡每一列都是不同年級，直接加總即可
-    totalSchoolStudents = _.sumBy(schoolSummary, "total_students");
+    // 全部年級：加總本校所有年級的人數
+    totalSchoolStudents = _.sumBy(currentSchoolRows, "total_students");
   } else {
-    // 特定年級：篩選出該年級的人數
-    const matchedGradeData = schoolSummary.find((s) => {
-      const sGrade = String(s.grade);
-      const target = String(selectedGrade);
-      return sGrade === target || sGrade.includes(target);
-    });
-    // 這裡改用 total_students，對應您 SQL 的欄位名
+    // 特定年級：篩選本校該年級的人數
+    const matchedGradeData = currentSchoolRows.find(s => String(s.grade) === String(selectedGrade));
     totalSchoolStudents = matchedGradeData?.total_students || 0;
   }
 
-  // 4. 練習學生數統計 (從 alert 紀錄中提取不重複學生 id)
-  const practicedStudents = new Set(filteredAlert.map((a) => a.user_id));
+  // --- 4. 其他統計指標 ---
+  const practicedStudents = new Set(filteredAlert.map(a => a.user_id));
   const totalStudents = practicedStudents.size;
   
-  // 5. 參與率與平均練習
+  // 參與率 = (有練習的不重複學生數 / 該校該年級總人數) * 100
+  const participationRate = totalSchoolStudents > 0 ? (totalStudents / totalSchoolStudents) * 100 : 0;
   const avgPracPerStudent = totalStudents > 0 ? totalPrac / totalStudents : 0;
-  const participationRate = (totalSchoolStudents > 0) 
-    ? (totalStudents / totalSchoolStudents) * 100 
-    : 0;
 
-  // 6. 狀態指標統計
+  // 未精熟統計
   const notMasteredIndicators = proficiencyList.filter(item => item.score < 100).length;
   const notMasteredStudents = new Set(
     filteredAlert
-      .filter((a) => a.mastery_status === "未精熟")
-      .map((a) => a.user_id)
+      .filter(a => a.mastery_status === "未精熟")
+      .map(a => a.user_id)
   ).size;
 
   return {
-    totalStudents,         // 有練習的人數
-    totalSchoolStudents,   // 該年級(或全校)總人數母數
+    totalStudents,
+    totalSchoolStudents,
     participationRate,
     avgScore,
+    cityAvgScore,
+    hasMultipleSchools, 
     avgPracPerStudent,
     totalTime,
     notMasteredStudents,
     notMasteredIndicators,
   };
-}, [filteredPrac, filteredAlert, proficiencyList, schoolSummary, selectedGrade]);
+}, [filteredPrac, filteredAlert, proficiencyList, schoolSummary, selectedGrade, userInfo?.organization_id]);
+
 
 /* =========================
      教學投入四象限圖
@@ -792,9 +812,32 @@ const formatHoverText = (str: string, maxLength = 22) => {
           <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
             平均答對率
           </div>
-          <div className="flex-1 flex flex-col items-center justify-center p-4">
+          <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
             <div className="text-3xl font-black tracking-tight text-slate-800">
               {kpi.avgScore.toFixed(1)}%
+            </div>
+            
+            <div className="mt-1 flex flex-col items-center">
+              {kpi.hasMultipleSchools ? (
+                <>
+                  <span className="text-[11px] text-slate-400">
+                    全市平均 {kpi.cityAvgScore.toFixed(1)}%
+                  </span>
+                  {kpi.avgScore >= kpi.cityAvgScore ? (
+                    <span className="text-[11px] text-emerald-600 font-bold">
+                      （↑ {(kpi.avgScore - kpi.cityAvgScore).toFixed(1)}%）
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-rose-500 font-bold">
+                      （↓ {(kpi.cityAvgScore - kpi.avgScore).toFixed(1)}%）
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-[11px] text-slate-400 italic">
+                  目前為該行政區唯一數據
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -837,7 +880,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
           <div className={`text-white text-sm font-bold py-2.5 px-3 text-center border-b ${
             isRiskOnly ? 'bg-rose-500 border-rose-200' : 'bg-rose-500 border-rose-200 group-hover:bg-rose-600'
           }`}>
-            {isRiskOnly ? '正在篩選名單' : '未精熟人數'}
+            {isRiskOnly ? '未精熟人數' : '未精熟人數'}
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
             <div className={`text-3xl font-black tracking-tight ${kpi.notMasteredStudents > 0 ? "text-rose-600" : "text-slate-800"}`}>

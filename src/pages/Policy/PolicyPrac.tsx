@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Plot from "react-plotly.js";
 import { supabase } from "@/lib/supabase";
 import dayjs from "dayjs";
+import _ from 'lodash';
 import { buildPolicyPracPrompt } from "@/lib/ai/buildPolicyPracPrompt";
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -312,6 +313,10 @@ export default function PolicyPrac() {
   const kpiCurrent = useMemo<KPI | null>(() => {
   if (!trend.length) return null;
 
+  const cityRows = selectedCity === ALL_CITY 
+    ? trend 
+    : trend.filter((r) => r.city === selectedCity);
+
   const totalPrac = trend.reduce(
     (sum, r) => sum + (r.total_prac_count ?? 0),
     0
@@ -325,42 +330,55 @@ export default function PolicyPrac() {
       ? totalPrac / totalStudentsBySelection
       : 0;
 
-  // ===== 校際差距邏輯修正 =====
-  let schoolStd: number | null = null;
+  // ===== 校際差距邏輯 (加權修正版) =====
+  let schoolStd: number = NaN; // 預設改為 NaN
 
-  // 情境 1：全部科目 → 用 city_trend_daily
+  // 情境 1：全部科目 → 處理 trend 數據 (加權標準差)
   if (selectedSubject === ALL_SUBJECT) {
-    const cityRows =
-      selectedCity === ALL_CITY
-        ? trend
-        : trend.filter((r) => r.city === selectedCity);
-
-    const values = cityRows
-      .map((r) => r.school_score_std)
-      .filter((v) => v !== null && v !== undefined);
-
-    schoolStd =
-      values.length > 0
-        ? values.reduce((a, b) => a + b, 0) / values.length
-        : null;
-  }
-
-  // 情境 2：單一科目 → 用 city_subject_summary
-  else {
-    const row = citySubjectSummary.find(
-      (r) =>
-        r.city === selectedCity &&
-        r.subject_name === selectedSubject
+    // 過濾有效資料：必須有分數且作答量 > 0
+    const validRows = cityRows.filter(
+      (r) => r.school_score_std != null && (r.total_prac_count || 0) > 0
     );
 
-    schoolStd = row?.school_score_std ?? null;
+    // 嚴謹判斷：必須有 2 間以上學校才有「差距」可言
+    if (validRows.length > 1) {
+      // A. 計算加權平均值 (作為基準線)
+      const totalWeight = _.sumBy(validRows, "total_prac_count");
+      const weightedSum = validRows.reduce(
+        (acc, r) => acc + (r.school_score_std * r.total_prac_count), 0
+      );
+      const weightedMean = weightedSum / totalWeight;
+
+      // B. 計算加權變異數與標準差
+      // Σ [wi * (xi - x_weighted)^2] / Σ wi
+      const weightedVarianceNumerator = validRows.reduce((acc, r) => {
+        const diff = r.school_score_std - weightedMean;
+        return acc + (r.total_prac_count * (diff * diff));
+      }, 0);
+
+      schoolStd = Math.sqrt(weightedVarianceNumerator / totalWeight);
+    } else {
+      // 只有一間學校或沒有資料，設為 NaN
+      schoolStd = NaN;
+    }
+  } 
+
+  // 情境 2：單一科目 → 從預計算表中取得
+  else {
+    const row = citySubjectSummary.find(
+      (r) => r.city === selectedCity && r.subject_name === selectedSubject
+    );
+    
+    // 同樣的邏輯：如果該科目在該市只有一間學校參與，建議資料庫端或此處也導向 NaN
+    // 這裡我們暫時判斷 row 是否存在，若存在且只有單校資料可視情況設為 NaN
+    schoolStd = row?.school_score_std ?? NaN;
   }
 
   return {
     total_students: totalStudentsBySelection,
-    avg_score_rate: avgScore,
-    avg_prac_per_student: avgPracPerStudent,
-    school_score_std: schoolStd,   // 可能為 null
+    avg_score_rate: avgScore, // 確保 avgScore 已定義
+    avg_prac_per_student: avgPracPerStudent, // 確保已定義
+    school_score_std: schoolStd, 
   };
 }, [
   trend,
@@ -368,7 +386,7 @@ export default function PolicyPrac() {
   selectedCity,
   selectedSubject,
   citySubjectSummary,
-  citySummaryTable,
+  citySummaryTable,  
 ]);
 
   /* =========================
@@ -958,7 +976,7 @@ useEffect(() => {
           {/* KPI 1: 學生母數 */}
           <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
             <div className="bg-slate-500 text-white text-base font-bold py-2.5 px-3 text-center border-b border-slate-200">
-              練習學生數
+              練習總學生數
             </div>
             <div className="flex-1 flex flex-col items-center justify-center p-4">
               <div className="text-3xl font-black text-slate-800 tracking-tight">
@@ -979,7 +997,7 @@ useEffect(() => {
                   平均答題正確率
                 </div>
                 <div className="flex-1 flex flex-col items-center justify-center p-4">
-                  <div className="flex items-end gap-2">
+                  <div className="flex items-end gap-2 text-center">
                           <div className="text-3xl font-black text-slate-800 tracking-tight">
                             {cur.toFixed(1)}
                           </div>
@@ -987,9 +1005,9 @@ useEffect(() => {
                             ({c.arrow})
                           </div>
                         </div>
-                        <div className="text-xs mt-1 opacity-50">
-                          全部縣市 {base.toFixed(1)} %（差 {c.diff >= 0 ? "+" : ""}
-                          {c.diff.toFixed(1)} %）
+                        <div className="text-xs mt-1 text-center opacity-50">
+                          全部縣市 {base.toFixed(1)}% <br/>
+                          ( {c.diff >= 0 ? "↑" : "↓"} {c.diff.toFixed(1)} % ）
                         </div>
                 </div>
               </div>
@@ -1016,40 +1034,62 @@ useEffect(() => {
                             ({c.arrow})
                           </div>
                         </div>
-                        <div className="text-xs mt-1 opacity-50">
-                          全部縣市 {base.toFixed(1)} 次（差 {c.diff >= 0 ? "+" : ""}
-                          {c.diff.toFixed(1)}）
+                        <div className="text-xs mt-1 text-center opacity-50">
+                          全部縣市 {base.toFixed(1)} 次<br/>
+                          （ {c.diff >= 0 ? "↑" : "↓"} {c.diff.toFixed(1)} 次 ）
                         </div>
                 </div>
               </div>
             );
           })()}
 
-          {/* KPI 4: 校際差距 */}
-          {(() => {
-            const value = kpiCurrent?.school_score_std || 0;
-            let statusColor = "text-green-600";
-            let label = "表現均衡";
-
-            if (value > 3) { statusColor = "text-red-500"; label = "差距偏大"; }
-            else if (value > 1.5) { statusColor = "text-red-500"; label = "中度差距"; }
-
-            return (
-              <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
-                <div className="bg-slate-500 text-white text-base font-bold py-2.5 px-3 text-center border-b border-slate-200">
-                  平均校際差距
-                </div>
-                <div className="flex-1 flex flex-col items-center justify-center p-4">
-                  <div className={`text-3xl font-black tracking-tight ${statusColor}`}>
-                    {value.toFixed(2)}
+          {/* KPI 4: 加權校際差距 */}
+          <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
+            <div className="bg-slate-500 text-white text-base font-bold py-2.5 px-3 text-center border-b border-slate-200">
+              平均校際差距
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center p-4">
+              {isNaN(kpiCurrent?.school_score_std) ? (
+                <>
+                  {/* 單一學校顯示狀態 */}
+                  <div className="text-3xl font-black tracking-tight text-slate-300">
+                    NaN
                   </div>
-                  <div className="text-[12px] text-slate-400  mt-1">
-                    {label}
+                  <div className="text-[12px] text-slate-400 mt-1 text-center">
+                    目前為該行政區唯一數據
                   </div>
-                </div>
-              </div>
-            );
-          })()}
+                </>
+              ) : (
+                <>
+                  {/* 多校比較顯示狀態 */}
+                  {(() => {
+                    const value = kpiCurrent.school_score_std || 0;
+                    let statusColor = "text-emerald-600";
+                    let label = "區域均衡";
+
+                    if (value > 3) {
+                      statusColor = "text-rose-600";
+                      label = "顯著失衡";
+                    } else if (value > 1.5) {
+                      statusColor = "text-amber-500";
+                      label = "輕微差距";
+                    }
+
+                    return (
+                      <>
+                        <div className={`text-3xl font-black tracking-tight ${statusColor}`}>
+                          {value.toFixed(2)}
+                        </div>
+                        <div className="text-[12px] text-slate-400 mt-1">
+                          {label} 
+                        </div>
+                      </>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -1073,7 +1113,7 @@ useEffect(() => {
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
             {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold ">
-              練習診斷指標
+              區域學習診斷
             </CardTitle>
 
             {/* 右側：按鈕群組 */}
