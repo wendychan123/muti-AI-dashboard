@@ -1177,7 +1177,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
               {processedStats.count.toLocaleString()}
             </div>
             
-            <div className="gap-2 mt-2 font-medium">
+            <div className="gap-2 mt-2 text-center  font-medium">
               <span className="text-[11px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
                 全校練習：{processedStats.userCount}人
               </span><br/>
@@ -1198,8 +1198,8 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
               {processedStats.totalTime} <span className="text-base">秒</span>
             </div>
             {avgSpeedCompare.classAvgSec != null && (
-              <div className="text-[11px] mt-1 font-medium">
-                <span className="text-slate-500">校平均 {avgSpeedCompare.classAvgSec} 秒</span>
+              <div className="text-[11px] text-center mt-1 font-medium">
+                <span className="text-slate-500">校平均 {avgSpeedCompare.classAvgSec} 秒</span><br/>
                 <span className={`ml-1 ${
                   Number(avgSpeedCompare.diff) < 0 ? "text-green-500" : "text-red-500"
                 }`}>
@@ -1221,7 +1221,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
               {avgScoreCompare.studentAvg} %
             </div>
             <div className="text-[11px] text-slate-400 font-medium mt-1">
-              <span className="text-slate-500">校平均 {avgScoreCompare.classAvg} % </span>
+              <span className="text-slate-500">校平均 {avgScoreCompare.classAvg} % </span><br/>
               <span
                       className={
                         avgScoreCompare.diff >= 0

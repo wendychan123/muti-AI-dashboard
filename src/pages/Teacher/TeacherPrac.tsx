@@ -61,7 +61,7 @@ interface StudentAlert {
 interface SchoolSummary {
   organization_id: string;
   grade: number;
-  total_school_students: number; 
+  total_students: number; 
 }
 
 type TeacherPracChartTarget = 
@@ -404,62 +404,62 @@ const filteredDisplayList = useMemo(() => {
   /* =========================
      KPI
   ========================= */
-  const kpi = useMemo(() => {
-    // 基本總量統計
-    const totalPrac = filteredPrac.reduce((s,r)=>s+r.total_prac_count,0);
-    const totalTime = filteredPrac.reduce((s, r) => s + r.total_time_sec, 0);
-    
-    // 整體平均正確率（加權）
-    const scoreWeighted = filteredPrac.reduce((s, r) => s + r.avg_score_rate * r.total_prac_count, 0);
-    const avgScore = totalPrac > 0 ? scoreWeighted / totalPrac : 0;
-    
-    
-    // 精確的學校總學生數計算
-    let totalSchoolStudents = 0;
-    if (selectedGrade === ALL_GRADE) {
-      // 全部年級：加總所有年級的人數 (利用 uniqBy 避免重複計算，如果資料表設計是按指標分的話)
-      // 若 school_summary 是每個年級一筆，直接加總即可
-      totalSchoolStudents = _.sumBy(schoolSummary, "total_school_students");
-    } else {
-      // 特定年級：篩選該年級的人數
-      const gradeData = schoolSummary.find(s => s.grade === Number(selectedGrade));
-      totalSchoolStudents = gradeData?.total_school_students || 0;
-    }
+const kpi = useMemo(() => {
+  // 1. 基本總量統計 (來自練習紀錄 filteredPrac)
+  const totalPrac = filteredPrac.reduce((s, r) => s + (r.total_prac_count || 0), 0);
+  const totalTime = filteredPrac.reduce((s, r) => s + (r.total_time_sec || 0), 0);
 
-    
+  // 2. 整體平均正確率（加權）
+  const scoreWeighted = filteredPrac.reduce((s, r) => s + (r.avg_score_rate || 0) * (r.total_prac_count || 0), 0);
+  const avgScore = totalPrac > 0 ? scoreWeighted / totalPrac : 0;
 
-    // 練習學生數統計 (從練習紀錄中提取不重複學生)
-    const practicedStudents = new Set(filteredAlert.map(a=>a.user_id)) 
-    const totalStudents = practicedStudents.size
-    const avgPracPerStudent = totalStudents > 0 ? totalPrac / totalStudents : 0;
-    const participationRate = totalSchoolStudents > 0 
-      ? (totalStudents / totalSchoolStudents) * 100 
-      : 0;
+  // 3. 學校總學生數計算 (對應新版 SQL: city, organization_id, grade)
+  let totalSchoolStudents = 0;
 
-    // --- 關鍵修正：確保與表格按鈕完全一致 ---
-    
-    // A. 未精熟指標數：定義與表格一致（score < 100）
-    const notMasteredIndicators = proficiencyList.filter(item => item.score < 100).length;
+  if (selectedGrade === ALL_GRADE) {
+    // 全部年級：將 schoolSummary 裡所有年級的人數加總
+    // 註：因為 SQL 主鍵已含 grade，這裡每一列都是不同年級，直接加總即可
+    totalSchoolStudents = _.sumBy(schoolSummary, "total_students");
+  } else {
+    // 特定年級：篩選出該年級的人數
+    const matchedGradeData = schoolSummary.find((s) => {
+      const sGrade = String(s.grade);
+      const target = String(selectedGrade);
+      return sGrade === target || sGrade.includes(target);
+    });
+    // 這裡改用 total_students，對應您 SQL 的欄位名
+    totalSchoolStudents = matchedGradeData?.total_students || 0;
+  }
 
-    // B. 未精熟學生數：定義為「有任何一個指標處於未精熟狀態」的學生
-    // 這裡需要回頭看 filteredAlert，但建議過濾條件要與目前的篩選器同步
-    const notMasteredStudents = new Set(
-      filteredAlert
-        .filter((a) => a.mastery_status === "未精熟")
-        .map((a) => a.user_id)
-    ).size;
+  // 4. 練習學生數統計 (從 alert 紀錄中提取不重複學生 id)
+  const practicedStudents = new Set(filteredAlert.map((a) => a.user_id));
+  const totalStudents = practicedStudents.size;
+  
+  // 5. 參與率與平均練習
+  const avgPracPerStudent = totalStudents > 0 ? totalPrac / totalStudents : 0;
+  const participationRate = (totalSchoolStudents > 0) 
+    ? (totalStudents / totalSchoolStudents) * 100 
+    : 0;
 
-    return { 
-      totalStudents,
-      totalSchoolStudents, 
-      participationRate,
-      avgScore, 
-      avgPracPerStudent, 
-      totalTime, 
-      notMasteredStudents, 
-      notMasteredIndicators 
-    };
-  }, [filteredPrac, filteredAlert, proficiencyList, schoolSummary, selectedGrade]);
+  // 6. 狀態指標統計
+  const notMasteredIndicators = proficiencyList.filter(item => item.score < 100).length;
+  const notMasteredStudents = new Set(
+    filteredAlert
+      .filter((a) => a.mastery_status === "未精熟")
+      .map((a) => a.user_id)
+  ).size;
+
+  return {
+    totalStudents,         // 有練習的人數
+    totalSchoolStudents,   // 該年級(或全校)總人數母數
+    participationRate,
+    avgScore,
+    avgPracPerStudent,
+    totalTime,
+    notMasteredStudents,
+    notMasteredIndicators,
+  };
+}, [filteredPrac, filteredAlert, proficiencyList, schoolSummary, selectedGrade]);
 
 /* =========================
      教學投入四象限圖
@@ -783,7 +783,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
             <div className="text-3xl font-black text-slate-800 tracking-tight">
               {kpi.totalStudents.toLocaleString()}
             </div>
-            <div className="text-[11px] text-slate-400 ">總學生數{kpi.totalSchoolStudents.toLocaleString()}人（參與率{kpi.participationRate.toFixed(1)}%）</div>
+            <div className="text-[11px] text-center text-slate-400 ">總學生數{kpi.totalSchoolStudents.toLocaleString()}人<br/>(參與率{kpi.participationRate.toFixed(1)}%)</div>
           </div>
         </div>
 
