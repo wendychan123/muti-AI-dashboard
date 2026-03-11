@@ -324,38 +324,59 @@ export default function StudentPrac() {
     "indicate_name"
   );
 
-  let improvedCount = 0; // 曾低分 → 現在進步
-  let perfectCount = 0;  // 一開始就 100%
-  let struggleCount = 0; // 目前仍低分
+  let improvedCount = 0; // 克服弱點：曾不及格 → 現在滿分 (逆轉勝)
+  let perfectCount = 0;  // 達成滿分：最新一次 100% (包含所有滿分指標)
+  let struggleCount = 0; // 目前仍低分：最新一次不及格
 
-  const PASS_SCORE = 0.6;     // 及格線（60%）
-  const GOAL_SCORE = 0.8;    // 學習目標（80%）
-  const PERFECT_SCORE = 0.99;
+  // 門檻值定義
+  const PASS_THRESHOLD = 0.6;    // 60%
+  const PERFECT_THRESHOLD = 0.99; // 100%
+
+  // 判定函式：自動相容小數 (0.5) 與整數 (50) 格式
+  const checkIsLow = (score) => {
+    const s = Number(score);
+    // 如果數值大於 1，判定為整數制 (如 50 < 60)；否則為小數制 (如 0.5 < 0.6)
+    return s > 1 ? s < 60 : s < PASS_THRESHOLD;
+  };
+
+  const checkIsPerfect = (score) => {
+    const s = Number(score);
+    // 判定是否為 100 或 1.0 (考慮浮點數誤差)
+    return s === 100 || s >= PERFECT_THRESHOLD;
+  };
 
   Object.values(attemptsByIndicator).forEach((attempts) => {
-    const sorted = _.orderBy(attempts, ["date"], ["asc"]);
+    // 1. 確保依日期排序（若日期相同則依 id 排序確保穩定）
+    const sorted = _.orderBy(attempts, ["date", "id"], ["asc", "asc"]);
     if (!sorted.length) return;
 
-    const first = sorted[0];
     const latest = sorted[sorted.length - 1];
+    const latestScore = Number(latest.score_rate);
 
-    const firstScore = first.score_rate;
-    const latestScore = latest.score_rate;
+    // 2. 核心邏輯判定
+    const everLow = sorted.some(a => checkIsLow(a.score_rate));
+    const isLatestPerfect = checkIsPerfect(latestScore);
 
-    const wasLowBefore = sorted.some(a => a.score_rate < PASS_SCORE);
-    const isImproved = wasLowBefore && latestScore >= GOAL_SCORE;
-    const isPerfectNow = latestScore >= PERFECT_SCORE;
-    const isStillStruggling = latestScore < PASS_SCORE;
+    // 3. 分類統計 (取消 else，讓判定可以同時成立)
+    
+    // A. 只要最後一次是滿分，就計入「達成滿分」
+    if (isLatestPerfect) {
+      perfectCount++;
 
-    if (isStillStruggling) struggleCount++;
-    if (isImproved) improvedCount++;
-    if (isPerfectNow) perfectCount++;
+      // B. 在滿分的指標中，如果歷史中曾經低分過，額外計入「克服弱點」
+      if (everLow) {
+        improvedCount++; 
+      }
+    }
+
+    // C. 判定目前是否仍處於掙扎狀態 (最新一次不及格)
+    if (checkIsLow(latestScore)) {
+      struggleCount++;
+    }
   });
 
-
-  const reachedGoal =
-  struggleCount === 0 &&
-  (improvedCount > 0 || perfectCount > 0);
+  // 目標達成邏輯：沒有人在掙扎，且至少有一個指標達到滿分
+  const reachedGoal = struggleCount === 0 && perfectCount > 0;
 
 
   return {
@@ -1198,7 +1219,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
             <div className="text-[11px] text-slate-500 mt-2 text-center">
               {belowClassAvgStats.count > 0 
                 ? `尚有 ${belowClassAvgStats.count} 項指標未達滿分` 
-                : "已完成所有指標且滿分"}
+                : "已完成指標且滿分"}
             </div>
           </div>
         </div>
