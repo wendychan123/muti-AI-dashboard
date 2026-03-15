@@ -21,7 +21,7 @@ Types
 ========================= */
 interface SchoolPracDaily {
   user_id: number;
-  organization_id: string;
+  organization_id: string; 
   grade: number;
   subject_name: string;
   indicator: string;
@@ -302,24 +302,20 @@ const scrollToUnmastered = () => {
      能力指標精熟長條圖 
     ========================= */
   const proficiencyList = useMemo(() => {
-  const map = new Map<string, { score: number; weight: number; fullName: string }>();
-  
+  const map = new Map();
   filteredPrac.forEach((r) => {
-    // 統一使用指標代號作為 Key
     const k = r.indicator || r.indicate_name;
     if (!map.has(k)) {
       map.set(k, { score: 0, weight: 0, fullName: r.indicate_name });
     }
-    const curr = map.get(k)!;
-    // 使用加權平均計算（正確率 * 練習次數）
-    curr.score += r.avg_score_rate * r.total_prac_count;
-    curr.weight += r.total_prac_count;
+    const curr = map.get(k);
+    curr.score += (r.avg_score_rate || 0) * (r.total_prac_count || 0);
+    curr.weight += (r.total_prac_count || 0);
   });
 
   return Array.from(map.entries()).map(([indicator, data]) => ({
     indicator,
     fullName: data.fullName,
-    // 這裡取四捨五入，確保與 UI 顯示的整數一致
     score: data.weight > 0 ? Math.round(data.score / data.weight) : 0,
   })).sort((a, b) => a.score - b.score);
 }, [filteredPrac]);
@@ -406,9 +402,6 @@ const filteredDisplayList = useMemo(() => {
   /* =========================
      KPI
   ========================= */
-/* =========================
-     KPI 計算邏輯 (最終正確版)
-  ========================= */
 const kpi = useMemo(() => {
   // --- 1. 基本數據 (來自 filteredPrac，代表本校且受篩選器影響的練習數據) ---
   const totalPrac = filteredPrac.reduce((s, r) => s + (r.total_prac_count || 0), 0);
@@ -482,23 +475,25 @@ const kpi = useMemo(() => {
 
 
 /* =========================
-     教學投入四象限圖
+     教學診斷指標 
   ========================= */
 const quadrantData = useMemo(() => {
   const rows = filteredIndicator.map(r => ({
     name: r.indicate_name,
-    avgTimeMin: (r.avg_time_sec ?? 0),
+    // 修改：改用人均作答次數 (total_prac_count / 學生數) 作為 X 軸
+    // 假設 r 裡面有該指標的總作答次數與學生數
+    avgCount: r.total_prac_count / (r.student_count || 1), 
     avgScore: r.avg_score_rate ?? 0
   }));
 
-  const xValues = rows.map(r => r.avgTimeMin);
+  const xValues = rows.map(r => r.avgCount);
   const yValues = rows.map(r => r.avgScore);
 
-  // X 軸基準：採用中位數 (較不受極端值影響) 或 平均值
+  // X 軸基準：採用中位數，代表區域或班級的平均參與水準
   const sortedX = [...xValues].sort((a, b) => a - b);
   const xAvg = sortedX.length > 0 ? sortedX[Math.floor(sortedX.length / 2)] : 5;
 
-  // Y 軸基準：建議固定在 70% 或 80%，這比「班級平均」更有診斷意義
+  // Y 軸基準：固定在 60% 作為及格/精熟邊界
   const yAvg = 60; 
 
   return {
@@ -523,7 +518,7 @@ const participationData = useMemo(() => {
     .sort((a, b) => b.rate - a.rate);
 
   
-  const dynamicHeight = Math.max(250, data.length * 20);
+  const dynamicHeight = Math.max(0, data.length * 10); 
   return { data, dynamicHeight };
 }, [filteredIndicator]);
 
@@ -899,7 +894,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
       {/* =========================
                 圖表區
       ========================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
         {/* ===== 教學診斷指標 ===== */}
         <Card className="col-span-2 relative">
@@ -937,27 +932,39 @@ const formatHoverText = (str: string, maxLength = 22) => {
                   </TooltipTrigger>
                     <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f8fafc] shadow-2xl border-slate-200 text-slate-700 z-50">
                       <div className="space-y-3">
-                        <p className="font-bold border-b pb-1 text-violet-900 flex items-center gap-1">圖表計算說明：</p>
+                        <p className="font-bold border-b pb-1 text-violet-900 flex items-center gap-1">圖表診斷說明：</p>
                         <ul className="text-xs space-y-2.5">
                           <li className="flex gap-2">
                             <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500 mt-1" />
-                            <span><b className="text-blue-700">精熟區：</b>高投入、高得分。代表指標掌握度極佳，學生學習狀態穩定。</span>
+                            <span>
+                              <b className="text-blue-700">精熟區 (高次數、高得分)：</b>
+                              代表學生透過頻繁練習且維持高正確率。此指標掌握度極佳，建議可進入下一階段學習。
+                            </span>
                           </li>
                           <li className="flex gap-2">
                             <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1" />
-                            <span><b className="text-emerald-700">潛力區：</b>低投入、高得分。代表指標可能較易，或學生具備優異的天賦基礎。</span>
+                            <span>
+                              <b className="text-emerald-700">潛力區 (低次數、高得分)：</b>
+                              代表學生練習次數不多即獲得高分。可能是指標難度較低，或是學生已具備深厚的先備知識。
+                            </span>
                           </li>
                           <li className="flex gap-2">
                             <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-amber-500 mt-1" />
-                            <span><b className="text-amber-700">低參與：</b>低投入、低得分。建議增加練習量，引導學生進入該指標的學習。</span>
+                            <span>
+                              <b className="text-amber-700">低參與 (低次數、低得分)：</b>
+                              代表實質練習量不足。應優先引導學生進行基本作答，累積足夠的互動數據以利後續診斷。
+                            </span>
                           </li>
                           <li className="flex gap-2">
                             <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-rose-500 mt-1" />
-                            <span><b className="text-rose-700">瓶頸區：</b>高投入、低得分。代表學生遇到學習瓶頸，建議優先進行介入輔導。</span>
+                            <span>
+                              <b className="text-rose-700">瓶頸區 (高次數、低得分)：</b>
+                              <b>關鍵警示！</b>代表學生嘗試多次練習但成效不佳。此為核心學習障礙，需優先介入輔導。
+                            </span>
                           </li>
                         </ul>
-                        <p className="text-[12px] text-slate-400 pt-1 border-t">
-                          ※ 透過此圖可識別該校在該科目練習作答時的投入度與實質成效之關聯性。
+                        <p className="text-[12px] text-slate-400 pt-1 border-t leading-relaxed">
+                          ※ 本圖以<b>「人均練習次數」</b>作為 X 軸，排除無效掛機時間，真實反映學生與學習內容的互動頻率與成效。
                         </p>              
                       </div>
                     </TooltipContent>
@@ -986,58 +993,59 @@ const formatHoverText = (str: string, maxLength = 22) => {
             <Plot
               data={[
                 {
-                  x: quadrantData.rows.map(r => r.avgTimeMin),
+                  x: quadrantData.rows.map(r => r.avgCount),
                   y: quadrantData.rows.map(r => r.avgScore),
                   mode: "markers",
                   marker: {
                     size: 12,
                     color: quadrantData.rows.map(r => 
                       r.avgScore >= quadrantData.yAvg 
-                        ? (r.avgTimeMin >= quadrantData.xAvg ? "rgba(37, 100, 235, 1)" : "rgba(22, 163, 74, 1)") 
-                        : (r.avgTimeMin >= quadrantData.xAvg ? "rgba(220, 38, 38, 1)" : "rgba(238, 159, 49, 1)") 
+                        ? (r.avgCount >= quadrantData.xAvg ? "rgba(37, 100, 235, 1)" : "rgba(22, 163, 74, 1)") 
+                        : (r.avgCount >= quadrantData.xAvg ? "rgba(220, 38, 38, 1)" : "rgba(238, 159, 49, 1)") 
                     ),
                     opacity: 0.6,
                     line: { color: 'white', width: 1 }
                   },
                   text: quadrantData.rows.map(r => wrapText(r.name, 20)),
                   hovertemplate: 
-                    "<b> • 能力指摽：<br>%{text}</b><br>" +
-                    " • 人均投入: %{x:.1f} 秒<br>" +
-                    " • 平均正確率: %{y:.1f}%<br>" +
+                    "<b>能力指標：%{text}</b><br>" +
+                    "實質參與：%{x:.1f} 次練習<br>" + 
+                    "平均正確率：%{y:.1f}%<br>" +
                     "<extra></extra>",
-
-                  hoverlabel: {
-                    align: "left",           // 文字靠左對齊
-                    namelength: -1           // 顯示完整內容，不截斷文字
-                  }
+                  hoverlabel: { align: "left", namelength: -1 }
                 }
               ]}
               layout={{
                 height: 260,
-                margin: { t: 20, r: 10, b: 60, l: 30 }, 
+                margin: { t: 30, r: 30, b: 60, l: 60 }, // 增加左邊距以容納 Y 軸標題
                 xaxis: { 
-                  title: "人均練習秒數 (投入度)", 
+                  title: {
+                    text: "人均練習次數 (實質參與度)", // X 軸數值名稱
+                    font: { size: 12, color: '#64748b' },
+                    standoff: 15
+                  },
                   gridcolor: '#f1f5f9',
                   zeroline: false 
                 },
                 yaxis: { 
-                  title: "平均正確率 (%)", 
+                  title: {
+                    text: "平均正確率 (%)", // Y 軸數值名稱
+                    font: { size: 12, color: '#64748b' },
+                    standoff: 15
+                  },
                   range: [0, 110], 
                   gridcolor: '#f1f5f9',
                   zeroline: false 
                 },
                 shapes: [
-                  // 垂直基準線
                   { type: "line", x0: quadrantData.xAvg, x1: quadrantData.xAvg, y0: 0, y1: 100, line: { color: "#94a3b8", dash: "dot", width: 2 } },
-                  // 水平基準線
                   { type: "line", x0: 0, x1: quadrantData.xMax * 1.1, y0: quadrantData.yAvg, y1: quadrantData.yAvg, line: { color: "#94a3b8", dash: "dot", width: 2 } },
                 ],
                 annotations: [
-                  // 標籤放置在象限邊緣，不會被數據點遮擋
-                  { x: quadrantData.xMax, y: 110, text: "<b>精熟區</b>", showarrow: false, xanchor: 'right', font: { color: "rgba(37, 99, 235, 0.6)" } },
-                  { x: 0, y: 110, text: "<b>潛力區</b>", showarrow: false, xanchor: 'left', font: { color: "rgba(22, 163, 74, 0.6)" } },
-                  { x: 0, y: 5, text: "<b>低參與</b>", showarrow: false, xanchor: 'left', font: { color: "rgba(238, 159, 49, 0.6)" } },
-                  { x: quadrantData.xMax, y: 5, text: "<b>瓶頸區</b>", showarrow: false, xanchor: 'right', font: { color: "rgba(220, 38, 38, 0.6)" } },
+                  { x: quadrantData.xMax, y: 105, text: "<b>精熟區</b>", showarrow: false, xanchor: 'right', font: { color: "#2563eb" } },
+                  { x: 0, y: 105, text: "<b>潛力區</b>", showarrow: false, xanchor: 'left', font: { color: "#16a34a" } },
+                  { x: 0, y: 5, text: "<b>低參與</b>", showarrow: false, xanchor: 'left', font: { color: "#ea580c" } },
+                  { x: quadrantData.xMax, y: 5, text: "<b>瓶頸區</b>", showarrow: false, xanchor: 'right', font: { color: "#dc2626" } },
                 ]
               }}
               config={{ displayModeBar: false, responsive: true }}
@@ -1047,7 +1055,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
         </Card>
         
         {/* ===== 作答參與度 ===== */}
-        <Card className="col-span-1 lg:col-span-1 relative">
+        <Card className="col-span-1 lg:col-span-2 relative">
 
           {loading && (
             <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
@@ -1104,12 +1112,12 @@ const formatHoverText = (str: string, maxLength = 22) => {
               <Plot
                 data={[
                   {
+                    // 透明 Layer 用於顯示完整指標名稱的 Hover
                     x: participationData.data.map((d) => d.rate),
                     y: participationData.data.map((d) => d.name),
-                    customdata: participationData.data.map((d) => formatHoverText(d.fullName, 10)), // 建議字數改 20 比較美觀
-                    mode: "markers", // 指定模式
-                    marker: { color: "transparent" }, // 🔹 讓圖示變成透明
-                    // 🔹 關鍵：<extra></extra> 必須為空，這樣就不會出現 trace 0
+                    customdata: participationData.data.map((d) => formatHoverText(d.fullName, 20)), 
+                    mode: "markers",
+                    marker: { color: "transparent" },
                     hovertemplate: "<span style='font-size: 13px; font-weight: bold;'>%{customdata}</span><extra></extra>", 
                     showlegend: false,
                   },
@@ -1123,27 +1131,23 @@ const formatHoverText = (str: string, maxLength = 22) => {
                       color: participationData.data.map(d =>
                         d.rate < 40 ? "#fda4af" : d.rate < 70 ? "#fcd34d" : "#c4b5fd"
                       ),
-                      width: 1
                     },
                     hovertemplate: "參與率：%{x:.1f}%<extra></extra>",
-                    
-
                     hoverlabel: {
-                      align: "left",    // 文字靠左對齊
-                      namelength: -1,   // 不截斷文字
-                      bgcolor: "#fff",  // 背景設為白色避免與長條顏色混雜
+                      align: "left",
+                      namelength: -1,
+                      bgcolor: "#fff",
                       bordercolor: "#e2e8f0",
                       font: { size: 12, color: "#1e293b" }
                     }
                   },
-                  
                   {
                     x: participationData.data.map((d) => d.students),
                     y: participationData.data.map((d) => d.name),
                     type: "scatter",
                     mode: "lines+markers",
                     name: "參與人數",
-                    xaxis: "x2", // 使用第二個 X 軸
+                    xaxis: "x2", // 連結到頂部的 X2 軸
                     line: { color: "rgb(76 29 149)", width: 2 },
                     marker: { size: 6 },
                     hovertemplate: "實際人數：%{x} 人<extra></extra>",
@@ -1152,17 +1156,26 @@ const formatHoverText = (str: string, maxLength = 22) => {
                 layout={{
                   autosize: true,
                   height: participationData.dynamicHeight,
-                  margin: { l: 80, r: 30, t: 20, b: 80 },
+                  margin: { l: 30, r: 30, t: 35, b: 60 }, // 增加邊距以容納標題
                   showlegend: false,
                   xaxis: {
-                    title: "參與率 (%)",
+                    title: {
+                      text: "參與率 (%)", // X1 軸名稱 (底部)
+                      font: { size: 12, color: '#64748b' },
+                      standoff: 15
+                    },
                     range: [0, 105],
                     side: "bottom",
                     tickfont: { size: 10 },
                     gridcolor: "#f1f5f9",
+                    zeroline: false
                   },
                   xaxis2: {
-                    title: "實際人數",
+                    title: {
+                      text: "實際作答人數 (人)", // X2 軸名稱 (頂部)
+                      font: { size: 12, color: "rgb(76 29 149)" },
+                      standoff: 15
+                    },
                     overlaying: "x",
                     side: "top",
                     showgrid: false,
@@ -1170,6 +1183,11 @@ const formatHoverText = (str: string, maxLength = 22) => {
                     tickfont: { size: 10, color: "rgb(76 29 149)" },
                   },
                   yaxis: {
+                    title: {
+                      text: "能力指標", // Y 軸名稱
+                      font: { size: 12, color: '#64748b' },
+                      standoff: 10
+                    },
                     automargin: true,
                     tickfont: { size: 10, color: "#64748b" },
                   },
@@ -1742,3 +1760,4 @@ const formatHoverText = (str: string, maxLength = 22) => {
     </div>
   );
 }
+

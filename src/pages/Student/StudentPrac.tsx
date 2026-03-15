@@ -1589,16 +1589,24 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
               ]}
               layout={{
                 height: 300,
-                margin: { t: 20, r: 10, b: 60, l: 30 }, 
+                margin: { t: 20, r: 20, b: 70, l: 40 }, 
                 
 
                 xaxis: {
-                  title: "平均每題作答時間（秒）",
+                    title: {
+                    text: "平均每題作答時間（秒）", // X 軸數值名稱
+                    font: { size: 10, color: '#64748b' },
+                    standoff: 15
+                  },
                   gridcolor: "#f1f5f9",
                 },
 
                 yaxis: {
-                  title: "正確率 (%)",
+                  title: {
+                    text: "正確率 (%)", // Y 軸數值名稱
+                    font: { size: 10, color: '#64748b' },
+                    standoff: 15
+                  },
                   range: [0, 115],
                   tickformat: ",.0f",
                   gridcolor: "#f1f5f9",

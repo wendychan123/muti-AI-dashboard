@@ -1201,14 +1201,22 @@ useEffect(() => {
                 ]}
                 layout={{
                   height: 260,
-                  margin: { t: 20, r: 40, b: 50, l: 50 }, 
-                  xaxis: {
-                    title: "人均練習次數",
+                  margin: { t: 20, r: 50, b: 50, l: 70 }, 
+                  xaxis: {                    
+                    title: {
+                    text: "人均練習次數", // X 軸數值名稱
+                    font: { size: 10, color: '#64748b' },
+                    standoff: 15
+                  },
                     range: [0, Math.max(...cityKPIData.map(d => d.avg_prac)) * 1.2 || 5], 
                     fixedrange: true,
                   },
                   yaxis: {
-                    title: "平均答題正確率 (%)",
+                    title: {
+                    text: "平均答題正確率 (%)", // Y 軸數值名稱
+                    font: { size: 10, color: '#64748b' },
+                    standoff: 15
+                  },
                     range: [0, 105], 
                     fixedrange: true,
                   },
@@ -1530,9 +1538,13 @@ useEffect(() => {
             ]}
             layout={{
                 height: 260,
-                margin: { t: 0, r: 50, b: 90, l: 60 }, 
+                margin: { t: 10, r: 40, b: 100, l: 90 }, 
                 xaxis: { 
-                  title: "查詢期間",
+                  title: {
+                    text: "練習期間", 
+                    font: { size: 10, color: '#64748b' },
+                    standoff: 15
+                  },
                   tickangle: -45,
                   tickfont: { size: 10 },
                   type: 'category',
@@ -1541,7 +1553,11 @@ useEffect(() => {
                   automargin: true,
                 },
                 yaxis: {
-                  title: "差距幅度 (%)",
+                  title: {
+                    text: "差距幅度 (%)", 
+                    font: { size: 10, color: '#64748b' },
+                    standoff: 15
+                  },
                   zeroline: true,
                   zerolinecolor: "#040404", 
                   zerolinewidth: 3,
