@@ -1239,13 +1239,13 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
         {/* KPI 4: 低於校平均 */}
         <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
           <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
-            指標表現狀態
+            表現狀態
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
             <div className={`text-2xl font-black tracking-tight ${
               belowClassAvgStats.count > 0 ? "text-red-500" : "text-blue-600"
             }`}>
-              {belowClassAvgStats.count > 0 ? "需加強" : "表現良好"}
+              {belowClassAvgStats.count > 0 ? "需加強" : "已滿分"}
             </div>
             <div className="text-[11px] text-slate-500 mt-2 text-center">
               {belowClassAvgStats.count > 0 
@@ -1258,13 +1258,13 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
         {/* KPI 5：目標達成率 */}
         <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
           <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
-            目標完成率
+            是否達成滿分
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
             <div className={`text-2xl font-black tracking-tight ${
               processedStats.reachedGoal ? "text-blue-600" : "text-red-500"
             }`}>
-              {processedStats.reachedGoal ? "100.00%" : "尚未達成"}
+              {processedStats.reachedGoal ? "已達成" : "尚未達成"}
             </div>
             <div className="gap-2 mt-2 font-medium">
               <span className="text-[11px] bg-slate-100 px-1 rounded text-slate-500">克服弱點：{processedStats.improvedCount}</span><br/>
