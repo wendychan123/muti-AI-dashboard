@@ -48,6 +48,23 @@ interface IndicatorSummary {
   participation_rate: number
 }
 
+interface SubjectSummary {
+  city: string;
+  organization_id: string;
+  grade: number;
+  subject_name: string;
+  student_count: number;
+  total_prac_count: number;
+  total_time_sec: number;
+  school_total_students: number;
+  avg_score_rate: number;
+  avg_time_sec: number;
+  avg_prac_per_student: number;
+  avg_time_per_student: number;
+  participation_rate: number;
+}
+
+
 interface StudentAlert {
   organization_id: string
   grade: number;
@@ -99,6 +116,7 @@ export default function TeacherPrac() {
 
   const [pracData, setPracData] = useState<SchoolPracDaily[]>([]);
   const [schoolSummary, setSchoolSummary] = useState<SchoolSummary[]>([]);
+  const [subjectSummary, setSubjectSummary] = useState<SubjectSummary[]>([]); 
   const [indicatorSummary, setIndicatorSummary] = useState<IndicatorSummary[]>([]);
   const [alertData, setAlertData] = useState<StudentAlert[]>([]);
 
@@ -134,6 +152,11 @@ export default function TeacherPrac() {
           .select("*")
           .eq("organization_id", organizationId);
 
+        const { data: subject } = await supabase
+          .from("school_subject_summary")
+          .select("*")
+          .eq("city", userInfo.city);
+
         const { data: alert } = await supabase
           .from("school_indicator_alert")
           .select("*")
@@ -147,6 +170,7 @@ export default function TeacherPrac() {
         setSchoolSummary(summary ?? []);
         setPracData(prac ?? []);
         setIndicatorSummary(indicator ?? []);
+        setSubjectSummary(subject ?? []); 
         setAlertData(alert ?? []);
       } catch (error) {
         console.error("Data load error:", error);
@@ -176,6 +200,17 @@ export default function TeacherPrac() {
       return true;
     });
   }, [indicatorSummary, selectedGrade, selectedSubject]);
+
+  const filteredSubjectSummary = useMemo(() => {
+    return subjectSummary.filter((r) => {
+      if (String(r.organization_id) !== String(organizationId)) return false;
+      
+      if (selectedGrade !== ALL_GRADE && r.grade !== Number(selectedGrade)) return false;
+      if (selectedSubject !== ALL_SUBJECT && r.subject_name !== selectedSubject) return false;
+      return true;
+    });
+  }, [subjectSummary, organizationId, selectedGrade, selectedSubject]);
+
 
   const filteredAlert = useMemo(() => {
     return alertData.filter((a) => {
@@ -518,7 +553,7 @@ const participationData = useMemo(() => {
     .sort((a, b) => b.rate - a.rate);
 
   
-  const dynamicHeight = Math.max(0, data.length * 10); 
+  const dynamicHeight = Math.max(250, data.length * 10); 
   return { data, dynamicHeight };
 }, [filteredIndicator]);
 
