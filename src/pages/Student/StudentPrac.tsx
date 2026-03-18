@@ -82,8 +82,9 @@ interface PracItemRow {
   indicator: string;
   indicate_name: string;
   item_index: number;
-  is_correct: number; // 1 / 0
-  ans_time_ms: number;
+  is_correct: number; 
+  during_time: number; // 該次測驗總耗時
+  ans_time_ms: number;  // 每題耗時
 }
 
 interface PracDetailRow {
@@ -104,8 +105,6 @@ interface DiffBarRow {
   avgDiff: number;         // 歷次平均與校平均的差距
 }
 
-
-
 type ExplainTarget =
   | "daily_overview"    // 練習狀況表現
   | "practice_trend"    // 練習投入走勢
@@ -113,10 +112,6 @@ type ExplainTarget =
   | "indicator_effect"  // 能力指標投入
   | "learning_process"  // 學習歷程表現
   | "indicator_gap";    // 能力指標差距
-
-
-
-
 
 /* =========================
    Main Component
@@ -137,20 +132,20 @@ export default function StudentPrac() {
   const [endDate, setEndDate] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"day" | "week" | "month">("day");
 
-
   // Filters
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<string>("all");
-  const [selectedIndicator, setSelectedIndicator] = useState<string>("all");
+
+  // Drill-down 
+  const [drilldownIndicator, setDrilldownIndicator] = useState<string | null>(null);
+  const [detailIndicator, setDetailIndicator] = useState<string>("all");
 
   // AI
   const [showAI, setShowAI] = useState(false);
   const [geminiResult, setGeminiResult] = useState<string | null>(null);
   const [geminiLoading, setGeminiLoading] = useState(false);
   const [selectedCharts, setSelectedCharts] = useState<ExplainTarget[]>(["daily_overview",]);
-
-
 
   /* =========================
      Data Fetching
@@ -220,7 +215,7 @@ export default function StudentPrac() {
       }
       // ----------------------------
     }
-
+    
     setDailyData((DailyRes.data as DailyRow[]) || []);
     setIndicatorData((indicatorRes.data as IndicatorRow[]) || []);
     setOrgIndicatorData(OrgIndicatorRes.data || []);
@@ -245,179 +240,175 @@ export default function StudentPrac() {
   return attemptsData.filter(d => {
     if (selectedSubject !== "all" && d.subject_name !== selectedSubject)
       return false;
-    if (selectedIndicator !== "all" && d.indicate_name !== selectedIndicator)
-      return false;
     return true;
   });
-}, [attemptsData, selectedSubject, selectedIndicator]);
+}, [attemptsData, selectedSubject]);
 
+  // 1. 先濾出「該科目」的所有作答明細 (用來產生下拉選單選項)
+  const subjectPracItems = useMemo<PracItemRow[]>(() => {
+    return pracItems.filter(i => {
+      if (selectedSubject !== "all" && i.subject_name !== selectedSubject)
+        return false;
+      return true;
+    });
+  }, [pracItems, selectedSubject]);
 
-  // 依科目產生能力指標選項
-  const availableIndicators = useMemo(() => {
-    const base =
-      selectedSubject === "all"
-        ? attemptsData
-        : attemptsData.filter(d => d.subject_name === selectedSubject);
+  // 2. 取得該科目下有哪些「能力指標」可供選擇
+  const detailAvailableIndicators = useMemo(() => {
+    return _.uniq(subjectPracItems.map(i => i.indicate_name)).sort();
+  }, [subjectPracItems]);
 
-    return _.uniq(base.map(d => d.indicate_name)).sort();
-  }, [attemptsData, selectedSubject]);
-
+  // 3. 最後套用「能力指標篩選」，產生給表格用的資料
   const filteredPracItems = useMemo<PracItemRow[]>(() => {
-  return pracItems.filter(i => {
-    if (selectedIndicator !== "all" && i.indicate_name !== selectedIndicator)
-      return false;
-    return true;
-  });
-}, [pracItems, selectedIndicator]);
+    if (detailIndicator === "all") return subjectPracItems;
+    return subjectPracItems.filter(i => i.indicate_name === detailIndicator);
+  }, [subjectPracItems, detailIndicator]);
 
-//詳細練習紀錄
+  // 詳細練習紀錄資料處理
   const detailedRows = useMemo<PracDetailRow[]>(() => {
-  if (filteredPracItems.length === 0) return [];
+    if (filteredPracItems.length === 0) return [];
 
-  const byPrac: Record<number, PracItemRow[]> = _.groupBy(
-    filteredPracItems,
-    "prac_answer_sn"
-  );
+    const byPrac: Record<number, PracItemRow[]> = _.groupBy(
+      filteredPracItems,
+      "prac_answer_sn"
+    );
 
-  return Object.values(byPrac).map((items: PracItemRow[]) => {
-    const first = items[0];
+    return Object.values(byPrac).map((items: PracItemRow[]) => {
+      const first = items[0];
 
-    const correctCount = items.filter(i => i.is_correct === 1).length;
-    const totalCount = items.length;
+      const correctCount = items.filter(i => i.is_correct === 1).length;
+      const totalCount = items.length;
 
-    const avgTime =
-      totalCount > 0
-        ? _.meanBy(items, "ans_time_ms") ?? 0
-        : 0;
+      // 直接讀取修正後資料表的 during_time 欄位
+      // 假設資料表存的是「秒」，直接使用即可
+      const totalSpentTime = Number(first.during_time || 0);
 
-    return {
-      prac_answer_sn: first.prac_answer_sn,
-      date: first.date,
-      items, 
-      avg_item_time_ms: avgTime,
-      score_rate: (correctCount / totalCount) * 100,
-    };
-  }).sort(
+      return {
+        prac_answer_sn: first.prac_answer_sn,
+        date: first.date,
+        items, 
+        // 為了不更動 detailedRows 的介面，我們把「測驗總耗時」存入此變數
+        avg_item_time_ms: totalSpentTime, 
+        score_rate: (correctCount / totalCount) * 100,
+      };
+    }).sort(
       (a, b) => b.prac_answer_sn - a.prac_answer_sn
     );
-}, [filteredPracItems]);
+  }, [filteredPracItems]);
 
- 
   const maxItemCount = useMemo(() => {
     return Math.max(0, ...detailedRows.map((r) => r.items.length));
   }, [detailedRows]);
   
 
+  // KPI 
   // 3. KPI 與 最新狀態
   const processedStats = useMemo(() => {
-  const totalCount = filteredAttempts.length;
+    const totalAttemptsCount = filteredAttempts.length;
     
     // 1. 找出符合目前過濾條件的校級資料
     const matchedOrgRows = OrgIndicatorData.filter(d => {
       const matchSubject = selectedSubject === "all" || d.subject_name === selectedSubject;
-      const matchIndicator = selectedIndicator === "all" || d.indicate_name === selectedIndicator;
-      return matchSubject && matchIndicator;
+      return matchSubject;
     });
 
     // 2. 練習人數 (userCount)：
-    // 若選「全部科目」，取各指標中參與人數的最大值（代表該校有多少人參與過這類練習）
     const userCount = matchedOrgRows.length > 0 
       ? Math.max(...matchedOrgRows.map(d => d.participant_count || 0)) 
       : 0;
 
     // 3. 全校平均練習次數 (schoolAvgCount)：
-    // 邏輯：該範圍內的校總練習次數加總 / 參與人數
     const schoolTotalPracSum = _.sumBy(matchedOrgRows, "school_prac_count");
     const schoolAvgCount = userCount > 0 
       ? (schoolTotalPracSum / userCount).toFixed(1) 
       : "0.0";
-  const totalTime = _.sumBy(filteredAttempts, "during_time");
 
-  const avgScore =
-    totalCount > 0 ? _.meanBy(filteredAttempts, "score_rate") : 0;
+    // KPI 1：計算有練習幾個單元（依據能力指標分類去重）
+    const attemptsByIndicator = _.groupBy(filteredAttempts, "indicate_name");
+    const unitCount = Object.keys(attemptsByIndicator).length; 
 
-  const avgSpeedSec =
-    totalCount > 0
-      ? (_.meanBy(filteredAttempts, "avg_item_time_ms") / 1000).toFixed(1)
-      : "0.0";
+    // KPI 2：學生總投入時間
+    const totalTime = Math.round(_.sumBy(filteredAttempts, "during_time"));
 
-  const attemptsByIndicator = _.groupBy(
-    filteredAttempts,
-    "indicate_name"
-  );
+    // KPI 2：校總投入時間 = 各單元之 (平均作答秒數 * 練習總次數) 的加總
+    const schoolTotalTimeSec = _.sumBy(
+      matchedOrgRows, 
+      r => (r.school_avg_time_sec || 0) * (r.school_prac_count || 0)
+    );
 
-  let improvedCount = 0; // 克服弱點：曾不及格 → 現在滿分
-  let perfectCount = 0;  // 達成滿分：一直都很優秀 → 現在滿分
-  let struggleCount = 0; // 目前仍低分：最新一次不及格
+    // KPI 2：下方校平均 (校總投入時間 / 該校人數)
+    const schoolAvgTotalTime = userCount > 0 ? Math.round(schoolTotalTimeSec / userCount) : 0;
+    const timeDiff = totalTime - schoolAvgTotalTime; 
 
-  // 門檻值定義
-  const PASS_THRESHOLD = 0.6;    // 60%
-  const PERFECT_THRESHOLD = 0.99; // 100%
+    const avgScore =
+      totalAttemptsCount > 0 ? _.meanBy(filteredAttempts, "score_rate") : 0;
 
-  // 判定函式：自動相容小數 (0.5) 與整數 (50) 格式
-  const checkIsLow = (score) => {
-    const s = Number(score);
-    // 如果數值大於 1，判定為整數制 (如 50 < 60)；否則為小數制 (如 0.5 < 0.6)
-    return s > 1 ? s < 60 : s < PASS_THRESHOLD;
-  };
+    const avgSpeedSec =
+      totalAttemptsCount > 0
+        ? (_.meanBy(filteredAttempts, "avg_item_time_ms") / 1000).toFixed(1)
+        : "0.0";
 
-  const checkIsPerfect = (score) => {
-    const s = Number(score);
-    // 判定是否為 100 或 1.0 (考慮浮點數誤差)
-    return s === 100 || s >= PERFECT_THRESHOLD;
-  };
+    let improvedCount = 0; // 克服弱點：曾不及格 → 現在滿分
+    let perfectCount = 0;  // 達成滿分：一直都很優秀 → 現在滿分
+    let struggleCount = 0; // 目前仍低分：最新一次不及格
 
-  Object.values(attemptsByIndicator).forEach((attempts) => {
-    // 1. 確保依日期排序（若日期相同則依 id 排序確保穩定）
-    const sorted = _.orderBy(attempts, ["date", "id"], ["asc", "asc"]);
-    if (!sorted.length) return;
+    // 門檻值定義
+    const PASS_THRESHOLD = 0.6;    // 60%
+    const PERFECT_THRESHOLD = 0.99; // 100%
 
-    const latest = sorted[sorted.length - 1];
-    const latestScore = Number(latest.score_rate);
+    const checkIsLow = (score) => {
+      const s = Number(score);
+      return s > 1 ? s < 60 : s < PASS_THRESHOLD;
+    };
 
-    // 2. 核心邏輯判定
-    // 只要歷史紀錄中有「任何一筆」低於及格線，everLow 即為 true
-    const everLow = sorted.some(a => checkIsLow(a.score_rate));
-    const isLatestPerfect = checkIsPerfect(latestScore);
+    const checkIsPerfect = (score) => {
+      const s = Number(score);
+      return s === 100 || s >= PERFECT_THRESHOLD;
+    };
 
-    // 3. 分類統計
-    if (isLatestPerfect) {
-      if (everLow) {
-        // 符合您的需求：曾經低分 (例如 50% 或 0.5)，現在滿分
-        improvedCount++; 
-      } else {
-        // 從未低分過，且現在滿分
-        perfectCount++;  
+    Object.values(attemptsByIndicator).forEach((attempts) => {
+      const sorted = _.orderBy(attempts, ["date", "id"], ["asc", "asc"]);
+      if (!sorted.length) return;
+
+      const latest = sorted[sorted.length - 1];
+      const latestScore = Number(latest.score_rate);
+
+      const everLow = sorted.some(a => checkIsLow(a.score_rate));
+      const isLatestPerfect = checkIsPerfect(latestScore);
+
+      if (isLatestPerfect) {
+        if (everLow) {
+          improvedCount++; 
+        } else {
+          perfectCount++;  
+        }
       }
-    }
 
-    // 4. 判定目前是否仍處於掙扎狀態 (最新一次不及格)
-    if (checkIsLow(latestScore)) {
-      struggleCount++;
-    }
+      if (checkIsLow(latestScore)) {
+        struggleCount++;
+      }
+    });
 
-  });
+    const reachedGoal = struggleCount === 0 && (improvedCount > 0 || perfectCount > 0);
 
-  // 目標達成邏輯：沒有人在掙扎，且至少有人達到滿分
-  const reachedGoal = struggleCount === 0 && (improvedCount > 0 || perfectCount > 0);
-
-
-  return {
-    count: totalCount,
-    userCount,          
-    schoolAvgCount,
-    totalTime: Math.round(totalTime),
-    avgScore: Math.round(avgScore * 100),
-    avgSpeedSec,
-    struggleCount,
-    improvedCount,
-    perfectCount,
-    reachedGoal,
-  };
-}, [filteredAttempts]);
+    return {
+      count: unitCount,          
+      userCount,          
+      schoolAvgCount,
+      totalTime,                 
+      schoolAvgTotalTime,        
+      timeDiff,                  
+      avgScore: Math.round(avgScore * 100),
+      avgSpeedSec,
+      struggleCount,
+      improvedCount,
+      perfectCount,
+      reachedGoal,
+    };
+  }, [filteredAttempts, OrgIndicatorData, selectedSubject]);
 
 
-  /// 低於班級平均
+/// 低於班級平均
 /// KPI4：指標表現狀態 (修改後：只要有過一次 100% 就算克服)
   const belowClassAvgStats = useMemo(() => {
     if (!filteredAttempts.length) {
@@ -513,7 +504,7 @@ export default function StudentPrac() {
   }, [indicatorData, filteredAttempts, selectedSubject]);
 
   /* =========================
-       資料期間顯示
+        資料期間顯示
     ========================= */
     const periodLabel = useMemo(() => {
       // 改用過濾後的資料來決定顯示的區間
@@ -585,92 +576,81 @@ export default function StudentPrac() {
       : (sorted[mid - 1] + sorted[mid]) / 2;
   };
 
- 
+  
 
   // 圖表二：診斷散佈圖
+  // 圖表二：診斷散佈圖 (支援 總覽/單一指標詳細歷程 切換)
   const chart3Data = useMemo(() => {
-  if (!filteredAttempts.length) {
-    return {
-      x: [],
-      y: [],
-      text: [],
-      zone: [],
-      attemptIndex: [],
-      isLatest: [],
-      medianTimeSec: 0,
-      passScore: 60,
-    };
-  }
-
-  // 每個能力指標內排序
-  const attemptsWithIndex = _.flatMap(
-    _.groupBy(filteredAttempts, "indicate_name"),
-    (attempts) => {
-      const sorted = _.orderBy(attempts, ["date"], ["asc"]);
-      return sorted.map((a, idx) => ({
-        ...a,
-        attemptIndex: idx + 1,
-        totalAttempts: sorted.length,
-        isLatest: idx === sorted.length - 1,
-        avg_item_time_sec:
-          a.items_count > 0
-            ? a.during_time / a.items_count
-            : 0,
-      }));
-    }
-  );
-
-  // 只保留有題數的
-  const validPoints = attemptsWithIndex.filter(
-      d => d.items_count > 0
-    );
-
-    if (!validPoints.length) {
-      return {
-        x: [],
-        y: [],
-        text: [],
-        zone: [],
-        attemptIndex: [],
-        isLatest: [],
-        medianTimeSec: 5,
-        passScore: 60,
-      };
+    if (!filteredAttempts.length) {
+      return { mode: "overview", x: [], y: [], text: [], zone: [], itemsCount: [], medianTimeSec: 5, passScore: 60 };
     }
 
-    const timeSecValues = validPoints.map(
-      d => d.avg_item_time_sec
-    );
-
-    const medianTimeSec = calculateMedian(timeSecValues) || 5;
     const passScore = 60;
-
-    const zoneOf = (d: any) => {
-      const acc = d.score_rate;
-      const timeSec = d.avg_item_time_sec;
-
-      if (acc >= passScore && timeSec <= medianTimeSec) return "精熟區";
-      if (acc >= passScore && timeSec > medianTimeSec) return "穩定區";
-      if (acc < passScore && timeSec <= medianTimeSec) return "猜測區";
+    const zoneOf = (acc: number, timeSec: number, median: number) => {
+      if (acc >= passScore && timeSec <= median) return "精熟區";
+      if (acc >= passScore && timeSec > median) return "穩定區";
+      if (acc < passScore && timeSec <= median) return "猜測區";
       return "卡關區";
     };
 
-    return {
-      x: validPoints.map(d => d.avg_item_time_sec),
-      y: validPoints.map(d => d.score_rate),
-      text: validPoints.map(
-        d =>
-          `${d.indicate_name}` +
-          `<br>第 ${d.attemptIndex} 次` +
-          `<br>題數：${d.items_count}`
-      ),
-      attemptIndex: validPoints.map(d => d.attemptIndex),
-      isLatest: validPoints.map(d => d.isLatest),
-      zone: validPoints.map(d => zoneOf(d)),
-      medianTimeSec,
-      passScore,
-    };
-  }, [filteredAttempts]);
+    if (!drilldownIndicator) {
+      // 模式 A：總覽模式 (每個單元只顯示最新一次)
+      const attemptsByIndicator = _.groupBy(filteredAttempts, "indicate_name");
+      const latestAttempts = Object.values(attemptsByIndicator)
+        .map(attempts => {
+          const sorted = _.orderBy(attempts, ["date", "prac_answer_sn"], ["asc", "asc"]);
+          const latest = sorted[sorted.length - 1];
+          return {
+            ...latest,
+            avg_item_time_sec: latest.items_count > 0 ? latest.during_time / latest.items_count : 0,
+          };
+        })
+        .filter(a => a.items_count > 0);
+
+      if (!latestAttempts.length) return { mode: "overview", x: [], y: [], text: [], zone: [], itemsCount: [], medianTimeSec: 5, passScore: 60 };
+
+      const timeSecValues = latestAttempts.map(d => d.avg_item_time_sec);
+      const medianTimeSec = calculateMedian(timeSecValues) || 5;
+
+      return {
+        mode: "overview",
+        x: latestAttempts.map(d => d.avg_item_time_sec),
+        y: latestAttempts.map(d => d.score_rate),
+        text: latestAttempts.map(d => d.indicate_name),
+        zone: latestAttempts.map(d => zoneOf(d.score_rate, d.avg_item_time_sec, medianTimeSec)),
+        itemsCount: latestAttempts.map(d => d.items_count),
+        medianTimeSec,
+        passScore,
+      };
+    } else {
+      // 模式 B：詳細歷程模式 (顯示被點擊的單元的所有歷史紀錄)
+      const specificAttempts = filteredAttempts.filter(a => a.indicate_name === drilldownIndicator);
+      const sorted = _.orderBy(specificAttempts, ["date", "prac_answer_sn"], ["asc", "asc"]);
+      const validPoints = sorted.map((a, idx) => ({
+        ...a,
+        attemptIndex: idx + 1,
+        isLatest: idx === sorted.length - 1,
+        avg_item_time_sec: a.items_count > 0 ? a.during_time / a.items_count : 0,
+      })).filter(a => a.items_count > 0);
+
+      if (!validPoints.length) return { mode: "detail", x: [], y: [], text: [], zone: [], isLatest: [], itemsCount: [], medianTimeSec: 5, passScore: 60 };
+
+      const timeSecValues = validPoints.map(d => d.avg_item_time_sec);
+      const medianTimeSec = calculateMedian(timeSecValues) || 5;
+
+      return {
+        mode: "detail",
+        x: validPoints.map(d => d.avg_item_time_sec),
+        y: validPoints.map(d => d.score_rate),
+        text: validPoints.map(d => String(d.attemptIndex)),
+        isLatest: validPoints.map(d => d.isLatest),
+        zone: validPoints.map(d => zoneOf(d.score_rate, d.avg_item_time_sec, medianTimeSec)),
+        itemsCount: validPoints.map(d => d.items_count),
+        medianTimeSec,
+        passScore,
+      };
+    }
+  }, [filteredAttempts, drilldownIndicator]);
 
 
   const ZONE_COLOR: Record<string, string> = {
@@ -744,7 +724,7 @@ export default function StudentPrac() {
       };
     }, [filteredAttempts, matchedClassIndicators]);
 
-  // 圖表三：差距條形圖資料（學生最新表現 vs 班級平均）
+  // 圖表三：差距條形圖資料（學生最新表現 vs 學校平均）
   const diffBarData = useMemo<DiffBarRow[]>(() => {
     if (!filteredAttempts.length || !matchedClassIndicators.length) return [];
 
@@ -768,18 +748,15 @@ export default function StudentPrac() {
       const latestScore = sorted[sorted.length - 1].score_rate;
       const latestDiff = Math.round(latestScore - classAvg);
 
-      // B. 個人歷次平均
-      const historicalAvg = _.meanBy(attempts, "score_rate");
-      const avgDiff = Math.round(historicalAvg - classAvg);
-
       return {
         indicator: classRow.indicator || "",
         indicate_name: splitLongText(indicate_name, 20),
         latestScore: Math.round(latestScore),
-        historicalAvg: Math.round(historicalAvg),
         classAvg: Math.round(classAvg),
         latestDiff,
-        avgDiff
+        // 為了相容 interface，如果 interface 沒改，請給個預設值 0
+        historicalAvg: 0, 
+        avgDiff: 0 
       };
     }).filter(Boolean);
 
@@ -814,8 +791,7 @@ const trendData = useMemo(() => {
   // 2. 進行過濾
   const filtered: AttemptRow[] = rawData.filter((d) => {
     const matchSubject = selectedSubject === "all" || d.subject_name === selectedSubject;
-    const matchIndicator = selectedIndicator === "all" || d.indicate_name === selectedIndicator;
-    return matchSubject && matchIndicator;
+    return matchSubject;
   });
 
   
@@ -848,7 +824,9 @@ const trendData = useMemo(() => {
     };
   }).sort((a, b) => a.date.localeCompare(b.date));
 
-}, [attemptsData, viewMode, selectedSubject, selectedIndicator]);
+}, [attemptsData, viewMode, selectedSubject]);
+
+
 
   
 /* =========================
@@ -860,7 +838,6 @@ const runAIForChart = async (chart: ExplainTarget) => {
   const prompt = buildStudentPracPrompt({
     date: selectedDate,
     subject: selectedSubject,
-    indicator: selectedIndicator,
     selectedCharts: [chart],   //只分析一張
     stats: {
       avgScore: avgScoreCompare.studentAvg,
@@ -943,7 +920,6 @@ useEffect(() => {
     const prompt = buildStudentPracPrompt({
       date: selectedDate,
       subject: selectedSubject,
-      indicator: selectedIndicator,
       selectedCharts: explainTargets, // ← 多圖
       stats: {
         avgScore: avgScoreCompare.studentAvg,
@@ -1012,7 +988,6 @@ useEffect(() => {
   trendData,
   selectedDate,
   selectedSubject,
-  selectedIndicator,
   avgScoreCompare,
   processedStats,
   belowClassAvgStats,
@@ -1095,7 +1070,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
             value={selectedSubject}
             onValueChange={(val) => {
               setSelectedSubject(val);
-              setSelectedIndicator("all");
+              setDrilldownIndicator(null); // 切換科目時回到總覽圖
             }}
           >
             <SelectTrigger className="w-[150px] focus:ring-0 font-medium text-slate-700 bg-white border rounded">
@@ -1105,24 +1080,6 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
               <SelectItem value="all">全部科目</SelectItem>
               {uniqueSubjects.map(sub => (
                 <SelectItem key={sub} value={sub}>{sub}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-
-          {/* 能力指標 */}
-          <span className="text-sm">能力指標：</span>
-          <Select
-            value={selectedIndicator}
-            onValueChange={setSelectedIndicator}
-          >
-            <SelectTrigger className="w-[800x] focus:ring-0 font-medium text-slate-700 bg-white border rounded">
-              <SelectValue placeholder="選擇能力指標"/>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部能力指標</SelectItem>
-              {availableIndicators.map(ind => (
-                <SelectItem key={ind} value={ind}>{ind}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -1170,41 +1127,35 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
         {/* KPI 1: 次數 */}
         <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
           <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
-            總練習次數
+            總練習單元數
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
             <div className="text-3xl font-black text-slate-700 tracking-tight">
               {processedStats.count.toLocaleString()}
             </div>
             
-            <div className="gap-2 mt-2 text-center  font-medium">
-              <span className="text-[11px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
-                全校練習：{processedStats.userCount}人
-              </span><br/>
-              <span className="text-[11px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
-                全校人均練習：{processedStats.schoolAvgCount}次
-              </span>
-            </div>
           </div>
         </div>
 
-        {/* KPI 2: 時間 */}
+        {/* KPI 2: 總投入時間 */}
         <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
           <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
-            平均投入時間
+            總投入時間
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
             <div className="text-2xl font-black text-slate-700 tracking-tight">
-              {processedStats.totalTime} <span className="text-base">秒</span>
+              {Math.round(processedStats.totalTime / 60).toLocaleString()} <span className="text-base">分</span>
             </div>
-            {avgSpeedCompare.classAvgSec != null && (
+            {processedStats.schoolAvgTotalTime != null && (
               <div className="text-[11px] text-center mt-1 font-medium">
-                <span className="text-slate-500">校平均 {avgSpeedCompare.classAvgSec} 秒</span><br/>
+                <span className="text-slate-500">校平均 {Math.round(processedStats.schoolAvgTotalTime / 60).toLocaleString()} 分</span><br/>
                 <span className={`ml-1 ${
-                  Number(avgSpeedCompare.diff) < 0 ? "text-green-500" : "text-red-500"
+                  processedStats.timeDiff >= 0 ? "text-green-500" : "text-red-500"
                 }`}>
-                  {Number(avgSpeedCompare.diff) === 0 ? " (→)" : 
-                  Number(avgSpeedCompare.diff) < 0 ? ` (快 ${Math.abs(Number(avgSpeedCompare.diff))}s)` : ` (慢 ${Math.abs(Number(avgSpeedCompare.diff))}s)`}
+                  {processedStats.timeDiff === 0 ? " (與校平均持平)" : 
+                  processedStats.timeDiff > 0 
+                  ? ` (+${Math.round(Math.abs(processedStats.timeDiff) / 60).toLocaleString()}分)` 
+                  : ` (-${Math.round(Math.abs(processedStats.timeDiff) / 60).toLocaleString()}分)`}
                 </span>
               </div>
             )}
@@ -1220,7 +1171,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
             <div className="text-2xl font-black text-slate-700 tracking-tight">
               {avgScoreCompare.studentAvg} %
             </div>
-            <div className="text-[11px] text-slate-400 font-medium mt-1">
+            <div className="text-[11px] text-center text-slate-400 font-medium mt-1">
               <span className="text-slate-500">校平均 {avgScoreCompare.classAvg} % </span><br/>
               <span
                       className={
@@ -1277,592 +1228,9 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
 
       {/* 3. Charts Grid */}
       {/* =========================
-              區塊一（3張圖表）
+             區塊一（2張圖表）
       ========================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* ===== 圖表 1：能力指標投入圖 ===== */}
-        <Card className="col-span-1 relative">
-
-            {loading && (
-            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
-              <Activity className="animate-spin mr-2 w-4 h-4" />
-              <span className="text-sm text-slate-600">資料分析中...</span>
-            </div>
-          )}
-
-        <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
-            {/* 左側：標題 */}
-            <CardTitle className="text-xl font-bold ">
-              能力指標投入
-            </CardTitle>
-
-            {/* 右側：按鈕群組 */}
-            <div className="flex items-center gap-0">
-              {/* 圖表說明 Tooltip */}
-              <TooltipProvider delayDuration={100}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="
-                        flex items-center justify-center
-                        w-8 h-8
-                        rounded-full
-                        text-slate-400
-                        hover:bg-slate-100
-                        hover:text-slate-600
-                        transition
-                        "
-                    >
-                      <HelpCircle className="w-4 h-4" />
-                    </button>
-                  </TooltipTrigger>
-                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
-                      <div className="space-y-3">
-                        <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
-                        <ul className="text-xs space-y-2 list-disc pl-4">
-                          <li><b>練習次數：</b>學生在該指標上的投入總量。</li>
-                          <li><b>平均正確率：</b>學生對該指標的理解程度。</li>
-                          <li><b>該校平均線：</b>全校學生在該指標的平均正確率。</li>
-                        </ul>
-                        <p className="text-[12px] text-slate-400 pt-1 border-t">
-                          ※ 透過此圖可以了解你的學習熱區，幫助你發現哪些知識點已經掌握、哪些還需要多加練習。
-                        </p>
-                      </div>
-                    </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              {/* AI 分析按鈕 */}
-              <button
-                onClick={() => runAIForChart("indicator_effect")}
-                className="
-                  flex items-center justify-center
-                  w-8 h-8
-                  rounded-full
-                  text-blue-600
-                  hover:bg-blue-50
-                  hover:border-blue-300
-                  transition
-                  shadow-sm
-                "
-              >
-                <Bot className="w-4 h-4" />
-              </button>
-            </div>
-          </CardHeader>
-
-          <CardContent className="h-[300px] w-full">
-            <Plot
-              data={[
-                {
-                  x: chart1Data.xShort, 
-                  y: chart1Data.yBar,
-                  type: "bar",
-                  name: "練習次數",
-                  marker: { color: "#bfdbfe" },
-                  opacity: 0.8,
-                  customdata: chart1Data.xFull, 
-                  hovertemplate:
-                    "<b>%{x}</b><br><b>%{customdata}</b><br>練習次數：%{y}<extra></extra>", 
-                  hoverlabel: {
-                    align: "left",    // 文字靠左
-                    font: { size: 13}
-                  }
-                },
-                {
-                  x: chart1Data.xShort,
-                  y: chart1Data.yLine,
-                  type: "scatter",
-                  mode: "lines+markers",
-                  name: "平均正確率 (%)",
-                  yaxis: "y2",
-                  marker: { color: "#2563eb", size: 8 },
-                  line: { width: 3 },
-                  hovertemplate:
-                    "<b>%{customdata}</b><br>平均正確率：%{y}%<extra></extra>",
-                  customdata: chart1Data.xFull,
-                  hoverlabel: {
-                    align: "left",    // 文字靠左
-                    font: { size: 13}
-                  }
-                },
-              ]}
-              layout={{
-                height: 300,
-                margin: { t: 60, r: 40, b: 80, l: 40 },
-                xaxis: {
-                  tickangle: -30,
-                  tickfont: { size: 11 },
-                },
-
-                yaxis: {
-                  title: "練習次數",
-                  gridcolor: "#f1f5f9",
-                  zeroline: false,
-                },
-
-                yaxis2: {
-                  title: "平均正確率 (%)",
-                  overlaying: "y",
-                  side: "right",
-                  range: [0, 110],
-                  showgrid: false,
-                },
-
-                /* 正確率基準線 */
-                shapes:
-                  avgScoreCompare.classAvg !== null
-                    ? [
-                        {
-                          type: "line",
-                          xref: "paper",
-                          x0: 0,
-                          x1: 1,
-                          yref: "y2",
-                          y0: avgScoreCompare.classAvg,
-                          y1: avgScoreCompare.classAvg,
-                          line: {
-                            color: "#ef4444",
-                            width: 2,
-                            dash: "dash",
-                          },
-                        },
-                      ]
-                    : [],
-
-                annotations:
-                  avgScoreCompare.classAvg !== null
-                    ? [
-                        {
-                          xref: "paper",
-                          x: 1,
-                          yref: "y2",
-                          y: avgScoreCompare.classAvg,
-                          text: `校平均 ${avgScoreCompare.classAvg}%`,
-                          showarrow: false,
-                          font: { size: 11, color: "#ef4444" },
-                          xanchor: "right",
-                          yanchor: "bottom",
-                        },
-                      ]
-                    : [],
-
-
-
-                legend: {
-                  orientation: "h",
-                  yanchor: "bottom",
-                  y: 1.1, 
-                  xanchor: "center",
-                  x: 0.5,
-                  font: { size: 11 }
-                },
-
-                font: { family: "inherit" },
-              }}
-              
-              useResizeHandler
-              style={{ width: "100%", height: "100%" }}
-              config={{ displayModeBar: false, responsive: true }}
-            />
-          </CardContent>
-        </Card>
-
-        
-        {/* ===== 圖表 2：學習歷程表現圖 ===== */}
-        <Card className="col-span-1 relative">
-          
-          {loading && (
-            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
-              <Activity className="animate-spin mr-2 w-4 h-4" />
-              <span className="text-sm text-slate-600">資料分析中...</span>
-            </div>
-          )}
-
-        <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
-            {/* 左側：標題 */}
-            <CardTitle className="text-xl font-bold ">
-              學習歷程表現
-            </CardTitle>
-
-            {/* 右側：按鈕群組 */}
-            <div className="flex items-center gap-0">
-              {/* 圖表說明 Tooltip */}
-              <TooltipProvider delayDuration={100}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="
-                        flex items-center justify-center
-                        w-8 h-8
-                        rounded-full
-                        text-slate-400
-                        hover:bg-slate-100
-                        hover:text-slate-600
-                        transition
-                        "
-                    >
-                      <HelpCircle className="w-4 h-4" />
-                    </button>
-                  </TooltipTrigger>
-                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
-                      <div className="space-y-3">
-                        <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
-                        <ul className="text-xs space-y-2 list-disc pl-4">
-                          <li><b>圓點：</b>學生在該指標上每一次練習的紀錄。</li>
-                          <li><b>答題速度（X軸）：</b>往左代表思考愈快，往右代表你花比較多時間仔細推敲。</li>
-                          <li><b>正確率 (Y軸)：</b>愈往上代表答對的情況愈好。</li>
-                        </ul>
-                        <p className="text-[12px] text-slate-400 pt-1 border-t">
-                          ※ 透過此圖可以觀察你在該科目/能力指標上反應速度與準確度關係。
-                        </p>
-                      </div>
-                    </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              {/* AI 分析按鈕 */}
-              <button
-                onClick={() => runAIForChart("learning_process")}
-                className="
-                  flex items-center justify-center
-                  w-8 h-8
-                  rounded-full
-                  text-blue-600
-                  hover:bg-blue-50
-                  hover:border-blue-300
-                  transition
-                  shadow-sm
-                "
-              >
-                <Bot className="w-4 h-4" />
-              </button>
-            </div>
-          </CardHeader>
-
-          
-          
-
-          <CardContent className="h-[300px]">
-            <Plot
-              data={[
-                // ===== 歷次作答 =====
-                {
-                  x: chart3Data.x,
-                  y: chart3Data.y,
-                  mode: "markers+text",
-                  type: "scatter",
-                  text: chart3Data.attemptIndex.map(String),
-                  textposition: "top center",
-                  marker: {
-                    size: 14,
-                    color: chart3Data.zone.map(z => ZONE_COLOR[z]),
-                    opacity: 0.85,
-                    line: { color: "white", width: 2 },
-                  },
-                  hovertemplate:
-                    "<b>第%{text}次</b>" +
-                    "<br>作答時間：%{x:.1f} 秒" +
-                    "<br>正確率：%{y:.0f}%" +
-                    "<br><b>%{customdata}</b>" +
-                    "<extra></extra>",
-                  customdata: chart3Data.zone,
-                  name: "歷次作答",
-                },
-
-                // ===== 最新一次作答（黃框） =====
-                {
-                  x: chart3Data.x.filter((_, i) => chart3Data.isLatest[i]),
-                  y: chart3Data.y.filter((_, i) => chart3Data.isLatest[i]),
-                  mode: "markers",
-                  type: "scatter",
-                  marker: {
-                    size: 15,
-                    color: "rgba(255, 255, 255, 0.1)",
-                    line: {
-                      color: "#f4f800ff",
-                      width: 2,
-                    },
-                  },
-                  hoverinfo: "skip",
-                  name: "最近一次作答",
-                },
-              ]}
-              layout={{
-                height: 300,
-                margin: { t: 20, r: 20, b: 70, l: 40 }, 
-                
-
-                xaxis: {
-                    title: {
-                    text: "平均每題作答時間（秒）", // X 軸數值名稱
-                    font: { size: 10, color: '#64748b' },
-                    standoff: 15
-                  },
-                  gridcolor: "#f1f5f9",
-                },
-
-                yaxis: {
-                  title: {
-                    text: "正確率 (%)", // Y 軸數值名稱
-                    font: { size: 10, color: '#64748b' },
-                    standoff: 15
-                  },
-                  range: [0, 115],
-                  tickformat: ",.0f",
-                  gridcolor: "#f1f5f9",
-                },
-
-                shapes: [
-                  // 正確率門檻
-                  {
-                    type: "line",
-                    x0: 0,
-                    x1: 1,
-                    xref: "paper",
-                    y0: chart3Data.passScore,
-                    y1: chart3Data.passScore,
-                    line: { color: "#94a3b8", width: 1, dash: "dot" },
-                  },
-                  // 中位作答時間
-                  {
-                    type: "line",
-                    x0: chart3Data.medianTimeSec,
-                    x1: chart3Data.medianTimeSec,
-                    y0: 0,
-                    y1: 100,
-                    line: { color: "#94a3b8", width: 1, dash: "dot" },
-                  },
-                ],
-
-                annotations: [
-                  { x: chart3Data.medianTimeSec * 0.6, y: 85, text: "<b>精熟區</b>", showarrow: false, font: { color: "#22c55e" } },
-                  { x: chart3Data.medianTimeSec * 1.4, y: 85, text: "<b>穩定區</b>", showarrow: false, font: { color: "#3b82f6" } },
-                  { x: chart3Data.medianTimeSec * 0.6, y: 20, text: "<b>猜測區</b>", showarrow: false, font: { color: "#f97316" } },
-                  { x: chart3Data.medianTimeSec * 1.4, y: 20, text: "<b>卡關區</b>", showarrow: false, font: { color: "#ef4444" } },
-                ],
-
-                legend: {
-                  orientation: "h",
-                  y: -0.3,
-                },
-              }}
-              useResizeHandler
-              style={{ width: "100%", height: "100%" }}
-              config={{ displayModeBar: false, responsive: true }}
-            />
-          </CardContent>
-        </Card>
-
-      
-
-    
-      {/* Chart 3: 差距條形圖（學生 vs 班級） */}
-        <Card className="col-span-1 relative">
-
-          {loading && (
-            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
-              <Activity className="animate-spin mr-2 w-4 h-4" />
-              <span className="text-sm text-slate-600">資料分析中...</span>
-            </div>
-          )}
-
-          <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
-              {/* 左側：標題 */}
-              <CardTitle className="text-xl font-bold ">
-                能力指標差距
-              </CardTitle>
-              
-              {/* 右側：按鈕群組 */}
-              <div className="flex items-center gap-0">
-                {/* 圖表說明 Tooltip */}
-                <TooltipProvider delayDuration={100}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button className="
-                          flex items-center justify-center
-                          w-8 h-8
-                          rounded-full
-                          text-slate-400
-                          hover:bg-slate-100
-                          hover:text-slate-600
-                          transition
-                          "
-                      >
-                        <HelpCircle className="w-4 h-4" />
-                      </button>
-                    </TooltipTrigger>
-                      <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
-                        <div className="space-y-3">
-                          <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
-                          <ul className="text-xs space-y-2 list-disc pl-4">
-                            <li><b>中間基準線 (0%)：</b>代表全校同學的平均分。</li>
-                            <li><b>學生表現：</b>採用你對該指標<b>「最後一次練習」</b>的成績計算。</li>
-                            <li><b>綠色向右 (+)：</b>代表你目前的精熟度已超越全校平均。</li>
-                            <li><b>紅色向左 (-)：</b>代表你目前的掌握度尚低於全校平均。</li>
-                          </ul>
-                          <p className="text-[12px] text-slate-400 pt-1 border-t">
-                            ※ 透過此圖可以快速抓出你的強項與弱項，讓你的學習更有效率。
-                          </p>
-                        </div>
-                      </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                {/* AI 分析按鈕 */}
-                <button
-                  onClick={() => runAIForChart("indicator_gap")}
-                  className="
-                    flex items-center justify-center
-                    w-8 h-8
-                    rounded-full
-                    text-blue-600
-                    hover:bg-blue-50
-                    hover:border-blue-300
-                    transition
-                    shadow-sm
-                  "
-                >
-                  <Bot className="w-4 h-4" />
-                </button>
-              </div>
-            </CardHeader>
-
-
-
-        <CardContent className="h-[300px]">
-          <Plot
-            data={[
-              // 第一組：個人歷次平均（相對於校平均的差距）
-              {
-                type: "bar",
-                orientation: "h",
-                name: "個人歷次平均",
-                // 這裡 x 軸請對應您在 diffBarData 算出的 avgDiff
-                x: diffBarData.map(d => d.avgDiff),
-                y: diffBarData.map(d => d.indicator),
-                marker: {
-                  color: "#a7afb9ff", // 建議使用中性的灰色，代表歷史背景參考
-                },
-                text: diffBarData.map(d => `${d.avgDiff >= 0 ? "+" : ""}${d.avgDiff}%`),
-                textposition: "inside", // 放在條形內部，避免干擾最新成績的數值
-                customdata: diffBarData.map(d => [
-                  d.indicate_name, 
-                  d.historicalAvg, // [1] 個人平均原值
-                  d.classAvg       // [2] 校平均原值
-                ]),
-                hovertemplate:
-                  "<b>%{y} - %{customdata[0]}</b><br>" +
-                  "個人平均：%{customdata[1]}%<br>" +
-                  "全校平均：%{customdata[2]}%<br>" +
-                  "歷史差距：%{x}%<extra></extra>",
-                hoverlabel: { align: "left", font: { size: 13 } }
-              },
-              // 第二組：個人最新表現（相對於校平均的差距）
-              {
-                type: "bar",
-                orientation: "h",
-                name: "最新一次表現",
-                // 這裡 x 軸請對應您在 diffBarData 算出的 latestDiff
-                x: diffBarData.map(d => d.latestDiff),
-                y: diffBarData.map(d => d.indicator),
-                marker: {
-                  // 根據最新差距決定顏色：綠色代表領先校平均，紅色代表落後
-                  color: diffBarData.map(d => (d.latestDiff >= 0 ? "#16a34a" : "#dc2626")),
-                },
-                text: diffBarData.map(d => `${d.latestDiff >= 0 ? "+" : ""}${d.latestDiff}%`),
-                textposition: "inside", // 放在外部，強調目前的精熟狀態
-                customdata: diffBarData.map(d => [
-                  d.indicate_name, 
-                  d.latestScore, // [1] 最新得分原值
-                  d.classAvg     // [2] 校平均原值
-                ]),
-                hovertemplate:
-                  "<b>%{y} - %{customdata[0]}</b><br>" +
-                  "最新表現：%{customdata[1]}%<br>" +
-                  "全校平均：%{customdata[2]}%<br>" +
-                  "目前差距：%{x}%<extra></extra>",
-                hoverlabel: { align: "left", font: { size: 13 } }
-              },
-            ]}
-            layout={{
-              autosize: true,
-              // 啟用分組模式並調整間距
-              barmode: "group", 
-              bargap: 0.15,      // 不同指標間的間距
-              bargroupgap: 0.05, // 同指標兩根條形間的間距
-              
-              // 增加 margin t 以便放下圖例
-              margin: { l: 80, r: 60, t: 50, b: 40 },
-
-              // 顯示圖例 (Legend)
-              showlegend: true,
-              legend: {
-                orientation: "h", // 橫向排列
-                yanchor: "bottom",
-                y: 1.05,          // 放在圖表正上方
-                xanchor: "right",
-                x: 1,
-                font: { size: 10 }
-              },
-
-              xaxis: {
-                title: "與校平均差距（%）",
-                zeroline: true,
-                zerolinewidth: 2,
-                zerolinecolor: "#94a3b8",
-                gridcolor: "#f1f5f9",
-                // 確保 0 基準線左右對稱或動態調整
-                range: [
-                  Math.min(...diffBarData.flatMap(d => [d.latestDiff, d.avgDiff])) - 15,
-                  Math.max(...diffBarData.flatMap(d => [d.latestDiff, d.avgDiff])) + 15
-                ]
-              },
-
-              yaxis: {
-                automargin: true,
-              },
-
-              // 0 基準線裝飾
-              shapes: [
-                {
-                  type: "line",
-                  x0: 0,
-                  x1: 0,
-                  yref: "paper",
-                  y0: 0,
-                  y1: 1,
-                  line: {
-                    color: "#475569",
-                    width: 2,
-                    dash: "dash",
-                  },
-                },
-              ],
-
-              annotations: [
-                {
-                  x: 0,
-                  y: 1.02,
-                  yref: "paper",
-                  text: "校平均",
-                  showarrow: false,
-                  font: { size: 11, color: "#64748b", weight: "bold" },
-                  xanchor: "center",
-                },
-              ],
-
-              font: { family: "inherit" },
-            }}
-            useResizeHandler
-            style={{ width: "100%", height: "100%" }}
-            config={{ displayModeBar: false, responsive: true }}
-          />
-        </CardContent>
-      </Card>
-      </div>
-
-
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* ===== 練習投入走勢圖 ===== */}
             <Card className="col-span-1 relative">
               {loading && (
@@ -2124,7 +1492,540 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
               </CardContent>
             </Card>
           </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        {/* ===== 圖表 1：能力指標投入圖 ===== */}
+        <Card className="col-span-1 relative">
+
+            {loading && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+              <Activity className="animate-spin mr-2 w-4 h-4" />
+              <span className="text-sm text-slate-600">資料分析中...</span>
+            </div>
+          )}
+
+        <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
+            {/* 左側：標題 */}
+            <CardTitle className="text-xl font-bold ">
+              能力指標投入
+            </CardTitle>
+
+            {/* 右側：按鈕群組 */}
+            <div className="flex items-center gap-0">
+              {/* 圖表說明 Tooltip */}
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="
+                        flex items-center justify-center
+                        w-8 h-8
+                        rounded-full
+                        text-slate-400
+                        hover:bg-slate-100
+                        hover:text-slate-600
+                        transition
+                        "
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
+                      <div className="space-y-3">
+                        <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
+                        <ul className="text-xs space-y-2 list-disc pl-4">
+                          <li><b>練習次數：</b>學生在該指標上的投入總量。</li>
+                          <li><b>平均正確率：</b>學生對該指標的理解程度。</li>
+                          <li><b>該校平均線：</b>全校學生在該指標的平均正確率。</li>
+                        </ul>
+                        <p className="text-[12px] text-slate-400 pt-1 border-t">
+                          ※ 透過此圖可以了解你的學習熱區，幫助你發現哪些知識點已經掌握、哪些還需要多加練習。
+                        </p>
+                      </div>
+                    </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              {/* AI 分析按鈕 */}
+              <button
+                onClick={() => runAIForChart("indicator_effect")}
+                className="
+                  flex items-center justify-center
+                  w-8 h-8
+                  rounded-full
+                  text-blue-600
+                  hover:bg-blue-50
+                  hover:border-blue-300
+                  transition
+                  shadow-sm
+                "
+              >
+                <Bot className="w-4 h-4" />
+              </button>
+            </div>
+          </CardHeader>
+
+          <CardContent className="h-[300px] w-full">
+            <Plot
+              data={[
+                {
+                  x: chart1Data.xShort, 
+                  y: chart1Data.yBar,
+                  type: "bar",
+                  name: "練習次數",
+                  marker: { color: "#bfdbfe" },
+                  opacity: 0.8,
+                  customdata: chart1Data.xFull, 
+                  hovertemplate:
+                    "<b>%{x}</b><br><b>%{customdata}</b><br>練習次數：%{y}<extra></extra>", 
+                  hoverlabel: {
+                    align: "left",    // 文字靠左
+                    font: { size: 13}
+                  }
+                },
+                {
+                  x: chart1Data.xShort,
+                  y: chart1Data.yLine,
+                  type: "scatter",
+                  mode: "lines+markers",
+                  name: "平均正確率 (%)",
+                  yaxis: "y2",
+                  marker: { color: "#2563eb", size: 8 },
+                  line: { width: 3 },
+                  hovertemplate:
+                    "<b>%{customdata}</b><br>平均正確率：%{y}%<extra></extra>",
+                  customdata: chart1Data.xFull,
+                  hoverlabel: {
+                    align: "left",    // 文字靠左
+                    font: { size: 13}
+                  }
+                },
+              ]}
+              layout={{
+                height: 300,
+                margin: { t: 60, r: 40, b: 80, l: 40 },
+                xaxis: {
+                  tickangle: -30,
+                  tickfont: { size: 11 },
+                },
+
+                yaxis: {
+                  title: "練習次數",
+                  gridcolor: "#f1f5f9",
+                  zeroline: false,
+                },
+
+                yaxis2: {
+                  title: "平均正確率 (%)",
+                  overlaying: "y",
+                  side: "right",
+                  range: [0, 110],
+                  showgrid: false,
+                },
+
+                /* 正確率基準線 */
+                shapes:
+                  avgScoreCompare.classAvg !== null
+                    ? [
+                        {
+                          type: "line",
+                          xref: "paper",
+                          x0: 0,
+                          x1: 1,
+                          yref: "y2",
+                          y0: avgScoreCompare.classAvg,
+                          y1: avgScoreCompare.classAvg,
+                          line: {
+                            color: "#ef4444",
+                            width: 2,
+                            dash: "dash",
+                          },
+                        },
+                      ]
+                    : [],
+
+                annotations:
+                  avgScoreCompare.classAvg !== null
+                    ? [
+                        {
+                          xref: "paper",
+                          x: 1,
+                          yref: "y2",
+                          y: avgScoreCompare.classAvg,
+                          text: `校平均 ${avgScoreCompare.classAvg}%`,
+                          showarrow: false,
+                          font: { size: 11, color: "#ef4444" },
+                          xanchor: "right",
+                          yanchor: "bottom",
+                        },
+                      ]
+                    : [],
+
+
+
+                legend: {
+                  orientation: "h",
+                  yanchor: "bottom",
+                  y: 1.1, 
+                  xanchor: "center",
+                  x: 0.5,
+                  font: { size: 11 }
+                },
+
+                font: { family: "inherit" },
+              }}
+              
+              useResizeHandler
+              style={{ width: "100%", height: "100%" }}
+              config={{ displayModeBar: false, responsive: true }}
+            />
+          </CardContent>
+        </Card>
+
     
+      {/* Chart 3: 差距條形圖（學生 vs 班級） */}
+        <Card className="col-span-1 relative">
+
+          {loading && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+              <Activity className="animate-spin mr-2 w-4 h-4" />
+              <span className="text-sm text-slate-600">資料分析中...</span>
+            </div>
+          )}
+
+          <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
+              {/* 左側：標題 */}
+              <CardTitle className="text-xl font-bold ">
+                能力指標差距
+              </CardTitle>
+              
+              {/* 右側：按鈕群組 */}
+              <div className="flex items-center gap-0">
+                {/* 圖表說明 Tooltip */}
+                <TooltipProvider delayDuration={100}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button className="
+                          flex items-center justify-center
+                          w-8 h-8
+                          rounded-full
+                          text-slate-400
+                          hover:bg-slate-100
+                          hover:text-slate-600
+                          transition
+                          "
+                      >
+                        <HelpCircle className="w-4 h-4" />
+                      </button>
+                    </TooltipTrigger>
+                      <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
+                        <div className="space-y-3">
+                          <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
+                          <ul className="text-xs space-y-2 list-disc pl-4">
+                            <li><b>中間基準線 (0%)：</b>代表全校同學的平均分。</li>
+                            <li><b>學生表現：</b>採用你對該指標<b>「最後一次練習」</b>的成績計算。</li>
+                            <li><b>綠色向右 (+)：</b>代表你目前的精熟度已超越全校平均。</li>
+                            <li><b>紅色向左 (-)：</b>代表你目前的掌握度尚低於全校平均。</li>
+                          </ul>
+                          <p className="text-[12px] text-slate-400 pt-1 border-t">
+                            ※ 透過此圖可以快速抓出你的強項與弱項，讓你的學習更有效率。
+                          </p>
+                        </div>
+                      </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                {/* AI 分析按鈕 */}
+                <button
+                  onClick={() => runAIForChart("indicator_gap")}
+                  className="
+                    flex items-center justify-center
+                    w-8 h-8
+                    rounded-full
+                    text-blue-600
+                    hover:bg-blue-50
+                    hover:border-blue-300
+                    transition
+                    shadow-sm
+                  "
+                >
+                  <Bot className="w-4 h-4" />
+                </button>
+              </div>
+            </CardHeader>
+
+
+
+        <CardContent className="p-0"> 
+          <div className="h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar">
+            <Plot
+              data={[
+                {
+                  type: "bar",
+                  orientation: "h",
+                  x: diffBarData.map(d => d.latestDiff),
+                  y: diffBarData.map(d => d.indicator),
+                  marker: {
+                    color: diffBarData.map(d => (d.latestDiff >= 0 ? "#16a34a" : "#dc2626")),
+                  },
+                  text: diffBarData.map(d => `${d.latestDiff >= 0 ? "+" : ""}${d.latestDiff}%`),
+                  textposition: "inside",
+                  customdata: diffBarData.map(d => [d.indicate_name, d.latestScore, d.classAvg]),
+                  hovertemplate:
+                    "<b>%{y} - %{customdata[0]}</b><br>" +
+                    "最新表現：%{customdata[1]}%<br>" +
+                    "全校平均：%{customdata[2]}%<br>" +
+                    "目前差距：%{x}%<extra></extra>",
+                },
+              ]}
+              layout={{
+                // 動態計算高度：每筆資料給 40px，確保不縮放
+                height: Math.max(300, diffBarData.length * 25), 
+                autosize: true,
+                margin: { l: 120, r: 50, t: 45, b: 80 },
+                showlegend: false,
+                xaxis: {
+                  title: "與校平均差距（%）",
+                  zeroline: true,
+                  zerolinewidth: 2,
+                  zerolinecolor: "#94a3b8",
+                  side: "top", // 讓標題留在頂部，滑動時才看得到
+                  fixedrange: true, // 禁止縮放
+                },
+                yaxis: {
+                  automargin: true,
+                  fixedrange: true, // 禁止在圖表上拖曳縮放，改用外部卷軸
+                },
+                // 0 基準線裝飾
+              shapes: [
+                {
+                  type: "line",
+                  x0: 0,
+                  x1: 0,
+                  yref: "paper",
+                  y0: 0,
+                  y1: 1,
+                  line: {
+                    color: "#475569",
+                    width: 2,
+                    dash: "dash",
+                  },
+                },
+              ],
+
+              annotations: [
+                {
+                  x: 0,
+                  y: 1.018,
+                  yref: "paper",
+                  text: "校平均",
+                  showarrow: false,
+                  font: { size: 11, color: "#64748b", weight: "bold" },
+                  xanchor: "center",
+                },
+              ],
+
+                font: { family: "inherit" },
+              }}
+              config={{ 
+                displayModeBar: false, 
+                responsive: true,
+                staticPlot: false 
+              }}
+              style={{ width: "100%" }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+      </div>
+
+{/* ===== 圖表：學習歷程表現圖 ===== */}
+        <Card className="col-span-1 relative">
+          
+          {loading && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+              <Activity className="animate-spin mr-2 w-4 h-4" />
+              <span className="text-sm text-slate-600">資料分析中...</span>
+            </div>
+          )}
+
+        <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
+            {/* 左側：標題與返回按鈕 */}
+            <CardTitle className="text-xl font-bold flex items-center gap-2">
+              學習歷程表現
+              {drilldownIndicator && (
+                <>
+                  <span className="text-slate-300">/</span>
+                  <span className="text-sm text-blue-700 px-1 py-2 ">{drilldownIndicator}</span>
+                  <button
+                    onClick={() => setDrilldownIndicator(null)}
+                    className="flex items-center text-xs text-slate-500 hover:text-slate-800 px-2 py-1 rounded ml-1 transition"
+                  >
+                    <ArrowLeft className="w-3 h-3 mr-1" /> 返回總覽
+                  </button>
+                </>
+              )}
+            </CardTitle>
+
+            {/* 右側：按鈕群組 */}
+            <div className="flex items-center gap-0">
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
+                    <div className="space-y-3">
+                      <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
+                      <ul className="text-xs space-y-2 list-disc pl-4">
+                        <li><b>圓點：</b>學生在單元上的練習紀錄。</li>
+                        <li><b>點擊互動：</b>點擊圓點可以查看該單元的「歷史進步軌跡」。</li>
+                        <li><b>答題速度（X軸）：</b>往左代表思考愈快，往右代表花比較多時間。</li>
+                        <li><b>正確率 (Y軸)：</b>愈往上代表答對的情況愈好。</li>
+                      </ul>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              {/* AI 分析按鈕 */}
+              <button
+                onClick={() => runAIForChart("learning_process")}
+                className="flex items-center justify-center w-8 h-8 rounded-full text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition shadow-sm"
+              >
+                <Bot className="w-4 h-4" />
+              </button>
+            </div>
+          </CardHeader>
+
+          <CardContent className="h-[300px]">
+            <Plot
+              // 當點擊資料點時，進入 Drill-down 模式
+              onClick={(data) => {
+                if (chart3Data.mode === "overview" && data.points.length > 0) {
+                  setDrilldownIndicator(data.points[0].text);
+                }
+              }}
+              data={
+                chart3Data.mode === "overview"
+                  ? [
+                      // ===== 總覽模式：每個單元的最新作答 =====
+                      {
+                        x: chart3Data.x,
+                        y: chart3Data.y,
+                        mode: "markers", 
+                        type: "scatter",
+                        text: chart3Data.text,
+                        marker: {
+                          size: 14,
+                          color: chart3Data.zone.map(z => ZONE_COLOR[z as keyof typeof ZONE_COLOR]),
+                          opacity: 0.85,
+                          line: { color: "white", width: 2 },
+                        },
+                        customdata: chart3Data.zone.map((z, i) => [z, chart3Data.itemsCount[i]]),
+                        hovertemplate:
+                          "<b>%{text}</b><br>" + 
+                          "狀態：%{customdata[0]}<br>" +
+                          "作答時間：%{x:.1f} 秒/題<br>" +
+                          "正確率：%{y:.0f}%<br>" +
+                          "<i>(點擊查看歷次進步軌跡)</i>" +
+                          "<extra></extra>",
+                        name: "最新作答",
+                      },
+                    ]
+                  : [
+                      // ===== 詳細模式：歷次作答軌跡 =====
+                      {
+                        x: chart3Data.x,
+                        y: chart3Data.y,
+                        // 加入 lines，讓歷史軌跡有一條虛線連接著，更有「歷程」的感覺
+                        mode: "lines+markers+text",
+                        type: "scatter",
+                        text: chart3Data.text,
+                        textposition: "top center",
+                        line: { color: "#cbd5e1", width: 2, dash: "dot" }, 
+                        marker: {
+                          size: 14,
+                          color: chart3Data.zone.map(z => ZONE_COLOR[z as keyof typeof ZONE_COLOR]),
+                          opacity: 0.85,
+                          line: { color: "white", width: 2 },
+                        },
+                        customdata: chart3Data.zone,
+                        hovertemplate:
+                          "<b>第%{text}次</b><br>" +
+                          "作答時間：%{x:.1f} 秒/題<br>" +
+                          "正確率：%{y:.0f}%<br>" +
+                          "狀態：<b>%{customdata}</b><extra></extra>",
+                        name: "歷次作答",
+                      },
+                      // ===== 詳細模式：最新一次作答（黃框標記） =====
+                      {
+                        x: chart3Data.x.filter((_, i) => (chart3Data as any).isLatest[i]),
+                        y: chart3Data.y.filter((_, i) => (chart3Data as any).isLatest[i]),
+                        mode: "markers",
+                        type: "scatter",
+                        marker: {
+                          size: 18,
+                          color: "rgba(255, 255, 255, 0)",
+                          line: { color: "#eab308", width: 3 }, // 黃色外框
+                        },
+                        hoverinfo: "skip",
+                        name: "最新一次作答",
+                      },
+                    ]
+              }
+              layout={{
+                height: 300,
+                margin: { t: 20, r: 20, b: 70, l: 40 }, 
+
+                xaxis: {
+                  title: {
+                    text: "平均每題作答時間（秒）", 
+                    font: { size: 10, color: '#64748b' },
+                    standoff: 15
+                  },
+                  gridcolor: "#f1f5f9",
+                  zeroline: false,
+                },
+
+                yaxis: {
+                  title: {
+                    text: "正確率 (%)",
+                    font: { size: 10, color: '#64748b' },
+                    standoff: 15
+                  },
+                  range: [0, 115],
+                  tickformat: ",.0f",
+                  gridcolor: "#f1f5f9",
+                },
+
+                shapes: [
+                  { type: "line", x0: 0, x1: 1, xref: "paper", y0: chart3Data.passScore, y1: chart3Data.passScore, line: { color: "#94a3b8", width: 1, dash: "dot" } },
+                  { type: "line", x0: chart3Data.medianTimeSec, x1: chart3Data.medianTimeSec, y0: 0, y1: 100, line: { color: "#94a3b8", width: 1, dash: "dot" } },
+                ],
+
+                annotations: [
+                  { x: chart3Data.medianTimeSec * 0.6, y: 85, text: "<b>精熟區</b>", showarrow: false, font: { color: "#22c55e" } },
+                  { x: chart3Data.medianTimeSec * 1.4, y: 85, text: "<b>穩定區</b>", showarrow: false, font: { color: "#3b82f6" } },
+                  { x: chart3Data.medianTimeSec * 0.6, y: 20, text: "<b>猜測區</b>", showarrow: false, font: { color: "#f97316" } },
+                  { x: chart3Data.medianTimeSec * 1.4, y: 20, text: "<b>卡關區</b>", showarrow: false, font: { color: "#ef4444" } },
+                ],
+
+                showlegend: false, 
+                // 當處於總覽模式時，設定滑鼠游標為 pointer 提示可點擊
+                hovermode: "closest",
+              }}
+              useResizeHandler
+              style={{ width: "100%", height: "100%", cursor: chart3Data.mode === "overview" ? "pointer" : "default" }}
+              config={{ displayModeBar: false, responsive: true }}
+            />
+
+          
+          </CardContent>
+        </Card>
+
 
 
     <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
@@ -2138,13 +2039,33 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
             </div>
           )}
 
-        <CardHeader className="flex flex-row items-center justify-between py-4 pb-2">
-          <CardTitle className="text-xl font-bold text-slate-700">
+        {/* --- 修改 Header 加入下拉式選單 --- */}
+        <CardHeader className="flex flex-col md:flex-row md:items-center justify-between py-4 pb-2 gap-4">
+          <CardTitle className="text-xl font-bold text-slate-700 flex items-center gap-2">
             詳細練習紀錄 
-            <span className="px-2 text-xs text-blue-600">（ {selectedSubject} | {selectedIndicator} ）</span>
-           
-            </CardTitle>
-          <CardDescription></CardDescription>
+            <span className="text-xs text-blue-600">
+              ( {selectedSubject === "all" ? "全部科目" : selectedSubject} )
+            </span>
+          </CardTitle>
+
+          {/* 能力指標下拉選單 */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">能力指標：</span>
+            <Select
+              value={detailIndicator}
+              onValueChange={setDetailIndicator}
+            >
+              <SelectTrigger className="w-[420px] h-8 text-xs focus:ring-0 font-medium text-slate-700 bg-slate-50 border rounded">
+                <SelectValue placeholder="選擇能力指標" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部能力指標</SelectItem>
+                {detailAvailableIndicators.map(ind => (
+                  <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
 
         <CardContent className="p-0 pt-2">
@@ -2159,56 +2080,62 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                       題目 {i + 1}
                     </th>
                   ))}
-                  <th className="p-3 w-40 text-center">平均每題(ms)</th>
+                  <th className="p-3 w-40 text-center">花費時間(秒)</th>
                   <th className="w-40 text-center">正確率</th>
                 </tr>
               </thead>
 
               <tbody>
-                {detailedRows.map((row) => (
-                  <tr key={row.prac_answer_sn} className="border-t">
-                    <td className="px-4 py-2 font-mono">
-                      {formatDateTime(row.date)}
-                    </td>
+                {detailedRows.length > 0 ? (
+                  detailedRows.map((row) => (
+                    <tr key={row.prac_answer_sn} className="border-t hover:bg-slate-50/50 transition">
+                      <td className="px-4 py-2 font-mono text-sm text-slate-600">
+                        {formatDateTime(row.date)}
+                      </td>
 
-
-
-                    {Array.from({ length: maxItemCount }).map((_, i) => {
-                      const item = row.items[i];
-                      return (
-                        <td key={i} className="text-center">
-                          {item ? (
-                            item.is_correct ? (
-                              <span className="text-green-600 font-bold">✔</span>
+                      {Array.from({ length: maxItemCount }).map((_, i) => {
+                        const item = row.items[i];
+                        return (
+                          <td key={i} className="text-center">
+                            {item ? (
+                              item.is_correct ? (
+                                <span className="text-green-500 font-bold">✔</span>
+                              ) : (
+                                <span className="text-red-500 font-bold">✘</span>
+                              )
                             ) : (
-                              <span className="text-red-600 font-bold">✘</span>
-                            )
-                          ) : (
-                            <span className="text-slate-300">—</span>
-                          )}
-                        </td>
-                      );
-                    })}
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
+                        );
+                      })}
 
-                    <td className="px-3 py-2 text-center font-base">
-                      {Math.round(row.avg_item_time_ms)}
-                    </td>
+                      <td className="px-3 py-2 text-center font-medium text-slate-600">
+                        {row.avg_item_time_ms > 0 ? row.avg_item_time_ms.toLocaleString() : "—"}
+                      </td>
 
-                    <td className="px-3 py-2 text-center">
-                      <span
-                          className={`px-2 py-1 rounded-full text-xs font-bold ${
-                            row.score_rate >= 80
-                              ? "bg-blue-100 text-blue-700"
-                              : row.score_rate < 40
-                              ? "bg-red-100 text-red-700"
-                              : "bg-yellow-100 text-yellow-700"
-                          }`}
-                        >
-                        {Math.round(row.score_rate)}%
-                      </span>
+                      <td className="px-3 py-2 text-center">
+                        <span
+                            className={`px-2 py-1 rounded-full text-xs font-bold ${
+                              row.score_rate >= 80
+                                ? "bg-green-100 text-green-700"
+                                : row.score_rate < 60
+                                ? "bg-red-100 text-red-700"
+                                : "bg-yellow-100 text-yellow-700"
+                            }`}
+                          >
+                          {Math.round(row.score_rate)}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={maxItemCount + 3} className="text-center py-8 text-slate-400">
+                      尚無符合條件的作答紀錄
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -2221,5 +2148,3 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
     </div>
   );
 }
-
-

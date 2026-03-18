@@ -262,12 +262,9 @@ const scrollToUnmastered = () => {
 };
 
 
-  /* =========================
-  圖表
-  ========================= */
 
   /* =========================
-     練習投入走勢 
+     圖表一：練習投入走勢 
   ========================= */
   const aggregatedPracTrend = useMemo(() => {
     const map = new Map<string, { active_students: Set<string>; total_prac: number }>();
@@ -302,7 +299,7 @@ const scrollToUnmastered = () => {
   }, [filteredPrac, viewMode]);
 
   /* =========================
-     學習成效走勢 
+     圖表：學習成效走勢 
     ========================= */
   const aggregatedScoreTrend = useMemo(() => {
     const map = new Map<string, { scoreSum: number; weight: number }>();
@@ -1555,7 +1552,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
                       <ul className="text-xs space-y-2 list-disc pl-4">
                         <li>
                           <b className="text-slate-700 font-bold">未精熟 (紅色 0-59%)：</b>
-                          代表班級對該指標理解薄弱，建議立即進行全班性補救教學。
+                          代表學校對該指標理解薄弱，建議立即進行全校性補救教學。
                         </li>
                         <li>
                           <b className="text-slate-700 font-bold"> (黃色 60-99%)：</b>

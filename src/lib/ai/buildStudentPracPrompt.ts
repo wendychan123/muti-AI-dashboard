@@ -1,13 +1,13 @@
 interface BuildPracPromptParams {
   date: string | null;
   subject: string;
-  indicator: string;
+  // 已經移除 indicator
   selectedCharts: string[];
 
   stats: {
     avgScore: number;
     avgSpeedSec: number;
-    totalCount: number;
+    totalCount: number; // 現在代表的是「練習單元數」
     belowClassCount: number;
     reachedGoal: boolean;
   };
@@ -25,7 +25,6 @@ export function buildStudentPracPrompt(params: BuildPracPromptParams): string {
   const {
     date,
     subject,
-    indicator,
     selectedCharts,
     stats,
     chartData,
@@ -57,15 +56,14 @@ export function buildStudentPracPrompt(params: BuildPracPromptParams): string {
   const displaySubject = subject === "all" ? "所有科目" : subject;
 
   return `
-你是一位「學習小助教」，正在對學生說明他的學習分析結果。
+你是一位「學習助教」，正在對學生說明他的學習分析結果。
 請全程使用第二人稱（你），避免使用「學生」這個詞。
 請使用清楚、溫和、具體、不使用專業術語的語氣，，小學生（7-12歲）聽得懂、想閱讀的鼓勵與建議，據所有提供的數據進行判斷。
 
 【學生個人資料】
 - 觀察期間：${date ?? "最近"}
 - 練習科目：${displaySubject}
-- 學習重點：${indicator === "all" ? "各種挑戰目標" : indicator}
-- 表現數據：平均正確率 ${stats.avgScore}%、練習了 ${stats.totalCount} 次、平均每次花 ${stats.avgSpeedSec} 秒。
+- 表現數據：平均正確率 ${stats.avgScore}%、挑戰了 ${stats.totalCount} 個小單元、平均每題花 ${stats.avgSpeedSec} 秒。
 - 目標達成：${stats.reachedGoal ? "太棒了！達成目標了" : "還差一點點就達標囉，加油"}
 - 弱點提醒：有 ${stats.belowClassCount} 個地方可以再努力一點。
 
@@ -79,10 +77,9 @@ ${JSON.stringify(chartData ?? {}, null, 2)}
 
 ---------------------------------------------------
 寫作風格指引：
-1. 語氣：像好朋友一樣親切，多用「哇！」、「加油」、「別擔心」等情緒詞。
-2. 長度：句子要短，一段不超過 30 個字。
-3. 詞彙：避免「指標」、「權重」、「落差值」等詞彙。改用「能力、強項、表現、距離」。
-4. 重點：這年紀的孩子需要成就感，請先稱讚優點，再溫柔地給建議。
+1. 長度：句子要短，一段不超過 30 個字。
+2. 詞彙：避免「指標」、「權重」、「落差值」等詞彙。改用「能力、強項、表現、距離」。
+3. 重點：這年紀的孩子需要成就感，請先稱讚優點，再溫柔地給建議。
 ---------------------------------------------------
 
 【輸出格式規則】
