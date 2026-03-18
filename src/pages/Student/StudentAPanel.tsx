@@ -53,8 +53,9 @@ export default function StudentAiPanel({
     { id: "投入走勢", label: "練習投入走勢" }, 
     { id: "成效走勢", label: "學習成效走勢" },
     { id: "投入", label: "能力指標投入" },
-    { id: "歷程", label: "學習歷程表現" },
     { id: "差距", label: "能力指標差距" },
+    { id: "歷程", label: "學習歷程表現" },
+    { id: "進步走勢", label: "進步幅度變化" },
   ];
 
   /* =========================

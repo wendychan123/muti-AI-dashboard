@@ -5,23 +5,15 @@ import { supabase } from "@/lib/supabase";
 import { useUserContext } from "@/contexts/UserContext";
 import { buildStudentPracPrompt } from "@/lib/ai/buildStudentPracPrompt";
 import dayjs from "dayjs";
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   ArrowLeft, 
   Filter, 
   Activity,
-  Sparkles, 
   HelpCircle,
-  Target, 
-  Clock, 
-  TrendingUp,
-  Zap,
-  AlertTriangle,
-  CheckCircle2, 
-  Bot,
-  BotIcon
+  Bot
 } from "lucide-react";
 import _ from "lodash"; 
 
@@ -52,6 +44,9 @@ interface AttemptRow {
   during_time: number;
   score_rate: number;
   items_count: number;
+  accuracy_diff?: number;
+  time_diff?: number;
+  learning_pattern?: string;
 }
 
 interface IndicatorRow {
@@ -83,8 +78,8 @@ interface PracItemRow {
   indicate_name: string;
   item_index: number;
   is_correct: number; 
-  during_time: number; // 該次測驗總耗時
-  ans_time_ms: number;  // 每題耗時
+  during_time: number; 
+  ans_time_ms: number;  
 }
 
 interface PracDetailRow {
@@ -96,22 +91,24 @@ interface PracDetailRow {
 }
 
 interface DiffBarRow {
-  indicator: string;       // 指標代號 (如 S1)
-  indicate_name: string;   // 指標名稱
-  classAvg: number;        // 全校/班級平均
-  latestScore: number;     // 個人最新分數
-  historicalAvg: number;   // 個人歷次平均
-  latestDiff: number;      // 最新分數與校平均的差距
-  avgDiff: number;         // 歷次平均與校平均的差距
+  indicator: string;       
+  indicate_name: string;   
+  classAvg: number;        
+  latestScore: number;  
+  original_name: string;   
+  historicalAvg: number;   
+  latestDiff: number;      
+  avgDiff: number;         
 }
 
 type ExplainTarget =
-  | "daily_overview"    // 練習狀況表現
-  | "practice_trend"    // 練習投入走勢
-  | "score_trend"       // 學習成效走勢
-  | "indicator_effect"  // 能力指標投入
-  | "learning_process"  // 學習歷程表現
-  | "indicator_gap";    // 能力指標差距
+  | "daily_overview"    
+  | "practice_trend"    
+  | "score_trend"       
+  | "indicator_effect"  
+  | "learning_process"  
+  | "indicator_gap"
+  | "progress_trend";    
 
 /* =========================
    Main Component
@@ -119,7 +116,7 @@ type ExplainTarget =
 
 export default function StudentPrac() {
   const navigate = useNavigate();
-  const { userSn, organizationId, gradeId, classId } = useUserContext();
+  const { userSn, organizationId } = useUserContext();
 
   // State
   const [dailyData, setDailyData] = useState<DailyRow[]>([]);
@@ -133,19 +130,16 @@ export default function StudentPrac() {
   const [viewMode, setViewMode] = useState<"day" | "week" | "month">("day");
 
   // Filters
-  const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<string>("all");
 
-  // Drill-down 
-  const [drilldownIndicator, setDrilldownIndicator] = useState<string | null>(null);
-  const [detailIndicator, setDetailIndicator] = useState<string>("all");
+  // 核心連動狀態：合併原有的 drilldownIndicator 與 detailIndicator
+  const [selectedIndicator, setSelectedIndicator] = useState<string>("all");
 
   // AI
   const [showAI, setShowAI] = useState(false);
   const [geminiResult, setGeminiResult] = useState<string | null>(null);
   const [geminiLoading, setGeminiLoading] = useState(false);
-  const [selectedCharts, setSelectedCharts] = useState<ExplainTarget[]>(["daily_overview",]);
 
   /* =========================
      Data Fetching
@@ -155,241 +149,130 @@ export default function StudentPrac() {
       if (!userSn) return;
       setLoading(true);
 
-      // 1. Fetch Daily
-      const setDailyReq = supabase
-        .from("prac_daily")
-        .select("*")
-        .eq("user_sn", userSn)
-        .order("activity_date", { ascending: true });
-
-      // 2. Fetch Attempts
-      const attemptsReq = supabase
-        .from("prac_attempts")
-        .select("*")
-        .eq("user_sn", userSn)
-        .order("date", { ascending: true });
-
-      // 3. Fetch Indicator
-      const indicatorReq = supabase
-        .from("prac_indicate")
-        .select("*")
-        .eq("user_sn", userSn);
-
-      // 4. Fetch class Attempts
-      const OrgIndicatorReq = supabase
-      .from("prac_organization")
-      .select("subject_name, indicator, indicate_name, school_avg_score_rate, participant_count, school_prac_count, school_avg_time_sec")
-      .eq("organization_id", organizationId)
-      
-
-      // 5. fetch item
-      const itemsReq = supabase
-        .from("prac_attempts_item")
-        .select("*")
-        .eq("user_sn", userSn)
-        .order("date", { ascending: true });
-
+      const setDailyReq = supabase.from("prac_daily").select("*").eq("user_sn", userSn).order("activity_date", { ascending: true });
+      const attemptsReq = supabase.from("prac_attempts").select("*").eq("user_sn", userSn).order("date", { ascending: true });
+      const indicatorReq = supabase.from("prac_indicate").select("*").eq("user_sn", userSn);
+      const OrgIndicatorReq = supabase.from("prac_organization").select("subject_name, indicator, indicate_name, school_avg_score_rate, participant_count, school_prac_count, school_avg_time_sec").eq("organization_id", organizationId);
+      const itemsReq = supabase.from("prac_attempts_item").select("*").eq("user_sn", userSn).order("date", { ascending: true });
 
       const [DailyRes, attemptsRes, indicatorRes, OrgIndicatorRes, items] =
         await Promise.all([setDailyReq, attemptsReq, indicatorReq, OrgIndicatorReq, itemsReq]);
 
       if (attemptsRes.error) {
-      console.error("Error fetching attempts:", attemptsRes.error);
-    } else {
-      const data = (attemptsRes.data as AttemptRow[]) || [];
-      setAttemptsData(data);
-
-      // --- 新增：計算並設定資料期間 ---
-      if (data.length > 0) {
-        // 假設 date 格式為 'YYYY-MM-DD' 或 ISO 格式，進行排序
-        const sortedDates = data
-          .map(d => d.date)
-          .filter(Boolean)
-          .sort();
-        
-        setStartDate(sortedDates[0]); // 最早日期
-        setEndDate(sortedDates[sortedDates.length - 1]); // 最晚日期
+        console.error("Error fetching attempts:", attemptsRes.error);
       } else {
-        setStartDate(null);
-        setEndDate(null);
+        const data = (attemptsRes.data as AttemptRow[]) || [];
+        setAttemptsData(data);
+        if (data.length > 0) {
+          const sortedDates = data.map(d => d.date).filter(Boolean).sort();
+          setStartDate(sortedDates[0]); 
+          setEndDate(sortedDates[sortedDates.length - 1]); 
+        } else {
+          setStartDate(null);
+          setEndDate(null);
+        }
       }
-      // ----------------------------
-    }
-    
-    setDailyData((DailyRes.data as DailyRow[]) || []);
-    setIndicatorData((indicatorRes.data as IndicatorRow[]) || []);
-    setOrgIndicatorData(OrgIndicatorRes.data || []);
-    setPracItems((items.data as PracItemRow[]) || []);
-    setLoading(false);
-  };
+      
+      setDailyData((DailyRes.data as DailyRow[]) || []);
+      setIndicatorData((indicatorRes.data as IndicatorRow[]) || []);
+      setOrgIndicatorData(OrgIndicatorRes.data || []);
+      setPracItems((items.data as PracItemRow[]) || []);
+      setLoading(false);
+    };
 
-  fetchData();
-}, [userSn]);
+    fetchData();
+  }, [userSn, organizationId]);
 
   /* =========================
      Data Processing 
      ========================= */
 
-  // 1. 取得所有科目清單
   const uniqueSubjects = useMemo(() => {
     return _.uniq(attemptsData.map(d => d.subject_name)).sort();
   }, [attemptsData]);
 
-  // 2. 根據篩選器過濾資料
   const filteredAttempts = useMemo(() => {
-  return attemptsData.filter(d => {
-    if (selectedSubject !== "all" && d.subject_name !== selectedSubject)
-      return false;
-    return true;
-  });
-}, [attemptsData, selectedSubject]);
+    return attemptsData.filter(d => {
+      if (selectedSubject !== "all" && d.subject_name !== selectedSubject) return false;
+      return true;
+    });
+  }, [attemptsData, selectedSubject]);
 
-  // 1. 先濾出「該科目」的所有作答明細 (用來產生下拉選單選項)
   const subjectPracItems = useMemo<PracItemRow[]>(() => {
     return pracItems.filter(i => {
-      if (selectedSubject !== "all" && i.subject_name !== selectedSubject)
-        return false;
+      if (selectedSubject !== "all" && i.subject_name !== selectedSubject) return false;
       return true;
     });
   }, [pracItems, selectedSubject]);
 
-  // 2. 取得該科目下有哪些「能力指標」可供選擇
   const detailAvailableIndicators = useMemo(() => {
     return _.uniq(subjectPracItems.map(i => i.indicate_name)).sort();
   }, [subjectPracItems]);
 
-  // 3. 最後套用「能力指標篩選」，產生給表格用的資料
+  // 詳細記錄表格，根據全域 selectedIndicator 過濾
   const filteredPracItems = useMemo<PracItemRow[]>(() => {
-    if (detailIndicator === "all") return subjectPracItems;
-    return subjectPracItems.filter(i => i.indicate_name === detailIndicator);
-  }, [subjectPracItems, detailIndicator]);
+    if (selectedIndicator === "all") return subjectPracItems;
+    return subjectPracItems.filter(i => i.indicate_name === selectedIndicator);
+  }, [subjectPracItems, selectedIndicator]);
 
-  // 詳細練習紀錄資料處理
   const detailedRows = useMemo<PracDetailRow[]>(() => {
     if (filteredPracItems.length === 0) return [];
-
-    const byPrac: Record<number, PracItemRow[]> = _.groupBy(
-      filteredPracItems,
-      "prac_answer_sn"
-    );
+    const byPrac: Record<number, PracItemRow[]> = _.groupBy(filteredPracItems, "prac_answer_sn");
 
     return Object.values(byPrac).map((items: PracItemRow[]) => {
       const first = items[0];
-
       const correctCount = items.filter(i => i.is_correct === 1).length;
       const totalCount = items.length;
-
-      // 直接讀取修正後資料表的 during_time 欄位
-      // 假設資料表存的是「秒」，直接使用即可
       const totalSpentTime = Number(first.during_time || 0);
 
       return {
         prac_answer_sn: first.prac_answer_sn,
         date: first.date,
         items, 
-        // 為了不更動 detailedRows 的介面，我們把「測驗總耗時」存入此變數
         avg_item_time_ms: totalSpentTime, 
         score_rate: (correctCount / totalCount) * 100,
       };
-    }).sort(
-      (a, b) => b.prac_answer_sn - a.prac_answer_sn
-    );
+    }).sort((a, b) => b.prac_answer_sn - a.prac_answer_sn);
   }, [filteredPracItems]);
 
   const maxItemCount = useMemo(() => {
     return Math.max(0, ...detailedRows.map((r) => r.items.length));
   }, [detailedRows]);
   
-
   // KPI 
-  // 3. KPI 與 最新狀態
   const processedStats = useMemo(() => {
     const totalAttemptsCount = filteredAttempts.length;
-    
-    // 1. 找出符合目前過濾條件的校級資料
-    const matchedOrgRows = OrgIndicatorData.filter(d => {
-      const matchSubject = selectedSubject === "all" || d.subject_name === selectedSubject;
-      return matchSubject;
-    });
-
-    // 2. 練習人數 (userCount)：
-    const userCount = matchedOrgRows.length > 0 
-      ? Math.max(...matchedOrgRows.map(d => d.participant_count || 0)) 
-      : 0;
-
-    // 3. 全校平均練習次數 (schoolAvgCount)：
+    const matchedOrgRows = OrgIndicatorData.filter(d => selectedSubject === "all" || d.subject_name === selectedSubject);
+    const userCount = matchedOrgRows.length > 0 ? Math.max(...matchedOrgRows.map(d => d.participant_count || 0)) : 0;
     const schoolTotalPracSum = _.sumBy(matchedOrgRows, "school_prac_count");
-    const schoolAvgCount = userCount > 0 
-      ? (schoolTotalPracSum / userCount).toFixed(1) 
-      : "0.0";
-
-    // KPI 1：計算有練習幾個單元（依據能力指標分類去重）
+    const schoolAvgCount = userCount > 0 ? (schoolTotalPracSum / userCount).toFixed(1) : "0.0";
     const attemptsByIndicator = _.groupBy(filteredAttempts, "indicate_name");
     const unitCount = Object.keys(attemptsByIndicator).length; 
-
-    // KPI 2：學生總投入時間
     const totalTime = Math.round(_.sumBy(filteredAttempts, "during_time"));
-
-    // KPI 2：校總投入時間 = 各單元之 (平均作答秒數 * 練習總次數) 的加總
-    const schoolTotalTimeSec = _.sumBy(
-      matchedOrgRows, 
-      r => (r.school_avg_time_sec || 0) * (r.school_prac_count || 0)
-    );
-
-    // KPI 2：下方校平均 (校總投入時間 / 該校人數)
+    const schoolTotalTimeSec = _.sumBy(matchedOrgRows, r => (r.school_avg_time_sec || 0) * (r.school_prac_count || 0));
     const schoolAvgTotalTime = userCount > 0 ? Math.round(schoolTotalTimeSec / userCount) : 0;
     const timeDiff = totalTime - schoolAvgTotalTime; 
+    const avgScore = totalAttemptsCount > 0 ? _.meanBy(filteredAttempts, "score_rate") : 0;
+    const avgSpeedSec = totalAttemptsCount > 0 ? (_.meanBy(filteredAttempts, "avg_item_time_ms") / 1000).toFixed(1) : "0.0";
 
-    const avgScore =
-      totalAttemptsCount > 0 ? _.meanBy(filteredAttempts, "score_rate") : 0;
-
-    const avgSpeedSec =
-      totalAttemptsCount > 0
-        ? (_.meanBy(filteredAttempts, "avg_item_time_ms") / 1000).toFixed(1)
-        : "0.0";
-
-    let improvedCount = 0; // 克服弱點：曾不及格 → 現在滿分
-    let perfectCount = 0;  // 達成滿分：一直都很優秀 → 現在滿分
-    let struggleCount = 0; // 目前仍低分：最新一次不及格
-
-    // 門檻值定義
-    const PASS_THRESHOLD = 0.6;    // 60%
-    const PERFECT_THRESHOLD = 0.99; // 100%
-
-    const checkIsLow = (score) => {
-      const s = Number(score);
-      return s > 1 ? s < 60 : s < PASS_THRESHOLD;
-    };
-
-    const checkIsPerfect = (score) => {
-      const s = Number(score);
-      return s === 100 || s >= PERFECT_THRESHOLD;
-    };
+    let improvedCount = 0; 
+    let perfectCount = 0;  
+    let struggleCount = 0; 
 
     Object.values(attemptsByIndicator).forEach((attempts) => {
       const sorted = _.orderBy(attempts, ["date", "id"], ["asc", "asc"]);
       if (!sorted.length) return;
-
       const latest = sorted[sorted.length - 1];
       const latestScore = Number(latest.score_rate);
-
-      const everLow = sorted.some(a => checkIsLow(a.score_rate));
-      const isLatestPerfect = checkIsPerfect(latestScore);
+      const everLow = sorted.some(a => (Number(a.score_rate) > 1 ? Number(a.score_rate) < 60 : Number(a.score_rate) < 0.6));
+      const isLatestPerfect = latestScore === 100 || latestScore >= 0.99;
 
       if (isLatestPerfect) {
-        if (everLow) {
-          improvedCount++; 
-        } else {
-          perfectCount++;  
-        }
+        if (everLow) improvedCount++; 
+        else perfectCount++;  
       }
-
-      if (checkIsLow(latestScore)) {
-        struggleCount++;
-      }
+      if (latestScore > 1 ? latestScore < 60 : latestScore < 0.6) struggleCount++;
     });
-
-    const reachedGoal = struggleCount === 0 && (improvedCount > 0 || perfectCount > 0);
 
     return {
       count: unitCount,          
@@ -403,123 +286,38 @@ export default function StudentPrac() {
       struggleCount,
       improvedCount,
       perfectCount,
-      reachedGoal,
+      reachedGoal: struggleCount === 0 && (improvedCount > 0 || perfectCount > 0),
     };
   }, [filteredAttempts, OrgIndicatorData, selectedSubject]);
 
-
-/// 低於班級平均
-/// KPI4：指標表現狀態 (修改後：只要有過一次 100% 就算克服)
   const belowClassAvgStats = useMemo(() => {
-    if (!filteredAttempts.length) {
-      return {
-        count: 0,
-        classPracPeople: null,
-      };
-    }
-
-    // 1. 先將目前的練習紀錄按「能力指標」分組
+    if (!filteredAttempts.length) return { count: 0, classPracPeople: null };
     const attemptsByIndicator = _.groupBy(filteredAttempts, "indicate_name");
-
     let struggleCount = 0;
-
-    // 2. 檢查每一個指標的紀錄
     Object.values(attemptsByIndicator).forEach((attempts: AttemptRow[]) => {
-      // 現在 TypeScript 知道 attempts 是陣列，就能使用 .some 了
-      const hasPerfectRecord = attempts.some(a => 
-        (a.score_rate >= 0.99 && a.score_rate <= 1) || a.score_rate === 100
-      );
-      
-      if (!hasPerfectRecord) {
-        struggleCount++;
-      }
+      const hasPerfectRecord = attempts.some(a => (a.score_rate >= 0.99 && a.score_rate <= 1) || a.score_rate === 100);
+      if (!hasPerfectRecord) struggleCount++;
     });
-
-    // 3. 獲取班級練習人數 (維持原樣)
-    const classPracPeople =
-      OrgIndicatorData.length > 0
-        ? Math.max(...OrgIndicatorData.map(c => c.participant_count || 0))
-        : null;
-
-    return {
-      count: struggleCount, // 這裡的 count 代表「尚未拿過滿分的指標數量」
-      classPracPeople,
-    };
+    const classPracPeople = OrgIndicatorData.length > 0 ? Math.max(...OrgIndicatorData.map(c => c.participant_count || 0)) : null;
+    return { count: struggleCount, classPracPeople };
   }, [filteredAttempts, OrgIndicatorData]);
 
-
-
-  //班級平均秒數
-  const avgSpeedCompare = useMemo(() => {
-  if (!filteredAttempts.length || !OrgIndicatorData.length) {
-    return {
-      studentAvgSec: 0,
-      classAvgSec: null,
-      diff: null
-    };
-  }
-
-  // ① 學生投入時間（只算目前篩選後資料）
-  const studentAvgSec =
-    _.meanBy(filteredAttempts, "during_time");
-
-  // ② 對應「學生有練過的單元」的班級平均秒數
-  const matchedClassRows = filteredAttempts
-    .map(a =>
-      OrgIndicatorData.find(
-        c =>
-          c.subject_name === a.subject_name &&
-          c.indicate_name === a.indicate_name &&
-          c.school_avg_time_sec !== null
-      )
-    )
-    .filter(Boolean) as OrgIndicatorRow[];
-
-  if (!matchedClassRows.length) {
-    return {
-      studentAvgSec: studentAvgSec.toFixed(1),
-      classAvgSec: null,
-      diff: null
-    };
-  }
-
-  const classAvgSec =
-    _.meanBy(matchedClassRows, "class_avg_time_sec");
-
-    return {
-      studentAvgSec: studentAvgSec.toFixed(0),
-      classAvgSec: classAvgSec.toFixed(0),
-      diff: (studentAvgSec - classAvgSec).toFixed(0)
-    };
-  }, [filteredAttempts, OrgIndicatorData]);
-
-
-
-
-  // 4. Indicator 列表 (用於圖表一、三)
   const filteredIndicators = useMemo(() => {
     if (selectedSubject === "all") return indicatorData;
     const activeNames = new Set(filteredAttempts.map(d => d.indicate_name));
     return indicatorData.filter(d => activeNames.has(d.indicate_name));
   }, [indicatorData, filteredAttempts, selectedSubject]);
 
-  /* =========================
-        資料期間顯示
-    ========================= */
-    const periodLabel = useMemo(() => {
-      // 改用過濾後的資料來決定顯示的區間
-      if (filteredAttempts.length === 0) return "資料期間：無數據";
-      
-      const dates = filteredAttempts.map(d => d.date).sort();
-      const start = dates[0];
-      const end = dates[dates.length - 1];
-      
-      const s = dayjs(start).format("YYYY/MM/DD");
-      const e = dayjs(end).format("YYYY/MM/DD");
-      const days = dayjs(end).diff(dayjs(start), "day") + 1;
-      
-      return `篩選資料期間：${s} ～ ${e}（${days} 天）`;
-    }, [filteredAttempts]); // 這裡監聽過濾後的結果
+  const periodLabel = useMemo(() => {
+    if (filteredAttempts.length === 0) return "資料期間：無數據";
+    const dates = filteredAttempts.map(d => d.date).sort();
+    const start = dates[0];
+    const end = dates[dates.length - 1];
+    const s = dayjs(start).format("YYYY/MM/DD");
+    const e = dayjs(end).format("YYYY/MM/DD");
+    const days = dayjs(end).diff(dayjs(start), "day") + 1;
+    return `篩選資料期間：${s} ～ ${e}（${days} 天）`;
+  }, [filteredAttempts]); 
 
   /* =========================
      Chart Data Preparation
@@ -527,64 +325,27 @@ export default function StudentPrac() {
 
   // 圖表一：Pareto (Bar + Line)
   const chart1Data = useMemo(() => {
-    if (!filteredIndicators.length) {
-      return {
-        xShort: [],
-        xFull: [],
-        yBar: [],
-        yLine: [],
-        meta: [],
-      };
-    }
-    // 依「練習次數」排序
-    const sorted = _.orderBy(
-      filteredIndicators,
-      ["in_prac_count"],
-      ["desc"]
-    ).slice(0, 15);
-    const makeShortLabel = (name: string, idx: number) =>
-      `能力指標 ${idx + 1}`;
+    if (!filteredIndicators.length) return { xShort: [], xFull: [], yBar: [], yLine: [], meta: [] };
+    const sorted = _.orderBy(filteredIndicators, ["in_prac_count"], ["desc"]);
     return {
-      xShort1: sorted.map((_, idx) =>
-        makeShortLabel(_.indicator, idx)
-      ),
       xShort: sorted.map(d => d.indicator),
       xFull: sorted.map(d => d.indicate_name),
       yBar: sorted.map(d => d.in_prac_count),
-      yLine: sorted.map(d =>
-        Math.round(d.in_avg_score_rate)
-      ),
-      // 分析用 metadata（後面四象限會直接用）
-      meta: sorted.map(d => ({
-        indicate_name: d.indicate_name,
-        prac_count: d.in_prac_count,
-        avg_score: Math.round(d.in_avg_score_rate),
-        total_items: d.in_total_items,
-        total_wrong: d.in_total_wrong,
-      })),
+      yLine: sorted.map(d => Math.round(d.in_avg_score_rate)),
+      meta: sorted.map(d => ({ indicate_name: d.indicate_name, prac_count: d.in_prac_count, avg_score: Math.round(d.in_avg_score_rate) })),
     };
   }, [filteredIndicators]);
   
-
-  // 中位數計算
   const calculateMedian = (values: number[]) => {
     if (values.length === 0) return 0;
     const sorted = [...values].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 !== 0
-      ? sorted[mid]
-      : (sorted[mid - 1] + sorted[mid]) / 2;
+    return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   };
 
-  
-
-  // 圖表二：診斷散佈圖
-  // 圖表二：診斷散佈圖 (支援 總覽/單一指標詳細歷程 切換)
+  // 🔥 圖表二：學習歷程表現圖 (連動 selectedIndicator)
   const chart3Data = useMemo(() => {
-    if (!filteredAttempts.length) {
-      return { mode: "overview", x: [], y: [], text: [], zone: [], itemsCount: [], medianTimeSec: 5, passScore: 60 };
-    }
-
+    if (!filteredAttempts.length) return { mode: "overview", x: [], y: [], text: [], zone: [], itemsCount: [], medianTimeSec: 5, passScore: 60 };
     const passScore = 60;
     const zoneOf = (acc: number, timeSec: number, median: number) => {
       if (acc >= passScore && timeSec <= median) return "精熟區";
@@ -593,21 +354,14 @@ export default function StudentPrac() {
       return "卡關區";
     };
 
-    if (!drilldownIndicator) {
-      // 模式 A：總覽模式 (每個單元只顯示最新一次)
+    if (selectedIndicator === "all") {
+      // 模式 A：總覽模式
       const attemptsByIndicator = _.groupBy(filteredAttempts, "indicate_name");
-      const latestAttempts = Object.values(attemptsByIndicator)
-        .map(attempts => {
-          const sorted = _.orderBy(attempts, ["date", "prac_answer_sn"], ["asc", "asc"]);
-          const latest = sorted[sorted.length - 1];
-          return {
-            ...latest,
-            avg_item_time_sec: latest.items_count > 0 ? latest.during_time / latest.items_count : 0,
-          };
-        })
-        .filter(a => a.items_count > 0);
-
-      if (!latestAttempts.length) return { mode: "overview", x: [], y: [], text: [], zone: [], itemsCount: [], medianTimeSec: 5, passScore: 60 };
+      const latestAttempts = Object.values(attemptsByIndicator).map(attempts => {
+        const sorted = _.orderBy(attempts, ["date", "prac_answer_sn"], ["asc", "asc"]);
+        const latest = sorted[sorted.length - 1];
+        return { ...latest, avg_item_time_sec: latest.items_count > 0 ? latest.during_time / latest.items_count : 0 };
+      }).filter(a => a.items_count > 0);
 
       const timeSecValues = latestAttempts.map(d => d.avg_item_time_sec);
       const medianTimeSec = calculateMedian(timeSecValues) || 5;
@@ -623,17 +377,13 @@ export default function StudentPrac() {
         passScore,
       };
     } else {
-      // 模式 B：詳細歷程模式 (顯示被點擊的單元的所有歷史紀錄)
-      const specificAttempts = filteredAttempts.filter(a => a.indicate_name === drilldownIndicator);
+      // 模式 B：詳細歷程模式
+      const specificAttempts = filteredAttempts.filter(a => a.indicate_name === selectedIndicator);
       const sorted = _.orderBy(specificAttempts, ["date", "prac_answer_sn"], ["asc", "asc"]);
       const validPoints = sorted.map((a, idx) => ({
-        ...a,
-        attemptIndex: idx + 1,
-        isLatest: idx === sorted.length - 1,
+        ...a, attemptIndex: idx + 1, isLatest: idx === sorted.length - 1,
         avg_item_time_sec: a.items_count > 0 ? a.during_time / a.items_count : 0,
       })).filter(a => a.items_count > 0);
-
-      if (!validPoints.length) return { mode: "detail", x: [], y: [], text: [], zone: [], isLatest: [], itemsCount: [], medianTimeSec: 5, passScore: 60 };
 
       const timeSecValues = validPoints.map(d => d.avg_item_time_sec);
       const medianTimeSec = calculateMedian(timeSecValues) || 5;
@@ -650,277 +400,127 @@ export default function StudentPrac() {
         passScore,
       };
     }
-  }, [filteredAttempts, drilldownIndicator]);
-
+  }, [filteredAttempts, selectedIndicator]);
 
   const ZONE_COLOR: Record<string, string> = {
-  精熟區: "#22c55e", // 綠
-  穩定區: "#3b82f6", // 藍
-  猜測區: "#f97316", // 橘
-  卡關區: "#ef4444", // 紅
+    精熟區: "#22c55e", 穩定區: "#3b82f6", 猜測區: "#f97316", 卡關區: "#ef4444",
   };
 
-
-
-
-
-  //班級正確率比較
   const activeIndicators = useMemo(() => {
-      return _.uniqBy(
-        filteredAttempts.map(d => ({
-          subject_name: d.subject_name,
-          indicate_name: d.indicate_name
-        })),
-        d => `${d.subject_name}__${d.indicate_name}`
-      );
-    }, [filteredAttempts]);
-
+    return _.uniqBy(filteredAttempts.map(d => ({ subject_name: d.subject_name, indicate_name: d.indicate_name })), d => `${d.subject_name}__${d.indicate_name}`);
+  }, [filteredAttempts]);
     
-    const matchedClassIndicators = useMemo(() => {
-      if (!OrgIndicatorData.length) return [];
-
-      return activeIndicators
-        .map(({ subject_name, indicate_name }) => {
-          const classRow = OrgIndicatorData.find(
-            c =>
-              c.subject_name === subject_name &&
-              c.indicate_name === indicate_name
-          );
-
-          return classRow
-        ? {
-            subject_name,
-            indicator: classRow.indicator, 
-            indicate_name,
-            class_avg_score_rate: classRow.school_avg_score_rate
-          }
-        : null;
-        })
-        .filter(Boolean);
-    }, [activeIndicators, OrgIndicatorData]);
-
+  const matchedClassIndicators = useMemo(() => {
+    if (!OrgIndicatorData.length) return [];
+    return activeIndicators.map(({ subject_name, indicate_name }) => {
+      const classRow = OrgIndicatorData.find(c => c.subject_name === subject_name && c.indicate_name === indicate_name);
+      return classRow ? { subject_name, indicator: classRow.indicator, indicate_name, class_avg_score_rate: classRow.school_avg_score_rate } : null;
+    }).filter(Boolean);
+  }, [activeIndicators, OrgIndicatorData]);
     
   const avgScoreCompare = useMemo(() => {
-      if (!filteredAttempts.length || !matchedClassIndicators.length) {
-        return {
-          studentAvg: 0,
-          classAvg: null,
-          diff: null
-        };
-      }
+    if (!filteredAttempts.length || !matchedClassIndicators.length) return { studentAvg: 0, classAvg: null, diff: null };
+    const studentAvg = _.meanBy(filteredAttempts, "score_rate");
+    const classAvg = _.meanBy(matchedClassIndicators, "class_avg_score_rate");
+    return { studentAvg: Math.round(studentAvg), classAvg: Math.round(classAvg), diff: Math.round(studentAvg - classAvg) };
+  }, [filteredAttempts, matchedClassIndicators]);
 
-      // 學生在「自己練過單元」的平均
-      const studentAvg =
-        _.meanBy(filteredAttempts, "score_rate");
-
-      // 班級在「相同單元」的平均
-      const classAvg =
-        _.meanBy(matchedClassIndicators, "class_avg_score_rate");
-
-      return {
-        studentAvg: Math.round(studentAvg),
-        classAvg: Math.round(classAvg),
-        diff: Math.round(studentAvg - classAvg)
-      };
-    }, [filteredAttempts, matchedClassIndicators]);
-
-  // 圖表三：差距條形圖資料（學生最新表現 vs 學校平均）
+  // 圖表三：差距條形圖資料
   const diffBarData = useMemo<DiffBarRow[]>(() => {
     if (!filteredAttempts.length || !matchedClassIndicators.length) return [];
-
-    const splitLongText = (str: string, len: number = 20) => {
-      if (!str) return "";
-      const regex = new RegExp(`.{1,${len}}`, "g");
-      return str.match(regex)?.join("<br>") || str;
-    };
-
-    // 取得每個指標的數據分組
+    const splitLongText = (str: string, len: number = 20) => str ? (str.match(new RegExp(`.{1,${len}}`, "g"))?.join("<br>") || str) : "";
     const groups = _.groupBy(filteredAttempts, "indicate_name");
 
     const rows = Object.entries(groups).map(([indicate_name, attempts]) => {
       const classRow = matchedClassIndicators.find(c => c.indicate_name === indicate_name);
       if (!classRow) return null;
-
       const classAvg = classRow.class_avg_score_rate;
-      
-      // A. 最新一次表現
       const sorted = _.orderBy(attempts, ["date", "prac_answer_sn"], ["asc", "asc"]);
       const latestScore = sorted[sorted.length - 1].score_rate;
-      const latestDiff = Math.round(latestScore - classAvg);
-
       return {
-        indicator: classRow.indicator || "",
+        indicator: classRow.indicator || "", 
         indicate_name: splitLongText(indicate_name, 20),
-        latestScore: Math.round(latestScore),
-        classAvg: Math.round(classAvg),
-        latestDiff,
-        // 為了相容 interface，如果 interface 沒改，請給個預設值 0
-        historicalAvg: 0, 
-        avgDiff: 0 
+        original_name: indicate_name,
+        latestScore: Math.round(latestScore), 
+        classAvg: Math.round(classAvg), 
+        latestDiff: Math.round(latestScore - classAvg),
+        historicalAvg: 0, avgDiff: 0 
       };
-    }).filter(Boolean);
+    }).filter(Boolean) as DiffBarRow[];
 
-    // 依「最新表現差距」排序
     return _.orderBy(rows, ["latestDiff"], ["asc"]);
   }, [filteredAttempts, matchedClassIndicators]);
 
-const formatDateTime = (iso: string) => {
-  if (!iso) return "";
-  
-  const d = new Date(iso);
-  return d.toLocaleString('zh-TW', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-    timeZone: 'UTC' 
-  }).replace(/\//g, '-'); 
-};
+  const formatDateTime = (iso: string) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'UTC' }).replace(/\//g, '-'); 
+  };
 
-
-/* =========================
+  /* =========================
      練習投入與學習成效走勢
-========================= */
-const trendData = useMemo(() => {
-  // 1. 強制斷言 attemptsData 為 AttemptRow 陣列，避免 unknown 報錯
-  const rawData = (attemptsData || []) as AttemptRow[];
+  ========================= */
+  const trendData = useMemo(() => {
+    const rawData = (attemptsData || []) as AttemptRow[];
+    const filtered: AttemptRow[] = rawData.filter((d) => selectedSubject === "all" || d.subject_name === selectedSubject);
+    if (filtered.length === 0) return [];
 
-  // 2. 進行過濾
-  const filtered: AttemptRow[] = rawData.filter((d) => {
-    const matchSubject = selectedSubject === "all" || d.subject_name === selectedSubject;
-    return matchSubject;
-  });
+    const grouped = _.groupBy(filtered, (r) => {
+      const d = dayjs(r.date);
+      if (viewMode === "day") return d.format("YYYY-MM-DD");
+      if (viewMode === "week") return d.startOf("week").format("YYYY-MM-DD");
+      return d.startOf("month").format("YYYY-MM-DD");
+    });
+
+    return Object.entries(grouped).map(([date, rows]) => {
+      const currentRows = rows as AttemptRow[];
+      const totalPrac = currentRows.length;
+      const totalTimeMin = _.sumBy(currentRows, "during_time") / 60;
+      const totalItems = _.sumBy(currentRows, "items_count");
+      const weightScoreSum = _.sumBy(currentRows, (r) => (r.score_rate || 0) * (r.items_count || 0));
+      return { date, totalPrac, totalTimeMin: Math.round(totalTimeMin * 10) / 10, avgScore: totalItems > 0 ? Math.round(weightScoreSum / totalItems) : 0 };
+    }).sort((a, b) => a.date.localeCompare(b.date));
+  }, [attemptsData, viewMode, selectedSubject]);
 
   
-  if (filtered.length === 0) return [];
+  /* =========================
+    進步幅度分析圖 
+  ========================= */
+  const progressTrendData = useMemo(() => {
+    if (!filteredAttempts.length) return null;
 
-  // 3. 根據 viewMode 進行分組
-  const grouped = _.groupBy(filtered, (r) => {
-    const d = dayjs(r.date);
-    if (viewMode === "day") return d.format("YYYY-MM-DD");
-    if (viewMode === "week") return d.startOf("week").format("YYYY-MM-DD");
-    return d.startOf("month").format("YYYY-MM-DD");
-  });
+    const targetAttempts = selectedIndicator === "all" 
+      ? filteredAttempts 
+      : filteredAttempts.filter(d => d.indicate_name === selectedIndicator);
 
-  // 4. 計算並回傳格式化後的陣列
-  return Object.entries(grouped).map(([date, rows]) => {
-    const currentRows = rows as AttemptRow[];
-    
-    const totalPrac = currentRows.length;
-    const totalTimeMin = _.sumBy(currentRows, "during_time") / 60;
-    
-    const totalItems = _.sumBy(currentRows, "items_count");
-    const weightScoreSum = _.sumBy(currentRows, (r) => (r.score_rate || 0) * (r.items_count || 0));
-    const avgScore = totalItems > 0 ? weightScoreSum / totalItems : 0;
+    const sorted = _.orderBy(targetAttempts, ["date"], ["asc"]);
+    const valid = sorted.filter(d => d.accuracy_diff !== null && d.accuracy_diff !== undefined);
 
     return {
-      date,
-      totalPrac,
-      totalTimeMin: Math.round(totalTimeMin * 10) / 10,
-      avgScore: Math.round(avgScore),
+      x: valid.map(d => d.date),
+      y: valid.map(d => d.accuracy_diff),
+      colors: valid.map(d => (d.accuracy_diff ?? 0) >= 0 ? "#22c55e" : "#ef4444"),
+      // 🔥 核心修改：把圖表需要的所有額外資訊打包成一個陣列傳遞
+      customdata: valid.map(d => [
+        d.indicate_name,                   // customdata[0]
+        d.during_time,                     // customdata[1]
+        d.learning_pattern ?? "未分類"      // customdata[2]
+      ]),
     };
-  }).sort((a, b) => a.date.localeCompare(b.date));
-
-}, [attemptsData, viewMode, selectedSubject]);
+  }, [filteredAttempts, selectedIndicator]);
 
 
-
-  
-/* =========================
-   AI 助手
-========================= */
-const runAIForChart = async (chart: ExplainTarget) => {
-  setGeminiLoading(true);
-
-  const prompt = buildStudentPracPrompt({
-    date: selectedDate,
-    subject: selectedSubject,
-    selectedCharts: [chart],   //只分析一張
-    stats: {
-      avgScore: avgScoreCompare.studentAvg,
-      avgSpeedSec: Number(processedStats.avgSpeedSec),
-      totalCount: processedStats.count,
-      belowClassCount: belowClassAvgStats.count,
-      reachedGoal: processedStats.reachedGoal,
-    },
-
-    chartData: {
-      practiceTrend: trendData, 
-      scoreTrend: trendData,
-      indicatorEffect: chart1Data.meta,
-      learningProcess: chart3Data,
-      indicatorGap: diffBarData
-      
-    }
-  });
-
-  window.dispatchEvent(
-    new CustomEvent("student-ai-update", {
-      detail: { 
-        loading: true,
-        questions: [EXPLAIN_LABEL_MAP[chart]], }
-    })
-  );
-
-  const res = await fetch("/api/gemini", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ 
-      prompt,
-      role: "student",
-   }),
-   
-
-  });
-
-  const data = await res.json();
-
-  setGeminiResult(data.text);
-  setShowAI(true);
-  setGeminiLoading(false);
-
-  window.dispatchEvent(
-    new CustomEvent("student-ai-update", {
-      detail: {
-        loading: false,
-        content: data.text,
-      },
-    })
-  );
-};
-
-const runOverviewAI = () => {
-  runAIForChart("daily_overview");
-};
-
-/* =========================
-   多圖整合 AI 監聽
-========================= */
-
-useEffect(() => {
-  const handler = async (e: Event) => {
-    const detail = (e as CustomEvent).detail;
-    if (!detail?.charts) return;
-
-    const chartLabels: string[] = detail.charts;
-
-    // 中文轉 ExplainTarget
-    const explainTargets: ExplainTarget[] = chartLabels
-      .map(label => LABEL_TO_EXPLAIN_KEY[label])
-      .filter(Boolean);
-
-    if (explainTargets.length === 0) return;
-
+  /* =========================
+     AI 助手
+  ========================= */
+  const runAIForChart = async (chart: ExplainTarget) => {
     setGeminiLoading(true);
-
-    // 組合多圖 prompt
+  
     const prompt = buildStudentPracPrompt({
       date: selectedDate,
       subject: selectedSubject,
-      selectedCharts: explainTargets, // ← 多圖
+      selectedIndicator: selectedIndicator,
+      selectedCharts: [chart],   //只分析一張
       stats: {
         avgScore: avgScoreCompare.studentAvg,
         avgSpeedSec: Number(processedStats.avgSpeedSec),
@@ -928,198 +528,254 @@ useEffect(() => {
         belowClassCount: belowClassAvgStats.count,
         reachedGoal: processedStats.reachedGoal,
       },
-
+  
       chartData: {
-          practiceTrend: trendData, 
-          scoreTrend: trendData,
-          indicatorEffect: chart1Data.meta,
-          learningProcess: chart3Data,
-          indicatorGap: diffBarData
-        }
+        practiceTrend: trendData, 
+        scoreTrend: trendData,
+        indicatorEffect: chart1Data.meta,
+        learningProcess: chart3Data,
+        indicatorGap: diffBarData,
+        progressTrend: progressTrendData
+        
+      }
     });
-
-    // 發送 loading 給 panel
+  
+    window.dispatchEvent(
+      new CustomEvent("student-ai-update", {
+        detail: { 
+          loading: true,
+          questions: [EXPLAIN_LABEL_MAP[chart]], }
+      })
+    );
+  
+    const res = await fetch("/api/gemini", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        prompt,
+        role: "student",
+     }),
+     
+  
+    });
+  
+    const data = await res.json();
+  
+    setGeminiResult(data.text);
+    setShowAI(true);
+    setGeminiLoading(false);
+  
     window.dispatchEvent(
       new CustomEvent("student-ai-update", {
         detail: {
-          loading: true,
-          questions: chartLabels,
+          loading: false,
+          content: data.text,
         },
       })
     );
-
-    try {
-      const res = await fetch("/api/gemini", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          role: "student",
-        }),
+  };
+  
+  const runOverviewAI = () => {
+    runAIForChart("daily_overview");
+  };
+  
+  /* =========================
+     多圖整合 AI 監聽
+  ========================= */
+  
+  useEffect(() => {
+    const handler = async (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail?.charts) return;
+  
+      const chartLabels: string[] = detail.charts;
+  
+      // 中文轉 ExplainTarget
+      const explainTargets: ExplainTarget[] = chartLabels
+        .map(label => LABEL_TO_EXPLAIN_KEY[label])
+        .filter(Boolean);
+  
+      if (explainTargets.length === 0) return;
+  
+      setGeminiLoading(true);
+  
+      // 組合多圖 prompt
+      const prompt = buildStudentPracPrompt({
+        date: selectedDate,
+        subject: selectedSubject,
+        selectedIndicator: selectedIndicator,
+        selectedCharts: explainTargets, // ← 多圖
+        stats: {
+          avgScore: avgScoreCompare.studentAvg,
+          avgSpeedSec: Number(processedStats.avgSpeedSec),
+          totalCount: processedStats.count,
+          belowClassCount: belowClassAvgStats.count,
+          reachedGoal: processedStats.reachedGoal,
+        },
+  
+        chartData: {
+            practiceTrend: trendData, 
+            scoreTrend: trendData,
+            indicatorEffect: chart1Data.meta,
+            learningProcess: chart3Data,
+            indicatorGap: diffBarData,
+            progressTrend: progressTrendData
+          }
       });
-
-      const data = await res.json();
-
-      setGeminiResult(data.text);
-      setShowAI(true);
-      setGeminiLoading(false);
-
-      // 回傳結果給 Panel
+  
+      // 發送 loading 給 panel
       window.dispatchEvent(
         new CustomEvent("student-ai-update", {
           detail: {
-            loading: false,
-            content: data.text,
+            loading: true,
+            questions: chartLabels,
           },
         })
       );
-    } catch (err) {
-      console.error("Multi AI error:", err);
-      setGeminiLoading(false);
-    }
+  
+      try {
+        const res = await fetch("/api/gemini", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            role: "student",
+          }),
+        });
+  
+        const data = await res.json();
+  
+        setGeminiResult(data.text);
+        setShowAI(true);
+        setGeminiLoading(false);
+  
+        // 回傳結果給 Panel
+        window.dispatchEvent(
+          new CustomEvent("student-ai-update", {
+            detail: {
+              loading: false,
+              content: data.text,
+            },
+          })
+        );
+      } catch (err) {
+        console.error("Multi AI error:", err);
+        setGeminiLoading(false);
+      }
+    };
+  
+    window.addEventListener("student-ai-multi-request", handler);
+  
+    return () => {
+      window.removeEventListener("student-ai-multi-request", handler);
+    };
+  }, [
+    trendData,
+    selectedDate,
+    selectedSubject,
+    avgScoreCompare,
+    processedStats,
+    belowClassAvgStats,
+  ]);
+  
+  
+  const EXPLAIN_CHART_OPTIONS: {
+    key: ExplainTarget;
+    label: string;
+    description: string;
+  }[] = [
+    {
+      key: "daily_overview",
+      label: "總覽練習概況",
+      description: "總覽投入時間與正確率變化",
+    },
+    {
+      key: "indicator_effect",
+      label: "能力指標投入",
+      description: "各能力指標的練習次數與表現",
+    },
+    {
+      key: "learning_process",
+      label: "學習歷程表現",
+      description: "答題速度 × 正確率的學習區域",
+    },
+    {
+      key: "indicator_gap",
+      label: "能力指標差距",
+      description: "學生與該校平均的差距",
+    },
+    {
+      key: "practice_trend",
+      label: "練習投入走勢",
+      description: "分析練習時間與次數的規律性",
+    },
+    {
+      key: "score_trend",
+      label: "學習成效走勢",
+      description: "分析正確率隨時間進步的幅度",
+    },
+    {
+      key: "progress_trend",
+      label: "進步幅度變化",
+      description: "分析多次練習間的正確率變化與學習狀態",
+    },
+  ];
+  
+  const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
+    Object.fromEntries(
+      EXPLAIN_CHART_OPTIONS.map(opt => [opt.key, opt.label])
+    ) as Record<ExplainTarget, string>;
+  
+  
+  const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
+    "練習狀況表現": "daily_overview",
+    "練習投入走勢": "practice_trend",
+    "學習成效走勢": "score_trend",
+    "能力指標投入": "indicator_effect",
+    "學習歷程表現": "learning_process",
+    "能力指標差距": "indicator_gap",
+    "進步幅度變化": "progress_trend",
   };
-
-  window.addEventListener("student-ai-multi-request", handler);
-
-  return () => {
-    window.removeEventListener("student-ai-multi-request", handler);
-  };
-}, [
-  trendData,
-  selectedDate,
-  selectedSubject,
-  avgScoreCompare,
-  processedStats,
-  belowClassAvgStats,
-]);
-
-
-const EXPLAIN_CHART_OPTIONS: {
-  key: ExplainTarget;
-  label: string;
-  description: string;
-}[] = [
-  {
-    key: "daily_overview",
-    label: "總覽練習概況",
-    description: "總覽投入時間與正確率變化",
-  },
-  {
-    key: "indicator_effect",
-    label: "能力指標投入",
-    description: "各能力指標的練習次數與表現",
-  },
-  {
-    key: "learning_process",
-    label: "學習歷程表現",
-    description: "答題速度 × 正確率的學習區域",
-  },
-  {
-    key: "indicator_gap",
-    label: "能力指標差距",
-    description: "學生與該校平均的差距",
-  },
-  {
-    key: "practice_trend",
-    label: "練習投入走勢",
-    description: "分析練習時間與次數的規律性",
-  },
-  {
-    key: "score_trend",
-    label: "學習成效走勢",
-    description: "分析正確率隨時間進步的幅度",
-  },
-];
-
-const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
-  Object.fromEntries(
-    EXPLAIN_CHART_OPTIONS.map(opt => [opt.key, opt.label])
-  ) as Record<ExplainTarget, string>;
-
-
-const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
-  "練習狀況表現": "daily_overview",
-  "練習投入走勢": "practice_trend",
-  "學習成效走勢": "score_trend",
-  "能力指標投入": "indicator_effect",
-  "學習歷程表現": "learning_process",
-  "能力指標差距": "indicator_gap",
-};
-
-
-
-
+  
 
   /* =========================
      Render
      ========================= */
-
   return (
     <div className="min-h-screen p-4 space-y-6">
 
-      {/* 1. Header & Filter */}
+      {/* Header & Filter */}
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
         <div className="flex flex-wrap items-center gap-3 p-2 pb-1">
-          <div className="p-2 text-slate-400">
-            <Filter className="w-5 h-5"/>
-          </div>
-
-          {/* 科目 */}
+          <div className="p-2 text-slate-400"><Filter className="w-5 h-5"/></div>
           <span className="text-sm">科目：</span>
           <Select
             value={selectedSubject}
             onValueChange={(val) => {
               setSelectedSubject(val);
-              setDrilldownIndicator(null); // 切換科目時回到總覽圖
+              setSelectedIndicator("all"); // 切換科目時重置連動狀態
             }}
           >
-            <SelectTrigger className="w-[150px] focus:ring-0 font-medium text-slate-700 bg-white border rounded">
+            <SelectTrigger className="w-[150px] font-medium text-slate-700 bg-white border rounded">
               <SelectValue placeholder="選擇科目"/>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部科目</SelectItem>
-              {uniqueSubjects.map(sub => (
-                <SelectItem key={sub} value={sub}>{sub}</SelectItem>
-              ))}
+              {uniqueSubjects.map(sub => <SelectItem key={sub} value={sub}>{sub}</SelectItem>)}
             </SelectContent>
           </Select>
 
-          {/* 總覽練習狀況 */}
           <button
             onClick={runOverviewAI}
             disabled={geminiLoading}
-            className={`
-              flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
-              transition shadow-sm
-              ${
-                geminiLoading
-                  ? "bg-slate-300 text-slate-600 cursor-not-allowed"
-                  : "bg-blue-500 text-white hover:bg-blue-700"
-              }
-            `}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm ${geminiLoading ? "bg-slate-300 text-slate-600" : "bg-blue-500 text-white hover:bg-blue-700"}`}
           >
-            {geminiLoading ? (
-              <>
-                <span className="animate-spin"></span>
-                分析中…
-              </>
-            ) : (
-              <>
-                總覽練習狀況
-              </>
-            )}
+            {geminiLoading ? <><span className="animate-spin"></span>分析中…</> : <>總覽練習狀況</>}
           </button>
-
         </div>
       </div>
 
-        {/* 資料期間顯示 */}
-        <div className="flex justify-end px-4 -mt-1">
-          <span className="text-xs text-slate-400">
-            {periodLabel}
-          </span>
-        </div>
-
+      <div className="flex justify-end px-4 -mt-1"><span className="text-xs text-slate-400">{periodLabel}</span></div>
 
       {/* 2. KPI Cards  */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -1228,7 +884,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
 
       {/* 3. Charts Grid */}
       {/* =========================
-             區塊一（2張圖表）
+              區塊一（2張圖表）
       ========================= */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* ===== 練習投入走勢圖 ===== */}
@@ -1363,7 +1019,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
             </Card>
     
             {/* ===== 學習成效走勢圖 ===== */}
-           <Card className="col-span-1 relative">
+            <Card className="col-span-1 relative">
               {loading && (
                 <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
                   <Activity className="animate-spin mr-2 w-4 h-4" />
@@ -1493,22 +1149,27 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
             </Card>
           </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
+      
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ===== 圖表 1：能力指標投入圖 ===== */}
         <Card className="col-span-1 relative">
 
-            {loading && (
+          {loading && (
             <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
               <Activity className="animate-spin mr-2 w-4 h-4" />
               <span className="text-sm text-slate-600">資料分析中...</span>
             </div>
           )}
 
-        <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
+          <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
             {/* 左側：標題 */}
-            <CardTitle className="text-xl font-bold ">
+            <CardTitle 
+              className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2 group"
+              onClick={() => setSelectedIndicator("all")}
+              title="點擊可清除指標篩選"
+            >
               能力指標投入
+              
             </CardTitle>
 
             {/* 右側：按鈕群組 */}
@@ -1564,126 +1225,111 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
               </button>
             </div>
           </CardHeader>
-
-          <CardContent className="h-[300px] w-full">
-            <Plot
-              data={[
-                {
-                  x: chart1Data.xShort, 
-                  y: chart1Data.yBar,
-                  type: "bar",
-                  name: "練習次數",
-                  marker: { color: "#bfdbfe" },
-                  opacity: 0.8,
-                  customdata: chart1Data.xFull, 
-                  hovertemplate:
-                    "<b>%{x}</b><br><b>%{customdata}</b><br>練習次數：%{y}<extra></extra>", 
-                  hoverlabel: {
-                    align: "left",    // 文字靠左
-                    font: { size: 13}
-                  }
-                },
-                {
-                  x: chart1Data.xShort,
-                  y: chart1Data.yLine,
-                  type: "scatter",
-                  mode: "lines+markers",
-                  name: "平均正確率 (%)",
-                  yaxis: "y2",
-                  marker: { color: "#2563eb", size: 8 },
-                  line: { width: 3 },
-                  hovertemplate:
-                    "<b>%{customdata}</b><br>平均正確率：%{y}%<extra></extra>",
-                  customdata: chart1Data.xFull,
-                  hoverlabel: {
-                    align: "left",    // 文字靠左
-                    font: { size: 13}
-                  }
-                },
-              ]}
-              layout={{
-                height: 300,
-                margin: { t: 60, r: 40, b: 80, l: 40 },
-                xaxis: {
-                  tickangle: -30,
-                  tickfont: { size: 11 },
-                },
-
-                yaxis: {
-                  title: "練習次數",
-                  gridcolor: "#f1f5f9",
-                  zeroline: false,
-                },
-
-                yaxis2: {
-                  title: "平均正確率 (%)",
-                  overlaying: "y",
-                  side: "right",
-                  range: [0, 110],
-                  showgrid: false,
-                },
-
-                /* 正確率基準線 */
-                shapes:
-                  avgScoreCompare.classAvg !== null
-                    ? [
-                        {
-                          type: "line",
-                          xref: "paper",
-                          x0: 0,
-                          x1: 1,
-                          yref: "y2",
-                          y0: avgScoreCompare.classAvg,
-                          y1: avgScoreCompare.classAvg,
-                          line: {
-                            color: "#ef4444",
-                            width: 2,
-                            dash: "dash",
-                          },
-                        },
-                      ]
-                    : [],
-
-                annotations:
-                  avgScoreCompare.classAvg !== null
-                    ? [
-                        {
-                          xref: "paper",
-                          x: 1,
-                          yref: "y2",
-                          y: avgScoreCompare.classAvg,
-                          text: `校平均 ${avgScoreCompare.classAvg}%`,
-                          showarrow: false,
-                          font: { size: 11, color: "#ef4444" },
-                          xanchor: "right",
-                          yanchor: "bottom",
-                        },
-                      ]
-                    : [],
-
-
-
-                legend: {
-                  orientation: "h",
-                  yanchor: "bottom",
-                  y: 1.1, 
-                  xanchor: "center",
-                  x: 0.5,
-                  font: { size: 11 }
-                },
-
-                font: { family: "inherit" },
-              }}
-              
-              useResizeHandler
-              style={{ width: "100%", height: "100%" }}
-              config={{ displayModeBar: false, responsive: true }}
-            />
+          {/* 🔥 加上 p-0 讓卷軸可以貼齊邊緣，並設定 overflow-x-auto */}
+          <CardContent className="h-[300px] w-full p-0 pb-2">
+            <div className="w-full h-full overflow-x-auto overflow-y-hidden custom-scrollbar">
+              <div
+                style={{
+                  // 🔥 核心魔法：依照資料比例拉長寬度，確保視窗內最多只顯示 10 筆
+                  width: chart1Data.xShort.length > 10 
+                    ? `${(chart1Data.xShort.length / 10) * 100}%` 
+                    : '100%',
+                  height: '100%',
+                  minWidth: '100%',
+                }}
+              >
+                <Plot
+                  onClick={(e) => {
+                    if (e.points && e.points.length > 0) {
+                      setSelectedIndicator(e.points[0].customdata as string);
+                    }
+                  }}
+                  data={[
+                    {
+                      x: chart1Data.xShort, 
+                      y: chart1Data.yBar,
+                      type: "bar",
+                      name: "練習次數",
+                      marker: { 
+                        color: chart1Data.xFull.map(name => 
+                          selectedIndicator === "all" || selectedIndicator === name ? "#bfdbfe" : "#f1f5f9"
+                        ) 
+                      },
+                      customdata: chart1Data.xFull, 
+                      hovertemplate: "<b>%{x}</b><br><b>%{customdata}</b><br>練習次數：%{y}<extra></extra>",
+                    },
+                    {
+                      x: chart1Data.xShort,
+                      y: chart1Data.yLine,
+                      type: "scatter",
+                      mode: "lines+markers",
+                      name: "平均正確率 (%)",
+                      yaxis: "y2",
+                      marker: { 
+                        size: 8,
+                        color: chart1Data.xFull.map(name => 
+                          selectedIndicator === "all" || selectedIndicator === name ? "#2563eb" : "#cbd5e1"
+                        )
+                      },
+                      line: { width: 3, color: "#94a3b8" },
+                      hovertemplate: "<b>%{customdata}</b><br>平均正確率：%{y}%<extra></extra>",
+                      customdata: chart1Data.xFull,
+                    },
+                  ]}
+                  layout={{
+                    autosize: true, // 確保圖表填滿我們剛剛設定的 div 寬度
+                    margin: { t: 60, r: 40, b: 80, l: 50 }, // 稍微增加左邊距避免 Y 軸文字被切掉
+                    xaxis: { 
+                      tickangle: -30, 
+                      tickfont: { size: 11 },
+                      fixedrange: true // 禁止直接在圖上縮放，強迫使用者用下方卷軸
+                    },
+                    yaxis: { 
+                      title: "練習次數", 
+                      gridcolor: "#f1f5f9", 
+                      zeroline: false,
+                      fixedrange: true 
+                    },
+                    yaxis2: { 
+                      title: "平均正確率 (%)", 
+                      overlaying: "y", 
+                      side: "right", 
+                      range: [0, 110], 
+                      showgrid: false,
+                      fixedrange: true 
+                    },
+                    hovermode: "closest",
+                    /* 正確率基準線 */
+                    shapes: avgScoreCompare.classAvg !== null ? [
+                      {
+                        type: "line",
+                        xref: "paper", x0: 0, x1: 1,
+                        yref: "y2", y0: avgScoreCompare.classAvg, y1: avgScoreCompare.classAvg,
+                        line: { color: "#ef4444", width: 2, dash: "dash" },
+                      },
+                    ] : [],
+                    annotations: avgScoreCompare.classAvg !== null ? [
+                      {
+                        xref: "paper", x: 1,
+                        yref: "y2", y: avgScoreCompare.classAvg,
+                        text: `校平均 ${avgScoreCompare.classAvg}%`,
+                        showarrow: false,
+                        font: { size: 11, color: "#ef4444" },
+                        xanchor: "right", yanchor: "bottom",
+                      },
+                    ] : [],
+                    legend: { orientation: "h", yanchor: "bottom", y: 1.1, xanchor: "center", x: 0.5, font: { size: 11 } },
+                  }}
+                  useResizeHandler
+                  style={{ width: "100%", height: "100%", cursor: "pointer" }}
+                  config={{ displayModeBar: false, responsive: true }}
+                />
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-    
-      {/* Chart 3: 差距條形圖（學生 vs 班級） */}
+        {/* Chart 3: 差距條形圖（學生 vs 班級） */}
         <Card className="col-span-1 relative">
 
           {loading && (
@@ -1695,9 +1341,13 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
 
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
               {/* 左側：標題 */}
-              <CardTitle className="text-xl font-bold ">
-                能力指標差距
-              </CardTitle>
+              <CardTitle 
+              className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2 group"
+              onClick={() => setSelectedIndicator("all")}
+              title="點擊可清除指標篩選"
+            >
+              能力指標差距
+            </CardTitle>
               
               {/* 右側：按鈕群組 */}
               <div className="flex items-center gap-0">
@@ -1753,32 +1403,47 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                 </button>
               </div>
             </CardHeader>
-
-
-
-        <CardContent className="p-0"> 
-          <div className="h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar">
-            <Plot
-              data={[
-                {
-                  type: "bar",
-                  orientation: "h",
-                  x: diffBarData.map(d => d.latestDiff),
-                  y: diffBarData.map(d => d.indicator),
-                  marker: {
-                    color: diffBarData.map(d => (d.latestDiff >= 0 ? "#16a34a" : "#dc2626")),
-                  },
-                  text: diffBarData.map(d => `${d.latestDiff >= 0 ? "+" : ""}${d.latestDiff}%`),
-                  textposition: "inside",
-                  customdata: diffBarData.map(d => [d.indicate_name, d.latestScore, d.classAvg]),
-                  hovertemplate:
-                    "<b>%{y} - %{customdata[0]}</b><br>" +
+          <CardContent className="p-0"> 
+            <div className="h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar">
+              <Plot
+                onClick={(e) => {
+                  //確保從 customdata 抓出來的是沒有 <br> 的 original_name
+                  if (e.points && e.points.length > 0) {
+                    setSelectedIndicator((e.points[0].customdata as any)[0]);
+                  }
+                }}
+                data={[
+                  {
+                    type: "bar",
+                    orientation: "h",
+                    x: diffBarData.map(d => d.latestDiff),
+                    y: diffBarData.map(d => d.indicator),
+                    marker: {
+                      // 顏色比對時使用 original_name
+                      color: diffBarData.map(d => {
+                        const isSelected = selectedIndicator === "all" || selectedIndicator === d.original_name;
+                        if (d.latestDiff >= 0) return isSelected ? "#16a34a" : "rgba(218, 248, 227, 0.5)"; 
+                        return isSelected ? "#dc2626" : "rgba(252, 220, 220, 0.5)"; 
+                      }),
+                    },
+                    text: diffBarData.map(d => `${d.latestDiff >= 0 ? "+" : ""}${d.latestDiff}%`),
+                    textposition: "inside",
+                    // 🔥 修正點 2：把 original_name 放在陣列第一個位置 [0]，供 onClick 使用
+                    // 將帶有 <br> 的 indicate_name 放到第四個位置 [3]，供 hovertemplate 顯示使用
+                    customdata: diffBarData.map(d => [
+                      d.original_name, 
+                      d.latestScore, 
+                      d.classAvg, 
+                      d.indicate_name
+                    ]),
+                    hovertemplate:
+                    "<b>%{y} - %{customdata[3]}</b><br>" + // 🔥 這裡改用 customdata[3] 來顯示帶換行的名稱
                     "最新表現：%{customdata[1]}%<br>" +
                     "全校平均：%{customdata[2]}%<br>" +
                     "目前差距：%{x}%<extra></extra>",
-                },
-              ]}
-              layout={{
+                  },
+                ]}
+                layout={{
                 // 動態計算高度：每筆資料給 40px，確保不縮放
                 height: Math.max(300, diffBarData.length * 25), 
                 autosize: true,
@@ -1797,7 +1462,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                   fixedrange: true, // 禁止在圖表上拖曳縮放，改用外部卷軸
                 },
                 // 0 基準線裝飾
-              shapes: [
+                shapes: [
                 {
                   type: "line",
                   x0: 0,
@@ -1816,7 +1481,7 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
               annotations: [
                 {
                   x: 0,
-                  y: 1.018,
+                  y: 1.07,
                   yref: "paper",
                   text: "校平均",
                   showarrow: false,
@@ -1832,16 +1497,15 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                 responsive: true,
                 staticPlot: false 
               }}
-              style={{ width: "100%" }}
+              style={{ width: "100%", cursor: "pointer" }}
             />
-          </div>
-        </CardContent>
-      </Card>
-      </div>
+            </div>
+          </CardContent>
+        </Card>
 
-{/* ===== 圖表：學習歷程表現圖 ===== */}
+        {/* ===== 進步幅度分析圖 ===== */}
         <Card className="col-span-1 relative">
-          
+
           {loading && (
             <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
               <Activity className="animate-spin mr-2 w-4 h-4" />
@@ -1849,25 +1513,148 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
             </div>
           )}
 
-        <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
-            {/* 左側：標題與返回按鈕 */}
-            <CardTitle className="text-xl font-bold flex items-center gap-2">
-              學習歷程表現
-              {drilldownIndicator && (
-                <>
-                  <span className="text-slate-300">/</span>
-                  <span className="text-sm text-blue-700 px-1 py-2 ">{drilldownIndicator}</span>
-                  <button
-                    onClick={() => setDrilldownIndicator(null)}
-                    className="flex items-center text-xs text-slate-500 hover:text-slate-800 px-2 py-1 rounded ml-1 transition"
-                  >
-                    <ArrowLeft className="w-3 h-3 mr-1" /> 返回總覽
-                  </button>
-                </>
-              )}
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
+            <CardTitle 
+            className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2 group"
+            onClick={() => setSelectedIndicator("all")}
+          >
+            進步幅度變化
+            
+          </CardTitle>
+          {/* 右側：按鈕群組 */}
+            <div className="flex items-center gap-0">
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>                  
+                  <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
+                    <div className="space-y-3">
+                      <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
+                      <ul className="text-xs space-y-2 list-disc pl-4">
+                        <li><b>中間基準線 (0)：</b>代表此次練習正確率與前一次「持平」。</li>
+                        <li><b>綠色點與正值 (+)：</b>代表正確率「進步」，數值越高進步越多。</li>
+                        <li><b>紅色點與負值 (-)：</b>代表正確率「退步」，可能遇到了新的學習瓶頸。</li>
+                        <li><b>點擊互動：</b>在全部指標模式下，點擊圖表上的點可以「下鑽」查看該單一指標的詳細進步軌跡。</li>
+                      </ul>
+                      <p className="text-[12px] text-slate-400 pt-1 border-t">
+                        ※ 透過此圖可以觀察自己的學習穩定度，大起大落可能代表正在猜題或概念尚未穩固。
+                      </p>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
-            {/* 右側：按鈕群組 */}
+              {/* AI 分析按鈕 */}
+              <button
+                onClick={() => runAIForChart("progress_trend")}
+                className="flex items-center justify-center w-8 h-8 rounded-full text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition shadow-sm"
+              >
+                <Bot className="w-4 h-4" />
+              </button>
+            </div>
+          </CardHeader>
+          
+          <CardContent className="h-[300px] w-full">
+            <Plot
+              onClick={(e) => {
+                // 連動點擊：如果在 "all" 模式下點了某個點，就過濾到該指標
+                if (e.points && e.points.length > 0) {
+                  setSelectedIndicator((e.points[0].customdata as any)[0]);
+                }
+              }}
+              data={[
+                {
+                  x: progressTrendData?.x || [],
+                  y: progressTrendData?.y || [],
+                  type: "scatter",
+                  mode: "lines+markers",
+                  marker: {
+                    size: 8,
+                    color: progressTrendData?.colors || [],
+                  },
+                  line: { width: 2 },
+                  customdata: progressTrendData?.customdata || [],
+                  // 動態切換 Hover 提示框的時間格式
+                  hovertemplate: 
+                    "<b>指標：</b>%{customdata[0]}<br>" +
+                    `<b>時間：</b>%{x|${selectedIndicator === "all" ? "%Y-%m-%d" : "%Y-%m-%d %H:%M:%S"}}<br>` + 
+                    "<b>進步幅度：</b>%{y:.2f}%<br>" +
+                    "<b>作答時間：</b>%{customdata[1]} 秒<br><extra></extra>",
+                  name: "進步幅度",
+                },
+              ]}
+              layout={{
+                
+                // 動態切換底部邊距：顯示秒數時字比較長，需要多留一點空間 (110)，只顯示日期時留 80 即可
+                margin: { t: 40, l: 30, r: 30, b: selectedIndicator === "all" ? 50 : 110 }, 
+
+                xaxis: {
+                  title: "時間",
+                  tickangle: -30,
+                  type: "date",
+                  // 動態切換 X 軸標籤的時間格式
+                  tickformat: selectedIndicator === "all" ? "%Y-%m-%d" : "%Y-%m-%d %H:%M:%S", 
+                  tickfont: { size: 10 }, 
+                },
+
+                yaxis: {
+                  title: "進步幅度（正確率變化）",
+                  zeroline: true,
+                  zerolinewidth: 1,
+                  zerolinecolor: "#999",
+                },
+                shapes: [
+                  {
+                    type: "line",
+                    x0: 0,
+                    x1: 1,
+                    xref: "paper",
+                    y0: 0,
+                    y1: 0,
+                    line: {
+                      color: "#94a3b8",
+                      width: 1,
+                      dash: "dot",
+                    },
+                  },
+                ],
+
+                hovermode: "closest",
+              }}
+              config={{ responsive: true, displayModeBar: false }}
+              style={{ width: "100%", height: "100%", cursor: selectedIndicator === "all" ? "pointer" : "default" }}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ===== 圖表：學習歷程表現圖 ===== */}
+      <Card className="col-span-1 relative">
+
+        {loading && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+              <Activity className="animate-spin mr-2 w-4 h-4" />
+              <span className="text-sm text-slate-600">資料分析中...</span>
+            </div>
+          )}
+
+        <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
+          <CardTitle 
+            className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2 group"
+            onClick={() => setSelectedIndicator("all")}
+          >
+            學習歷程表現
+            {selectedIndicator !== "all" && (
+              <>
+                <span className="text-slate-300">/</span>
+                <span className="text-sm text-blue-700 px-1 py-2">{selectedIndicator}</span>
+              </>
+            )}
+          </CardTitle>
+          {/* 右側：按鈕群組 */}
             <div className="flex items-center gap-0">
               <TooltipProvider delayDuration={100}>
                 <Tooltip>
@@ -1898,17 +1685,16 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
                 <Bot className="w-4 h-4" />
               </button>
             </div>
-          </CardHeader>
-
-          <CardContent className="h-[300px]">
-            <Plot
-              // 當點擊資料點時，進入 Drill-down 模式
-              onClick={(data) => {
-                if (chart3Data.mode === "overview" && data.points.length > 0) {
-                  setDrilldownIndicator(data.points[0].text);
-                }
-              }}
-              data={
+        </CardHeader>
+        <CardContent className="h-[300px]">
+          <Plot
+            onClick={(data) => {
+              // 連動點擊
+              if (chart3Data.mode === "overview" && data.points.length > 0) {
+                setSelectedIndicator(data.points[0].text as string);
+              }
+            }}
+            data={
                 chart3Data.mode === "overview"
                   ? [
                       // ===== 總覽模式：每個單元的最新作答 =====
@@ -2021,130 +1807,82 @@ const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
               style={{ width: "100%", height: "100%", cursor: chart3Data.mode === "overview" ? "pointer" : "default" }}
               config={{ displayModeBar: false, responsive: true }}
             />
-
-          
-          </CardContent>
-        </Card>
-
-
-
-    <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
-      {/* 詳細練習紀錄 */}
-      <Card className="col-span-1 shadow-sm relative overflow-hidden">
-
-        {loading && (
-            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
-              <Activity className="animate-spin mr-2 w-4 h-4" />
-              <span className="text-sm text-slate-600">資料分析中...</span>
-            </div>
-          )}
-
-        {/* --- 修改 Header 加入下拉式選單 --- */}
-        <CardHeader className="flex flex-col md:flex-row md:items-center justify-between py-4 pb-2 gap-4">
-          <CardTitle className="text-xl font-bold text-slate-700 flex items-center gap-2">
-            詳細練習紀錄 
-            <span className="text-xs text-blue-600">
-              ( {selectedSubject === "all" ? "全部科目" : selectedSubject} )
-            </span>
-          </CardTitle>
-
-          {/* 能力指標下拉選單 */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500">能力指標：</span>
-            <Select
-              value={detailIndicator}
-              onValueChange={setDetailIndicator}
-            >
-              <SelectTrigger className="w-[420px] h-8 text-xs focus:ring-0 font-medium text-slate-700 bg-slate-50 border rounded">
-                <SelectValue placeholder="選擇能力指標" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部能力指標</SelectItem>
-                {detailAvailableIndicators.map(ind => (
-                  <SelectItem key={ind} value={ind}>{ind}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-0 pt-2">
-          <div className="max-h-[350px] overflow-y-auto">
-            <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 bg-slate-50 z-10">
-                <tr className="text-xs text-slate-500 border-b">
-                  <th className="p-3 px-8 w-60 ">練習日期</th>
-                  
-                  {Array.from({ length: maxItemCount }).map((_, i) => (
-                    <th key={i} className="p-3 w-40 text-center">
-                      題目 {i + 1}
-                    </th>
-                  ))}
-                  <th className="p-3 w-40 text-center">花費時間(秒)</th>
-                  <th className="w-40 text-center">正確率</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {detailedRows.length > 0 ? (
-                  detailedRows.map((row) => (
-                    <tr key={row.prac_answer_sn} className="border-t hover:bg-slate-50/50 transition">
-                      <td className="px-4 py-2 font-mono text-sm text-slate-600">
-                        {formatDateTime(row.date)}
-                      </td>
-
-                      {Array.from({ length: maxItemCount }).map((_, i) => {
-                        const item = row.items[i];
-                        return (
-                          <td key={i} className="text-center">
-                            {item ? (
-                              item.is_correct ? (
-                                <span className="text-green-500 font-bold">✔</span>
-                              ) : (
-                                <span className="text-red-500 font-bold">✘</span>
-                              )
-                            ) : (
-                              <span className="text-slate-300">—</span>
-                            )}
-                          </td>
-                        );
-                      })}
-
-                      <td className="px-3 py-2 text-center font-medium text-slate-600">
-                        {row.avg_item_time_ms > 0 ? row.avg_item_time_ms.toLocaleString() : "—"}
-                      </td>
-
-                      <td className="px-3 py-2 text-center">
-                        <span
-                            className={`px-2 py-1 rounded-full text-xs font-bold ${
-                              row.score_rate >= 80
-                                ? "bg-green-100 text-green-700"
-                                : row.score_rate < 60
-                                ? "bg-red-100 text-red-700"
-                                : "bg-yellow-100 text-yellow-700"
-                            }`}
-                          >
-                          {Math.round(row.score_rate)}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={maxItemCount + 3} className="text-center py-8 text-slate-400">
-                      尚無符合條件的作答紀錄
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
         </CardContent>
       </Card>
-    </div>
 
+    
+       
+        {/* ===== 詳細練習紀錄  ===== */}
+        <Card className="col-span-1 shadow-sm relative overflow-hidden">
+          <CardHeader className="flex flex-col md:flex-row md:items-center py-4 pb-2 gap-4">
+            <CardTitle className="text-xl font-bold text-slate-700 flex items-center gap-2">
+              詳細練習紀錄 
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">能力指標：</span>
+              <Select
+                value={selectedIndicator} // 直接綁定全域狀態
+                onValueChange={setSelectedIndicator}
+              >
+                <SelectTrigger className="w-[420px] h-8 text-xs focus:ring-0 font-medium text-slate-700 bg-slate-50 border rounded">
+                  <SelectValue placeholder="選擇能力指標" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部能力指標</SelectItem>
+                  {detailAvailableIndicators.map(ind => (
+                    <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardHeader>
 
-      
-    </div>
+          <CardContent className="p-0 pt-2">
+            <div className="max-h-[350px] overflow-y-auto">
+              <table className="w-full text-left border-collapse">
+                <thead className="sticky top-0 bg-slate-50 z-10">
+                  <tr className="text-xs text-slate-500 border-b">
+                    <th className="p-3 px-4 min-w-[120px]">練習日期</th>
+                    {Array.from({ length: maxItemCount }).map((_, i) => (
+                      <th key={i} className="p-3 text-center">題{i + 1}</th>
+                    ))}
+                    <th className="p-3 text-center">花費時間(秒)</th>
+                    <th className="p-3 text-center">正確率</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detailedRows.length > 0 ? (
+                    detailedRows.map((row) => (
+                      <tr key={row.prac_answer_sn} className="border-t hover:bg-slate-50/50 transition">
+                        <td className="px-4 py-2 font-mono text-xs text-slate-600">
+                          {formatDateTime(row.date)}
+                        </td>
+                        {Array.from({ length: maxItemCount }).map((_, i) => {
+                          const item = row.items[i];
+                          return (
+                            <td key={i} className="text-center">
+                              {item ? (item.is_correct ? <span className="text-green-500 font-bold">✔</span> : <span className="text-red-500 font-bold">✘</span>) : <span className="text-slate-300">—</span>}
+                            </td>
+                          );
+                        })}
+                        <td className="px-3 py-2 text-center text-xs font-medium text-slate-600">
+                          {row.avg_item_time_ms > 0 ? row.avg_item_time_ms.toLocaleString() : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${row.score_rate >= 80 ? "bg-green-100 text-green-700" : row.score_rate < 60 ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
+                            {Math.round(row.score_rate)}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr><td colSpan={maxItemCount + 3} className="text-center py-8 text-slate-400">尚無符合條件的作答紀錄</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
   );
 }
