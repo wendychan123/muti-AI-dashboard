@@ -56,6 +56,7 @@ export default function StudentAiPanel({
     { id: "差距", label: "能力指標差距" },
     { id: "歷程", label: "學習歷程表現" },
     { id: "進步走勢", label: "進步幅度變化" },
+    { id: "弱點", label: "指標弱點關聯" },
   ];
 
   /* =========================

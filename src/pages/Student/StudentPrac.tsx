@@ -101,6 +101,21 @@ interface DiffBarRow {
   avgDiff: number;         
 }
 
+interface IndicatorAssocRow {
+  subject_name: string;
+  source_indicate: string;   
+  target_indicate: string;   
+  source_name: string;       
+  target_name: string;      
+  correlation_score: number;
+}
+
+type HeatmapData = {
+  x: string[];
+  y: string[];
+  z: number[][];
+};
+
 type ExplainTarget =
   | "daily_overview"    
   | "practice_trend"    
@@ -108,7 +123,8 @@ type ExplainTarget =
   | "indicator_effect"  
   | "learning_process"  
   | "indicator_gap"
-  | "progress_trend";    
+  | "progress_trend"
+  | "indicator_assoc";   
 
 /* =========================
    Main Component
@@ -128,6 +144,8 @@ export default function StudentPrac() {
   const [startDate, setStartDate] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"day" | "week" | "month">("day");
+  const [indicatorAssocData, setIndicatorAssocData] = useState<IndicatorAssocRow[]>([]);
+  const [showHeatmap, setShowHeatmap] = useState(false);
 
   // Filters
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -154,9 +172,10 @@ export default function StudentPrac() {
       const indicatorReq = supabase.from("prac_indicate").select("*").eq("user_sn", userSn);
       const OrgIndicatorReq = supabase.from("prac_organization").select("subject_name, indicator, indicate_name, school_avg_score_rate, participant_count, school_prac_count, school_avg_time_sec").eq("organization_id", organizationId);
       const itemsReq = supabase.from("prac_attempts_item").select("*").eq("user_sn", userSn).order("date", { ascending: true });
+      const indicatorAssocReq = supabase.from("prac_indicator_assoc").select("*");
 
-      const [DailyRes, attemptsRes, indicatorRes, OrgIndicatorRes, items] =
-        await Promise.all([setDailyReq, attemptsReq, indicatorReq, OrgIndicatorReq, itemsReq]);
+      const [DailyRes, attemptsRes, indicatorRes, OrgIndicatorRes, items, indicatorAssocRes,] =
+        await Promise.all([setDailyReq, attemptsReq, indicatorReq, OrgIndicatorReq, itemsReq, indicatorAssocReq,]);
 
       if (attemptsRes.error) {
         console.error("Error fetching attempts:", attemptsRes.error);
@@ -177,6 +196,7 @@ export default function StudentPrac() {
       setIndicatorData((indicatorRes.data as IndicatorRow[]) || []);
       setOrgIndicatorData(OrgIndicatorRes.data || []);
       setPracItems((items.data as PracItemRow[]) || []);
+      setIndicatorAssocData((indicatorAssocRes.data as IndicatorAssocRow[]) || []);
       setLoading(false);
     };
 
@@ -238,6 +258,56 @@ export default function StudentPrac() {
   const maxItemCount = useMemo(() => {
     return Math.max(0, ...detailedRows.map((r) => r.items.length));
   }, [detailedRows]);
+
+  // 建立代碼與中文名稱的對照表
+  const indicatorCodeToNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    indicatorData.forEach(d => {
+      if (d.indicator && d.indicate_name) {
+        map[d.indicator] = d.indicate_name;
+      }
+    });
+    attemptsData.forEach(d => {
+      if (d.indicator && d.indicate_name) {
+        map[d.indicator] = d.indicate_name;
+      }
+    });
+    return map;
+  }, [indicatorData, attemptsData]);
+
+  const filteredIndicatorAssoc = useMemo<IndicatorAssocRow[]>(() => {
+    //1. 先把資料庫裡的代碼全部轉成中文名稱
+    let mappedRows = indicatorAssocData.map(r => ({
+      ...r,
+      // 如果對照表找不到中文，就先保留原本的代碼
+      source_name: indicatorCodeToNameMap[r.source_indicate] || r.source_indicate,
+      target_name: indicatorCodeToNameMap[r.target_indicate] || r.target_indicate,
+    }));
+
+    // 2. 只保留學生「有練習過」的單元關聯
+    const practicedNames = new Set(filteredAttempts.map(d => d.indicate_name));
+    mappedRows = mappedRows.filter(
+      r => practicedNames.has(r.source_name) && practicedNames.has(r.target_name)
+    );
+
+    // 3. 根據科目過濾
+    if (selectedSubject !== "all") {
+      mappedRows = mappedRows.filter(r => r.subject_name === selectedSubject);
+    }
+
+    // 4. 根據「中文名稱」進行選擇連動
+    if (selectedIndicator !== "all") {
+      mappedRows = mappedRows.filter(
+        r =>
+          r.source_name === selectedIndicator ||
+          r.target_name === selectedIndicator
+      );
+    }
+
+    return mappedRows;
+  }, [indicatorAssocData, selectedSubject, selectedIndicator, filteredAttempts, indicatorCodeToNameMap]);
+
+
   
   // KPI 
   const processedStats = useMemo(() => {
@@ -343,7 +413,7 @@ export default function StudentPrac() {
     return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   };
 
-  // 🔥 圖表二：學習歷程表現圖 (連動 selectedIndicator)
+  // 圖表二：學習歷程表現圖 (連動 selectedIndicator)
   const chart3Data = useMemo(() => {
     if (!filteredAttempts.length) return { mode: "overview", x: [], y: [], text: [], zone: [], itemsCount: [], medianTimeSec: 5, passScore: 60 };
     const passScore = 60;
@@ -489,6 +559,10 @@ export default function StudentPrac() {
   const progressTrendData = useMemo(() => {
     if (!filteredAttempts.length) return null;
 
+    // 新增處理超長文字的輔助函式，每 18 個字強制加 <br> 換行
+    const splitLongText = (str: string, len: number = 18) => 
+      str ? (str.match(new RegExp(`.{1,${len}}`, "g"))?.join("<br>") || str) : "";
+
     const targetAttempts = selectedIndicator === "all" 
       ? filteredAttempts 
       : filteredAttempts.filter(d => d.indicate_name === selectedIndicator);
@@ -500,15 +574,70 @@ export default function StudentPrac() {
       x: valid.map(d => d.date),
       y: valid.map(d => d.accuracy_diff),
       colors: valid.map(d => (d.accuracy_diff ?? 0) >= 0 ? "#22c55e" : "#ef4444"),
-      // 🔥 核心修改：把圖表需要的所有額外資訊打包成一個陣列傳遞
+      
       customdata: valid.map(d => [
-        d.indicate_name,                   // customdata[0]
-        d.during_time,                     // customdata[1]
-        d.learning_pattern ?? "未分類"      // customdata[2]
+        d.indicate_name,                     // [0] 乾淨的原始名稱
+        d.during_time,                       // [1] 作答時間
+        d.learning_pattern ?? "未分類",       // [2] 模式
+        splitLongText(d.indicate_name, 18)   // [3] 帶有換行符號的名稱
       ]),
     };
   }, [filteredAttempts, selectedIndicator]);
 
+  /* =========================
+    錯題關聯圖 
+  ========================= */
+  const assocHeatmapData = useMemo(() => {
+    if (!filteredIndicatorAssoc.length) return null;
+
+    // 1. X 跟 Y 改用代碼 (source_indicate / target_indicate)
+    const indicators = _.uniq([
+      ...filteredIndicatorAssoc.map(d => d.source_indicate),
+      ...filteredIndicatorAssoc.map(d => d.target_indicate),
+    ]);
+
+    // 2. 建立一個「代碼 -> 中文名稱」的對照表，等等要塞給 customdata 用
+    const nameMap: Record<string, string> = {};
+    filteredIndicatorAssoc.forEach(d => {
+      nameMap[d.source_indicate] = d.source_name;
+      nameMap[d.target_indicate] = d.target_name;
+    });
+
+    // 對應出所有軸標籤的中文名稱
+    const indicatorNames = indicators.map(code => nameMap[code]);
+
+    const matrix = indicators.map(row =>
+      indicators.map(col => {
+        if (row === col) return 1; 
+
+        const match = filteredIndicatorAssoc.find(
+          d =>
+            (d.source_indicate === row && d.target_indicate === col) ||
+            (d.source_indicate === col && d.target_indicate === row)
+        );
+
+        return match ? dmatchScore(match.correlation_score) : 0;
+      })
+    );
+
+    return { 
+      x: indicators, 
+      y: indicators, 
+      z: matrix,
+      customX: indicatorNames, // 藏入 X 軸對應的中文名稱
+      customY: indicatorNames  // 藏入 Y 軸對應的中文名稱
+    };
+  }, [filteredIndicatorAssoc]);
+
+function dmatchScore(value: number) {
+  return Number.isFinite(value) ? Number(value.toFixed(3)) : 0;
+}
+
+const topAssocPairs = useMemo(() => {
+  return [...filteredIndicatorAssoc]
+    .sort((a, b) => b.correlation_score - a.correlation_score)
+    .slice(0, 10);
+}, [filteredIndicatorAssoc]);
 
   /* =========================
      AI 助手
@@ -719,6 +848,11 @@ export default function StudentPrac() {
       label: "進步幅度變化",
       description: "分析多次練習間的正確率變化與學習狀態",
     },
+    {
+      key: "indicator_assoc",
+      label: "指標弱點關聯",
+      description: "分析哪些能力指標容易一起出現學習困難",
+    },
   ];
   
   const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
@@ -735,6 +869,7 @@ export default function StudentPrac() {
     "學習歷程表現": "learning_process",
     "能力指標差距": "indicator_gap",
     "進步幅度變化": "progress_trend",
+    "指標弱點關聯": "indicator_assoc",
   };
   
 
@@ -1150,7 +1285,7 @@ export default function StudentPrac() {
           </div>
 
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* ===== 圖表 1：能力指標投入圖 ===== */}
         <Card className="col-span-1 relative">
 
@@ -1225,12 +1360,12 @@ export default function StudentPrac() {
               </button>
             </div>
           </CardHeader>
-          {/* 🔥 加上 p-0 讓卷軸可以貼齊邊緣，並設定 overflow-x-auto */}
+          {/* 加上 p-0 讓卷軸可以貼齊邊緣，並設定 overflow-x-auto */}
           <CardContent className="h-[300px] w-full p-0 pb-2">
             <div className="w-full h-full overflow-x-auto overflow-y-hidden custom-scrollbar">
               <div
                 style={{
-                  // 🔥 核心魔法：依照資料比例拉長寬度，確保視窗內最多只顯示 10 筆
+                  // 依照資料比例拉長寬度，確保視窗內最多只顯示 10 筆
                   width: chart1Data.xShort.length > 10 
                     ? `${(chart1Data.xShort.length / 10) * 100}%` 
                     : '100%',
@@ -1428,7 +1563,7 @@ export default function StudentPrac() {
                     },
                     text: diffBarData.map(d => `${d.latestDiff >= 0 ? "+" : ""}${d.latestDiff}%`),
                     textposition: "inside",
-                    // 🔥 修正點 2：把 original_name 放在陣列第一個位置 [0]，供 onClick 使用
+                    // 把 original_name 放在陣列第一個位置 [0]，供 onClick 使用
                     // 將帶有 <br> 的 indicate_name 放到第四個位置 [3]，供 hovertemplate 顯示使用
                     customdata: diffBarData.map(d => [
                       d.original_name, 
@@ -1437,7 +1572,7 @@ export default function StudentPrac() {
                       d.indicate_name
                     ]),
                     hovertemplate:
-                    "<b>%{y} - %{customdata[3]}</b><br>" + // 🔥 這裡改用 customdata[3] 來顯示帶換行的名稱
+                    "<b>%{y} - %{customdata[3]}</b><br>" + // 這裡改用 customdata[3] 來顯示帶換行的名稱
                     "最新表現：%{customdata[1]}%<br>" +
                     "全校平均：%{customdata[2]}%<br>" +
                     "目前差距：%{x}%<extra></extra>",
@@ -1502,137 +1637,11 @@ export default function StudentPrac() {
             </div>
           </CardContent>
         </Card>
-
-        {/* ===== 進步幅度分析圖 ===== */}
-        <Card className="col-span-1 relative">
-
-          {loading && (
-            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
-              <Activity className="animate-spin mr-2 w-4 h-4" />
-              <span className="text-sm text-slate-600">資料分析中...</span>
-            </div>
-          )}
-
-          <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
-            <CardTitle 
-            className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2 group"
-            onClick={() => setSelectedIndicator("all")}
-          >
-            進步幅度變化
-            
-          </CardTitle>
-          {/* 右側：按鈕群組 */}
-            <div className="flex items-center gap-0">
-              <TooltipProvider delayDuration={100}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
-                      <HelpCircle className="w-4 h-4" />
-                    </button>
-                  </TooltipTrigger>                  
-                  <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
-                    <div className="space-y-3">
-                      <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
-                      <ul className="text-xs space-y-2 list-disc pl-4">
-                        <li><b>中間基準線 (0)：</b>代表此次練習正確率與前一次「持平」。</li>
-                        <li><b>綠色點與正值 (+)：</b>代表正確率「進步」，數值越高進步越多。</li>
-                        <li><b>紅色點與負值 (-)：</b>代表正確率「退步」，可能遇到了新的學習瓶頸。</li>
-                        <li><b>點擊互動：</b>在全部指標模式下，點擊圖表上的點可以「下鑽」查看該單一指標的詳細進步軌跡。</li>
-                      </ul>
-                      <p className="text-[12px] text-slate-400 pt-1 border-t">
-                        ※ 透過此圖可以觀察自己的學習穩定度，大起大落可能代表正在猜題或概念尚未穩固。
-                      </p>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              {/* AI 分析按鈕 */}
-              <button
-                onClick={() => runAIForChart("progress_trend")}
-                className="flex items-center justify-center w-8 h-8 rounded-full text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition shadow-sm"
-              >
-                <Bot className="w-4 h-4" />
-              </button>
-            </div>
-          </CardHeader>
-          
-          <CardContent className="h-[300px] w-full">
-            <Plot
-              onClick={(e) => {
-                // 連動點擊：如果在 "all" 模式下點了某個點，就過濾到該指標
-                if (e.points && e.points.length > 0) {
-                  setSelectedIndicator((e.points[0].customdata as any)[0]);
-                }
-              }}
-              data={[
-                {
-                  x: progressTrendData?.x || [],
-                  y: progressTrendData?.y || [],
-                  type: "scatter",
-                  mode: "lines+markers",
-                  marker: {
-                    size: 8,
-                    color: progressTrendData?.colors || [],
-                  },
-                  line: { width: 2 },
-                  customdata: progressTrendData?.customdata || [],
-                  // 動態切換 Hover 提示框的時間格式
-                  hovertemplate: 
-                    "<b>指標：</b>%{customdata[0]}<br>" +
-                    `<b>時間：</b>%{x|${selectedIndicator === "all" ? "%Y-%m-%d" : "%Y-%m-%d %H:%M:%S"}}<br>` + 
-                    "<b>進步幅度：</b>%{y:.2f}%<br>" +
-                    "<b>作答時間：</b>%{customdata[1]} 秒<br><extra></extra>",
-                  name: "進步幅度",
-                },
-              ]}
-              layout={{
-                
-                // 動態切換底部邊距：顯示秒數時字比較長，需要多留一點空間 (110)，只顯示日期時留 80 即可
-                margin: { t: 40, l: 30, r: 30, b: selectedIndicator === "all" ? 50 : 110 }, 
-
-                xaxis: {
-                  title: "時間",
-                  tickangle: -30,
-                  type: "date",
-                  // 動態切換 X 軸標籤的時間格式
-                  tickformat: selectedIndicator === "all" ? "%Y-%m-%d" : "%Y-%m-%d %H:%M:%S", 
-                  tickfont: { size: 10 }, 
-                },
-
-                yaxis: {
-                  title: "進步幅度（正確率變化）",
-                  zeroline: true,
-                  zerolinewidth: 1,
-                  zerolinecolor: "#999",
-                },
-                shapes: [
-                  {
-                    type: "line",
-                    x0: 0,
-                    x1: 1,
-                    xref: "paper",
-                    y0: 0,
-                    y1: 0,
-                    line: {
-                      color: "#94a3b8",
-                      width: 1,
-                      dash: "dot",
-                    },
-                  },
-                ],
-
-                hovermode: "closest",
-              }}
-              config={{ responsive: true, displayModeBar: false }}
-              style={{ width: "100%", height: "100%", cursor: selectedIndicator === "all" ? "pointer" : "default" }}
-            />
-          </CardContent>
-        </Card>
       </div>
 
       {/* ===== 圖表：學習歷程表現圖 ===== */}
-      <Card className="col-span-1 relative">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <Card className="col-span-2 relative">
 
         {loading && (
             <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
@@ -1809,6 +1818,323 @@ export default function StudentPrac() {
             />
         </CardContent>
       </Card>
+
+      {/* ===== 進步幅度分析圖 ===== */}
+        <Card className="col-span-1 relative">
+
+          {loading && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+              <Activity className="animate-spin mr-2 w-4 h-4" />
+              <span className="text-sm text-slate-600">資料分析中...</span>
+            </div>
+          )}
+
+          <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
+            <CardTitle 
+            className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2 group"
+            onClick={() => setSelectedIndicator("all")}
+          >
+            進步幅度變化
+            
+          </CardTitle>
+          {/* 右側：按鈕群組 */}
+            <div className="flex items-center gap-0">
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>                  
+                  <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
+                    <div className="space-y-3">
+                      <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
+                      <ul className="text-xs space-y-2 list-disc pl-4">
+                        <li><b>中間基準線 (0)：</b>代表此次練習正確率與前一次「持平」。</li>
+                        <li><b>綠色點與正值 (+)：</b>代表正確率「進步」，數值越高進步越多。</li>
+                        <li><b>紅色點與負值 (-)：</b>代表正確率「退步」，可能遇到了新的學習瓶頸。</li>
+                        <li><b>點擊互動：</b>在全部指標模式下，點擊圖表上的點可以「下鑽」查看該單一指標的詳細進步軌跡。</li>
+                      </ul>
+                      <p className="text-[12px] text-slate-400 pt-1 border-t">
+                        ※ 透過此圖可以觀察自己的學習穩定度，大起大落可能代表正在猜題或概念尚未穩固。
+                      </p>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              {/* AI 分析按鈕 */}
+              <button
+                onClick={() => runAIForChart("progress_trend")}
+                className="flex items-center justify-center w-8 h-8 rounded-full text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition shadow-sm"
+              >
+                <Bot className="w-4 h-4" />
+              </button>
+            </div>
+          </CardHeader>
+          
+          <CardContent className="h-[300px] w-full">
+            <Plot
+              onClick={(e) => {
+                // 連動點擊：使用沒有換行符號的 customdata[0] 確保過濾器正常運作
+                if (e.points && e.points.length > 0) {
+                  setSelectedIndicator((e.points[0].customdata as any)[0]); 
+                }
+              }}
+              data={[
+                {
+                  x: progressTrendData?.x || [],
+                  y: progressTrendData?.y || [],
+                  type: "scatter",
+                  mode: "lines+markers",
+                  marker: {
+                    size: 8,
+                    color: progressTrendData?.colors || [],
+                  },
+                  line: { width: 2 },
+                  customdata: progressTrendData?.customdata || [],
+                  // 動態切換 Hover 提示框的時間格式，並將指標名稱改讀取 customdata[3]
+                  hovertemplate: 
+                    "<b>指標：</b>%{customdata[3]}<br>" + 
+                    `<b>時間：</b>%{x|${selectedIndicator === "all" ? "%Y-%m-%d" : "%Y-%m-%d %H:%M:%S"}}<br>` + 
+                    "<b>進步幅度：</b>%{y:.2f}%<br>" +
+                    "<b>作答時間：</b>%{customdata[1]} 秒<br><extra></extra>",
+                  hoverlabel: {
+                    align: "left" 
+                  },
+                  name: "進步幅度",
+                },
+              ]}              
+              layout={{
+                
+                // 動態切換底部邊距：顯示秒數時字比較長，需要多留一點空間 (110)，只顯示日期時留 80 即可
+                margin: { t: 40, l: 30, r: 30, b: selectedIndicator === "all" ? 50 : 110 }, 
+
+                xaxis: {
+                  title: "時間",
+                  tickangle: -30,
+                  type: "date",
+                  // 動態切換 X 軸標籤的時間格式
+                  tickformat: selectedIndicator === "all" ? "%Y-%m-%d" : "%Y-%m-%d %H:%M:%S", 
+                  tickfont: { size: 10 }, 
+                },
+
+                yaxis: {
+                  title: "進步幅度（正確率變化）",
+                  zeroline: true,
+                  zerolinewidth: 1,
+                  zerolinecolor: "#999",
+                },
+                shapes: [
+                  {
+                    type: "line",
+                    x0: 0,
+                    x1: 1,
+                    xref: "paper",
+                    y0: 0,
+                    y1: 0,
+                    line: {
+                      color: "#94a3b8",
+                      width: 1,
+                      dash: "dot",
+                    },
+                  },
+                ],
+
+                hovermode: "closest",
+              }}
+              config={{ responsive: true, displayModeBar: false }}
+              style={{ width: "100%", height: "100%", cursor: selectedIndicator === "all" ? "pointer" : "default" }}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="col-span-1 relative overflow-hidden">
+        {loading && (
+          <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+            <Activity className="animate-spin mr-2 w-4 h-4" />
+            <span className="text-sm text-slate-600">弱點分析中...</span>
+          </div>
+        )}
+
+          <CardHeader className="flex flex-row items-center justify-between py-4 pb-2 bg-slate-50/50">
+            <CardTitle
+              className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2"
+              onClick={() => setSelectedIndicator("all")}
+            >
+              指標弱點關聯
+              
+            </CardTitle>
+
+            <div className="flex items-center gap-1">
+              {/* AI 按鈕與說明保留，但圖示微調 */}
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="w-8 h-8 rounded-full text-slate-400 hover:bg-white transition shadow-sm">
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-white shadow-2xl border-slate-200 z-50">
+                    <div className="space-y-2 text-xs">
+                      <p className="font-bold border-b pb-1 text-blue-700">熱點圖說明：</p>
+                        <ul className="text-xs space-y-2 list-disc pl-4">
+
+                        <li><b>每個格子：</b>代表兩個能力指標之間的關聯強度。</li>
+                        <li><b>顏色越深：</b>表示兩個能力越可能一起出現學習困難或表現關聯。</li>
+                        <li><b>點擊軸標籤後：</b>可進一步搭配其他圖表查看該能力指標。</li>
+                        </ul>
+                        <p className="text-[12px] text-slate-400 pt-1 border-t">
+                        ※ 這張圖用來找出容易一起卡住的能力指標，幫助辨識知識結構上的弱點群。
+                        </p>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <button
+                onClick={() => runAIForChart("indicator_assoc")}
+                className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition shadow-md"
+              >
+                <Bot className="w-4 h-4" />
+              </button>
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-3 space-y-4">
+            {/*診斷提示區 */}
+            {selectedIndicator !== "all" ? (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                {(() => {
+                  // 1. 先過濾出與目前選中指標相關的配對
+                  const rawPairs = topAssocPairs.filter(
+                    p => p.source_name === selectedIndicator || p.target_name === selectedIndicator
+                  );
+                  
+                  // 2. 透過 _.uniqBy 確保顯示出來的「目標中文名稱」絕對不會重複
+                  const displayPairs = _.uniqBy(rawPairs, p => 
+                    p.source_name === selectedIndicator ? p.target_name : p.source_name
+                  ).slice(0, 5);
+
+                  if (displayPairs.length > 0) {
+                    return (
+                      <div className="bg-blue-50 p-4 rounded-r-lg shadow-sm">                        
+                        <p className="text-xs text-blue-700 leading-relaxed mb-3">
+                          你在做 
+                          <span className="inline-block px-2 py-0.5 mx-1 bg-blue-100 text-blue-800 font-bold rounded border border-blue-200 shadow-sm">
+                            {selectedIndicator}
+                          </span>
+                          如果覺得有點難，可能是因為下面這幾個單元也還沒完全弄懂喔：
+                        </p>
+                        
+                        <div className="grid grid-cols-1 gap-2">
+                          {displayPairs.map((pair, i) => {                          
+                            const targetName = pair.source_name === selectedIndicator ? pair.target_name : pair.source_name;
+                            return (
+                              <div key={i} className="flex items-center justify-between bg-white/80 p-2 rounded border border-blue-100 hover:border-blue-400 transition">
+                                <span className="text-xs font-medium text-slate-700">{targetName}</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-bold">
+                                  關聯性 {Math.round(pair.correlation_score * 100)}%
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[10px] text-blue-500 mt-3 text-right">
+                          建議先回去複習這些單元，目前的卡關可能就會自然解開囉！
+                        </p>
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <div className="bg-slate-50 border-2 border-dashed border-slate-200 p-4 rounded-xl text-center">
+                        <p className="text-sm font-bold text-slate-600 mb-1">暫無關聯弱點</p>
+                        <p className="text-xs text-slate-500">
+                          在你目前練習過的單元中，沒有發現與 <b>{selectedIndicator}</b> 呈現高度連動卡關的其他單元喔！請繼續保持！
+                        </p>
+                      </div>
+                    );
+                  }
+                })()}
+              </div>
+            ) : (              
+              /* 未選中時的導引區 */
+              <div className="flex flex-col items-center justify-center py-6 border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/30">
+                <p className="text-xs text-slate-500 font-medium">點點看下方的熱點圖</p>
+              </div>
+            )}
+
+            {/* 控制熱點圖展開/收合的按鈕 */}
+            <div className="flex justify-center border-t border-slate-100 pt-2">
+              <button 
+                onClick={() => setShowHeatmap(!showHeatmap)}
+                className="text-[11px] text-slate-400 hover:text-blue-500 flex items-center gap-1 transition-colors px-3 py-1 rounded-full hover:bg-slate-50"
+              >
+                {showHeatmap ? "收起熱點圖 ▲" : "打開熱點圖 ▼"}
+              </button>
+            </div>
+
+            {/* 熱點圖區塊 */}
+            {showHeatmap && (
+              <div className="h-[300px] w-full bg-white">
+                <Plot
+                  onClick={(e) => {
+                    if (!e.points || e.points.length === 0) return;                
+                    const clickedSourceName = (e.points[0].customdata as any)[0];
+                    if (clickedSourceName) {
+                      setSelectedIndicator(clickedSourceName);
+                    }
+                  }}
+                  data={[{
+                    z: assocHeatmapData?.z ?? [],
+                    x: assocHeatmapData?.x ?? [],
+                    y: assocHeatmapData?.y ?? [],
+                    type: "heatmap",
+                    colorscale: [
+                      [0, '#f8fafc'],   
+                      [0.3, '#fee2e2'], 
+                      [0.6, '#ef4444'], 
+                      [1, '#991b1b']    
+                    ],
+                    zmin: 0,
+                    zmax: 1,
+                    xgap: 2,
+                    ygap: 2,
+                    
+                    customdata: assocHeatmapData?.z.map((row, i) => 
+                      row.map((_, j) => [
+                        assocHeatmapData.customY[i], 
+                        assocHeatmapData.customX[j]
+                      ])
+                    ) ?? [],
+                    
+                    hovertemplate: 
+                      "%{customdata[0]} <br>" +
+                      "%{customdata[1]} <br>" + 
+                      "常常會一起錯喔！<extra></extra>",
+
+                    hoverlabel: {
+                      align: "left" 
+                    },
+                    showscale: false, 
+                  }]}
+                  layout={{
+                    autosize: true,
+                    margin: { t: 10, l: 80, r: 10, b: 100 },
+                    xaxis: { tickangle: -45, tickfont: { size: 10, color: '#64748b' }, fixedrange: true },
+                    yaxis: { autorange: "reversed", tickfont: { size: 10, color: '#64748b' }, fixedrange: true },
+                    hovermode: "closest",
+                    plot_bgcolor: "rgba(0,0,0,0)",
+                    paper_bgcolor: "rgba(0,0,0,0)",
+                  }}
+                  config={{ displayModeBar: false, responsive: true }}
+                  style={{ width: "100%", height: "100%" }}
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
     
        

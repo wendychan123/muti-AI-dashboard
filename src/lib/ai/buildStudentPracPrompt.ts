@@ -1,7 +1,7 @@
 interface BuildPracPromptParams {
   date: string | null;
   subject: string;
-  selectedIndicator: string; // 確保有接收目前畫面點擊的指標
+  selectedIndicator: string; 
   selectedCharts: string[];
 
   stats: {
@@ -19,6 +19,7 @@ interface BuildPracPromptParams {
     learningProcess?: any;
     indicatorGap?: any;
     progressTrend?: any;
+    indicator_assoc?: any;
   };
 }
 
@@ -44,6 +45,7 @@ export function buildStudentPracPrompt(params: BuildPracPromptParams): string {
         practice_trend: "練習投入走勢",
         score_trend: "學習成效走勢",
         progress_trend: "進步幅度變化",
+        indicator_assoc:"指標錯誤關聯",
       };
       return `- ${names[c] || c}`;
     })
@@ -70,6 +72,9 @@ export function buildStudentPracPrompt(params: BuildPracPromptParams): string {
     chartSummaryDirective = "請直接說明這段時間的正確率趨勢（上升、下降還是持平），並對比校平均數據，說出具體數值。";
   } else if (selectedCharts.includes("practice_trend")) {
     chartSummaryDirective = "請直接指出哪一天的投入時間最長或練習次數最多，具體是多少分鐘/次。";
+  } else if (selectedCharts.includes("indicator_assoc")) {
+  chartSummaryDirective = `請直接指出「關聯最強的兩個單元名稱」以及關聯強度（例如：『分數應用』和『文字題』關聯度很高）。並解釋這代表這兩個單元常常一起表現好或一起卡住。
+`;
   } else {
     chartSummaryDirective = "請直接從數據中挑選出一個最關鍵的數字與具體單元名稱來做客觀總結。";
   }
