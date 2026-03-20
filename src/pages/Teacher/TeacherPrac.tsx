@@ -14,10 +14,10 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { Filter, Bot, HelpCircle, Activity, AlertTriangle, TrendingDown, Award } from "lucide-react";
+import { Filter, Bot, HelpCircle, Activity, Users, Target, ActivitySquare, AlertOctagon } from "lucide-react";
 
 /* =========================
-Types
+   Types
 ========================= */
 interface SchoolPracDaily {
   user_id: number;
@@ -34,18 +34,19 @@ interface SchoolPracDaily {
 }
 
 interface IndicatorSummary {
-  organization_id: string
-  grade: number
-  subject_name: string
-  indicator: string
-  indicate_name: string
-  student_count: number
-  total_prac_count: number
-  school_total_student: number
-  avg_score_rate: number
-  avg_prac_per_student: number
-  avg_time_sec: number
-  participation_rate: number
+  organization_id: string;
+  grade: number;
+  subject_name: string;
+  indicator: string;
+  indicate_name: string;
+  student_count: number;
+  mastered_student_count: number;
+  student_mastery_rate_pct: number;
+  total_prac_count: number;
+  total_time_sec: number;
+  avg_prac_per_student: number;
+  avg_time_per_student_sec: number;
+  avg_time_per_prac_sec: number;
 }
 
 interface SubjectSummary {
@@ -53,24 +54,27 @@ interface SubjectSummary {
   organization_id: string;
   grade: number;
   subject_name: string;
+  grade_total_students: number;
   student_count: number;
+  mastered_student_count: number;
+  participation_rate_pct: number;
+  student_mastery_rate_pct: number;
   total_prac_count: number;
   total_time_sec: number;
-  school_total_students: number;
-  avg_score_rate: number;
-  avg_time_sec: number;
   avg_prac_per_student: number;
-  avg_time_per_student: number;
-  participation_rate: number;
+  avg_time_per_student_sec: number;
 }
 
 interface StudentAlert {
-  organization_id: string
+  organization_id: string;
   grade: number;
   user_id: string;
   subject_name: string;
   indicator: string;
   indicate_name: string;
+  last_score: number;
+  school_avg_score: number;
+  score_gap: number;
   mastery_status: string;
 }
 
@@ -83,21 +87,15 @@ interface SchoolSummary {
 }
 
 type TeacherPracChartTarget = 
-  | "teacher_overview"   // 總覽
-  | "diagnostic"         // 教學診斷指標 (四象限)
-  | "participation"      // 作答參與度
-  | "practice_trend"     // 練習投入走勢
-  | "performance_trend"  // 學習成效走勢
-  | "proficiency"        // 能力指標精熟度
-  | "student_risk";      // 高風險學生與弱點指標
+  | "teacher_overview"
+  | "diagnostic"
+  | "participation"
+  | "practice_trend"
+  | "performance_trend"
+  | "student_risk";
 
-
- /* =========================
-     常數：顯示字串
-  ========================= */
 const ALL_GRADE = "全部年級";
 const ALL_SUBJECT = "全部科目";
-
 
 const uniqSorted = (arr: (string | number | null | undefined)[]) =>
   Array.from(new Set(arr.filter((v) => v !== null && v !== undefined)))
@@ -105,8 +103,8 @@ const uniqSorted = (arr: (string | number | null | undefined)[]) =>
     .sort((a, b) => a.localeCompare(b, "zh-Hant"));
 
 /* =========================
-     篩選狀態
-  ========================= */
+     Main Component
+========================= */
 export default function TeacherPrac() {
   const { userInfo } = useUserContext();
   const organizationId = userInfo?.organization_id;
@@ -114,69 +112,47 @@ export default function TeacherPrac() {
   const [pracData, setPracData] = useState<SchoolPracDaily[]>([]);
   const [schoolSummary, setSchoolSummary] = useState<SchoolSummary[]>([]);
   const [indicatorSummary, setIndicatorSummary] = useState<IndicatorSummary[]>([]);
-  const [subjectSummary, setSubjectSummary] = useState<SubjectSummary[]>([]); // 新增：SubjectSummary State
+  const [subjectSummary, setSubjectSummary] = useState<SubjectSummary[]>([]);
   const [alertData, setAlertData] = useState<StudentAlert[]>([]);
 
   const [selectedGrade, setSelectedGrade] = useState(ALL_GRADE);
   const [selectedSubject, setSelectedSubject] = useState(ALL_SUBJECT);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"day" | "week" | "month">("day");
-
   const [geminiLoading, setGeminiLoading] = useState(false);
-  const [geminiResult, setGeminiResult] = useState<string | null>(null);
-  const [showAI, setShowAI] = useState(false);
 
+  const riskCardRef = useRef<HTMLDivElement>(null); 
 
   /* =========================
-  Load Data
+   Load Data
   ========================= */
   useEffect(() => {
     if (!organizationId || !userInfo?.city) {
       setLoading(false); 
       return;
     }
-
     const loadData = async () => {
       setLoading(true); 
       try {
-        const { data: prac } = await supabase
-          .from("school_prac_daily")
-          .select("*")
-          .eq("organization_id", organizationId);
-
-        const { data: indicator } = await supabase
-          .from("school_indicator_summary")
-          .select("*")
-          .eq("organization_id", organizationId);
-          
-        // 新增：讀取科目層級摘要
-        const { data: subject } = await supabase
-          .from("school_subject_summary")
-          .select("*")
-          .eq("city", userInfo.city);
-
-        const { data: alert } = await supabase
-          .from("school_indicator_alert")
-          .select("*")
-          .eq("organization_id", organizationId);
-
-        const { data: summary } = await supabase
-          .from("school_summary")
-          .select("*")
-          .eq("city", userInfo.city);
-
+        const { data: prac } = await supabase.from("school_prac_daily").select("*").eq("organization_id", organizationId);
+        const { data: indicator } = await supabase.from("school_indicator_summary").select("*").eq("organization_id", organizationId);
+        const { data: subject } = await supabase.from("school_subject_summary").select("*").eq("city", userInfo.city);
+        const { data: alert } = await supabase.from("school_indicator_alert").select("*").eq("organization_id", organizationId);
+        const { data: summary } = await supabase.from("school_summary").select("*").eq("city", userInfo.city);
+        
         setSchoolSummary(summary ?? []);
         setPracData(prac ?? []);
         setIndicatorSummary(indicator ?? []);
-        setSubjectSummary(subject ?? []); // 寫入 State
+        setSubjectSummary(subject ?? []);
         setAlertData(alert ?? []);
+        
+console.log("📦 剛剛從 Supabase 抓回來的 Alert 總數:", alert?.length);
       } catch (error) {
         console.error("Data load error:", error);
       } finally {
         setLoading(false); 
       }
     };
-    
     loadData();
   }, [organizationId, userInfo?.city]);
 
@@ -198,12 +174,10 @@ export default function TeacherPrac() {
       return true;
     });
   }, [indicatorSummary, selectedGrade, selectedSubject]);
-  
-  // 新增：過濾本校的科目層級摘要
+
   const filteredSubjectSummary = useMemo(() => {
     return subjectSummary.filter((r) => {
       if (String(r.organization_id) !== String(organizationId)) return false;
-      
       if (selectedGrade !== ALL_GRADE && r.grade !== Number(selectedGrade)) return false;
       if (selectedSubject !== ALL_SUBJECT && r.subject_name !== selectedSubject) return false;
       return true;
@@ -218,9 +192,6 @@ export default function TeacherPrac() {
     });
   }, [alertData, selectedGrade, selectedSubject]);
 
-  /* =========================
-    下拉式選單
-  ========================= */
   const gradeOptions = useMemo(() => uniqSorted(pracData.map((r) => r.grade)), [pracData]);
   const subjectOptions = useMemo(() => {
     let rows = pracData;
@@ -228,10 +199,6 @@ export default function TeacherPrac() {
     return uniqSorted(rows.map((r) => r.subject_name));
   }, [pracData, selectedGrade]);
 
-
-/* =========================
-     計算資料期間
-  ========================= */
   const periodLabel = useMemo(() => {
     if (filteredPrac.length === 0) return "資料期間：無數據";
     const dates = filteredPrac.map(d => d.activity_date).sort();
@@ -241,612 +208,287 @@ export default function TeacherPrac() {
     return `資料期間：${s} ～ ${e}（${days} 天）`;
   }, [filteredPrac]);
 
-
-/* =========================
-     新增 Ref 與滾動函數
-  ========================= */
-const proficiencyCardRef = useRef<HTMLDivElement>(null); 
-
-// 建立跳轉函數
-const scrollToUnmastered = () => {
-  // 切換下方表格的過濾狀態為「未精熟」
-  setFilterStatus('unmastered');
-  
-  // 滾動到該卡片位置
-  proficiencyCardRef.current?.scrollIntoView({ 
-    behavior: "smooth", 
-    block: "center" 
-  });
-};
-
+  const scrollToRiskTable = () => {
+    riskCardRef.current?.scrollIntoView({ behavior: 'smooth', block: "center" });
+  };
 
   /* =========================
-  圖表
+      高風險學生名單 (終極資料驗證版)
   ========================= */
-
-  /* =========================
-     練習投入走勢 
-  ========================= */
-  const aggregatedPracTrend = useMemo(() => {
-  const map = new Map<
-    string,
-    { active_students: number; total_prac: number }
-  >();
-
-  filteredPrac.forEach((r) => {
-    const dateObj = dayjs(r.activity_date);
-    const key =
-      viewMode === "day"
-        ? dateObj.format("YYYY-MM-DD")
-        : viewMode === "week"
-        ? dateObj.startOf("week").format("YYYY-MM-DD")
-        : dateObj.startOf("month").format("YYYY-MM-DD");
-
-    if (!map.has(key)) {
-      map.set(key, {
-        active_students: 0,
-        total_prac: 0
-      });
+  const studentRiskRanking = useMemo(() => {
+    // 💡 驗證步驟 1：直接把收到的資料印成表格，看看 last_score 到底有哪些數字！
+    if (filteredAlert.length > 0) {
+      console.log("🔍 Supabase 傳給前端的資料清單 (請檢查有沒有低於 100 的)：");
+      console.table(filteredAlert.map(a => ({
+        user_id: a.user_id,
+        indicator: a.indicator,
+        last_score: a.last_score
+      })));
     }
 
-    const entry = map.get(key)!;
-    entry.active_students += r.student_count || 0;
-    entry.total_prac += r.total_prac_count || 0;
-  });
+    if (!filteredAlert || filteredAlert.length === 0) return [];
 
-  return Array.from(map.entries())
-    .map(([date, val]) => ({
-      date,
-      active_students: val.active_students,
-      total_prac_count: val.total_prac
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date));
+    const userMap = new Map<string, { unmastered: number; total: number; names: string[] }>();
 
-}, [filteredPrac, viewMode]);
+    filteredAlert.forEach((a) => {
+      const uId = a.user_id ? String(a.user_id) : null;
+      if (!uId) return;
+
+      if (!userMap.has(uId)) {
+        userMap.set(uId, { unmastered: 0, total: 0, names: [] });
+      }
+      const u = userMap.get(uId)!;
+      u.total += 1;
+      
+      let score = parseFloat(String(a.last_score));
+      if (score <= 1.0 && score > 0) score *= 100;
+
+      // 💡 我們維持正確的邏輯：只抓真正低於 100 分的指標
+      if (!isNaN(score) && score < 99.99) {
+        u.unmastered += 1;
+        u.names.push(`${a.indicate_name || a.indicator} (${score}分)`);
+      }
+    });
+
+    const list = Array.from(userMap.entries()).map(([userId, stats]) => ({
+      userId,
+      riskScore: stats.total > 0 ? (stats.unmastered / stats.total) * 100 : 0,
+      unmasteredCount: stats.unmastered,
+      unmasteredNames: stats.names.length > 0 ? stats.names.map(name => `- ${name}`).join("\n") : "無"
+    }));
+
+    return list
+      .filter(s => s.unmasteredCount > 0)
+      .sort((a, b) => b.riskScore - a.riskScore);
+  }, [filteredAlert]);
 
   /* =========================
-     學習成效走勢 
-    ========================= */
-  const aggregatedScoreTrend = useMemo(() => {
-    const map = new Map<string, { scoreSum: number; weight: number }>();
+      KPI 
+  ========================= */
+  const kpi = useMemo(() => {
+    const totalStudents = _.sumBy(filteredSubjectSummary, "student_count");
 
+    let totalSchoolStudents = 0;
+    const currentSchoolRows = schoolSummary.filter(s => String(s.organization_id) === String(organizationId));
+    if (selectedGrade === ALL_GRADE) totalSchoolStudents = _.sumBy(currentSchoolRows, "total_students");
+    else totalSchoolStudents = currentSchoolRows.find(s => String(s.grade) === String(selectedGrade))?.total_students || 0;
+    const participationRate = totalSchoolStudents > 0 ? (totalStudents / totalSchoolStudents) * 100 : 0;
+
+    const totalMastered = _.sumBy(filteredSubjectSummary, "mastered_student_count");
+    const masteryRate = totalStudents > 0 ? (totalMastered / totalStudents) * 100 : 0;
+
+    const totalTimePrac = _.sumBy(filteredSubjectSummary, "total_time_sec");
+    const TimePracPerStudent = totalStudents > 0 ? (totalTimePrac / totalStudents) : 0;
+    const totalPrac = _.sumBy(filteredSubjectSummary, "total_prac_count");
+    const avgPracPerStudent = totalStudents > 0 ? (totalPrac / totalStudents) : 0;
+
+    const notMasteredStudents = studentRiskRanking.length;
+
+    const uniqueSchools = _.uniqBy(subjectSummary, "organization_id");
+    const hasMultipleSchools = uniqueSchools.length > 1;
+    const cityMatchedRows = subjectSummary.filter(s => {
+        if (selectedGrade !== ALL_GRADE && s.grade !== Number(selectedGrade)) return false;
+        if (selectedSubject !== ALL_SUBJECT && s.subject_name !== selectedSubject) return false;
+        return true;
+    });
+    const cityTotalMastered = _.sumBy(cityMatchedRows, "mastered_student_count");
+    const cityTotalPracticers = _.sumBy(cityMatchedRows, "student_count");
+    const cityOverallMasteryRate = cityTotalPracticers > 0 ? (cityTotalMastered / cityTotalPracticers) * 100 : 0;
+
+    return {
+      totalStudents, totalSchoolStudents, participationRate, masteryRate,
+      cityOverallMasteryRate, hasMultipleSchools, totalTimePrac, TimePracPerStudent, avgPracPerStudent, 
+      notMasteredStudents
+    };
+  }, [filteredSubjectSummary, schoolSummary, subjectSummary, studentRiskRanking, selectedGrade, selectedSubject, organizationId]);
+
+  /* =========================
+      圖表資料處理
+  ========================= */
+  // 1. 教學診斷四象限 (Chart 1)
+  const quadrantData = useMemo(() => {
+    const rows = filteredIndicator.map(r => ({
+      name: r.indicate_name,
+      avgCount: r.student_count > 0 ? (r.total_prac_count / r.student_count) : 0, 
+      avgScore: r.student_mastery_rate_pct ?? 0 
+    }));
+
+    const xValues = rows.map(r => r.avgCount);
+    const sortedX = [...xValues].sort((a, b) => a - b);
+    const xAvg = sortedX.length > 0 ? sortedX[Math.floor(sortedX.length / 2)] : 5;
+    const yAvg = 60; 
+
+    return {
+      rows, xAvg, yAvg, xMax: Math.max(...xValues, 10)
+    };
+  }, [filteredIndicator]);
+
+  // 2. 作答參與度
+  const participationData = useMemo(() => {
+    const data = filteredIndicator
+      .map((r) => {
+        const gradeTotal = schoolSummary.find(s => s.grade === r.grade)?.total_students || 1;
+        const calcRate = (r.student_count / gradeTotal) * 100;
+        return {
+          name: r.indicator,
+          fullName: r.indicate_name,
+          rate: calcRate,
+          students: r.student_count ?? 0,
+        };
+      })
+      .sort((a, b) => b.rate - a.rate);
+
+    const dynamicHeight = Math.max(260, data.length * 40); 
+    return { data, dynamicHeight };
+  }, [filteredIndicator, schoolSummary]);
+
+  // 3. 練習趨勢與成效走勢
+  const aggregatedPracTrend = useMemo(() => {
+    const map = new Map<string, { active_students: number; total_prac: number }>();
     filteredPrac.forEach((r) => {
       const dateObj = dayjs(r.activity_date);
-      const key = viewMode === "day" 
-        ? dateObj.format("YYYY-MM-DD")
-        : viewMode === "week" 
-          ? dateObj.startOf("week").format("YYYY-MM-DD")
-          : dateObj.startOf("month").format("YYYY-MM-DD");
+      const key = viewMode === "day" ? dateObj.format("YYYY-MM-DD") : viewMode === "week" ? dateObj.startOf("week").format("YYYY-MM-DD") : dateObj.startOf("month").format("YYYY-MM-DD");
+      if (!map.has(key)) map.set(key, { active_students: 0, total_prac: 0 });
+      const entry = map.get(key)!;
+      entry.active_students += r.student_count || 0;
+      entry.total_prac += r.total_prac_count || 0;
+    });
+    return Array.from(map.entries())
+      .map(([date, val]) => ({ date, active_students: val.active_students, total_prac_count: val.total_prac }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [filteredPrac, viewMode]);
 
-      if (!map.has(key)) {
-        map.set(key, { scoreSum: 0, weight: 0 });
-      }
+  const aggregatedScoreTrend = useMemo(() => {
+    const map = new Map<string, { scoreSum: number; weight: number }>();
+    filteredPrac.forEach((r) => {
+      const dateObj = dayjs(r.activity_date);
+      const key = viewMode === "day" ? dateObj.format("YYYY-MM-DD") : viewMode === "week" ? dateObj.startOf("week").format("YYYY-MM-DD") : dateObj.startOf("month").format("YYYY-MM-DD");
+      if (!map.has(key)) map.set(key, { scoreSum: 0, weight: 0 });
       const entry = map.get(key)!;
       entry.scoreSum += r.avg_score_rate * r.total_prac_count;
       entry.weight += r.total_prac_count;
     });
-
     return Array.from(map.entries())
-      .map(([date, v]) => ({
-        date,
-        avgScore: v.weight > 0 ? v.scoreSum / v.weight : 0,
-      }))
+      .map(([date, v]) => ({ date, avgScore: v.weight > 0 ? v.scoreSum / v.weight : 0 }))
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [filteredPrac, viewMode]);
 
-
-
   /* =========================
-     能力指標精熟長條圖 
-    ========================= */
-  const proficiencyList = useMemo(() => {
-
-  return filteredIndicator
-    .map(r => ({
-      indicator: r.indicator,
-      fullName: r.indicate_name,
-      score: Math.round(r.avg_score_rate ?? 0)
-    }))
-    .sort((a, b) => a.score - b.score);
-
-}, [filteredIndicator]);
-
-{/* 新增定義按鈕與個數 */}
-// 定義狀態過濾
-const [filterStatus, setFilterStatus] = useState<'all' | 'unmastered' | 'mastered'>('all');
-
-// 計算各狀態個數
-const counts = useMemo(() => {
-  return {
-    unmastered: proficiencyList.filter(item => item.score < 60).length, // 修正為 < 60
-    mastered: proficiencyList.filter(item => item.score >= 60).length,  // 修正為 >= 60
-  };
-}, [proficiencyList]);
-
-// 根據按鈕過濾顯示清單
-const filteredDisplayList = useMemo(() => {
-  if (filterStatus === 'unmastered') return proficiencyList.filter(item => item.score < 60);
-  if (filterStatus === 'mastered') return proficiencyList.filter(item => item.score >= 60);
-  return proficiencyList;
-}, [proficiencyList, filterStatus]);
-
-  // 能力指標風險熱圖 
-  // X: 能力指標, Y: 正確率區間 (0-60, 60-80, 80-100), Z: 學生人數
-  const heatmapData = useMemo(() => {
-    const indicators = Array.from(new Set(filteredPrac.map((r) => r.indicate_name)));
-    const yLabels = ["待加強 (0-60)", "基礎 (60-85)", "精熟 (85-100)"];
-    const zData = [new Array(indicators.length).fill(0), new Array(indicators.length).fill(0), new Array(indicators.length).fill(0)];
-
-    filteredPrac.forEach((r) => {
-      const xIdx = indicators.indexOf(r.indicate_name);
-      if (r.avg_score_rate < 60) zData[0][xIdx] += r.student_count;
-      else if (r.avg_score_rate < 85) zData[1][xIdx] += r.student_count;
-      else zData[2][xIdx] += r.student_count;
-    });
-    return { x: indicators, y: yLabels, z: zData };
-  }, [filteredPrac]);
-
-  /* =========================
-      學生風險排名表
-    ========================= */
-    const riskCardRef = useRef<HTMLDivElement>(null); // 用於捲動到該位置
-    const [isRiskOnly, setIsRiskOnly] = useState(false); // 是否只顯示未精熟學生
-
-    const handleKPI5Click = () => {
-      setIsRiskOnly(!isRiskOnly); // 切換過濾狀態
-      riskCardRef.current?.scrollIntoView({ behavior: 'smooth' }); // 平滑捲動
-    };
-
-  /* =========================
-      高風險教育關係人排名表
-    ========================= */
-  const studentRiskRanking = useMemo(() => {
-    // 1. 先算出每位教育關係人在各別指標的加權平均
-    const stakeholderIndMap = new Map<string, { userId: string; indicateName: string; scoreSum: number; pracCount: number }>();
-
-    filteredPrac.forEach((r) => {
-      if (r.user_id == null) return;
-      const key = `${r.user_id}_${r.indicate_name}`;
-      if (!stakeholderIndMap.has(key)) {
-        stakeholderIndMap.set(key, { userId: String(r.user_id), indicateName: r.indicate_name, scoreSum: 0, pracCount: 0 });
-      }
-      const curr = stakeholderIndMap.get(key)!;
-      curr.scoreSum += (r.avg_score_rate || 0) * (r.total_prac_count || 0);
-      curr.pracCount += (r.total_prac_count || 0);
-    });
-
-    // 2. 統計每位教育關係人「總共做過幾個指標」與「幾個未精熟 (<60)」
-    const userMap = new Map<string, { unmastered: number; total: number; names: string[] }>();
-
-    Array.from(stakeholderIndMap.values()).forEach((ind) => {
-      if (!userMap.has(ind.userId)) {
-        userMap.set(ind.userId, { unmastered: 0, total: 0, names: [] });
-      }
-      const u = userMap.get(ind.userId)!;
-      u.total += 1;
-
-      const indAvg = ind.pracCount > 0 ? ind.scoreSum / ind.pracCount : 0;
-      if (indAvg < 60) { // 統一使用 < 60 作為未精熟標準
-        u.unmastered += 1;
-        u.names.push(ind.indicateName);
-      }
-    });
-
-    // 3. 計算風險比例並排序
-    let list = Array.from(userMap.entries())
-      .map(([userId, stats]) => ({
-        userId,
-        riskScore: stats.total > 0 ? (stats.unmastered / stats.total) * 100 : 0,
-        unmasteredCount: stats.unmastered,
-        unmasteredNames: stats.names.map(name => `- ${name}`).join("\n")
-      }))
-      .sort((a, b) => b.riskScore - a.riskScore);
-
-    // 聯動邏輯：如果 KPI 5 被啟動，則過濾只剩未精熟名單
-    if (isRiskOnly) {
-      list = list.filter(s => s.unmasteredCount > 0);
-    }
-
-    return list;
-  }, [filteredPrac, isRiskOnly]);
-
-  
-
-  /* =========================
-     KPI
+      AI 助手功能
   ========================= */
-
-const kpi = useMemo(() => {
-  // 修改重點：從 filteredSubjectSummary 中獲取精確的學生數與時間
-  
-  /* ---------- 練習行為統計 ---------- */
-  const totalPrac = _.sumBy(filteredSubjectSummary, "total_prac_count");
-  const totalTime = _.sumBy(filteredSubjectSummary, "total_time_sec");
-  
-  // 計算加權平均正確率 (使用 subjectSummary 的資料)
-  const scoreWeighted = filteredSubjectSummary.reduce(
-    (s, r) => s + (r.avg_score_rate || 0) * (r.total_prac_count || 0),
-    0
-  );
-  const avgScore = totalPrac > 0 ? scoreWeighted / totalPrac : 0;
-
-  /* ---------- 練習學生數 (KPI 1) ---------- */
-  // 直接加總 filteredSubjectSummary 的 student_count (若選擇全部年級/科目，會將各群組加總)
-  // 注意：如果跨科目，同一個學生可能會被重複計算。最精確的做法是在後端準備一個 overall summary，
-  // 但目前基於現有資料，加總 SubjectSummary 是最接近真實情況的。
-  const totalStudents = _.sumBy(filteredSubjectSummary, "student_count");
-
-
-  /* ---------- 未精熟能力指標 ---------- */
-  const notMasteredIndicators = filteredIndicator.filter(
-    r => (r.avg_score_rate ?? 0) < 60
-  ).length;
-
-
-  /* ---------- 未精熟教育關係人  ---------- */
-  // 改由底層 filteredPrac 即時運算，確保與 KPI 4 (<60) 的標準完全一致
-  const studentIndMap = new Map<string, { scoreSum: number; pracCount: number }>();
-  filteredPrac.forEach((r) => {
-    if (r.user_id == null) return;
-    const key = `${r.user_id}_${r.indicator}`;
-    if (!studentIndMap.has(key)) {
-      studentIndMap.set(key, { scoreSum: 0, pracCount: 0 });
-    }
-    const curr = studentIndMap.get(key)!;
-    curr.scoreSum += (r.avg_score_rate || 0) * (r.total_prac_count || 0);
-    curr.pracCount += (r.total_prac_count || 0);
-  });
-
-  const unmasteredStakeholders = new Set<string>();
-  studentIndMap.forEach((val, key) => {
-    const avg = val.pracCount > 0 ? val.scoreSum / val.pracCount : 0;
-    if (avg < 60) {
-      // key 的格式為 "user_id_indicator"，取前半段
-      unmasteredStakeholders.add(key.split('_')[0]); 
-    }
-  });
-  
-  const notMasteredStudents = unmasteredStakeholders.size;
-
-
-  /* ---------- 平均練習次數 ---------- */
-  const avgPracPerStudent =
-    totalStudents > 0 ? totalPrac / totalStudents : 0;
-
-
-  /* ---------- 平均練習時間 (KPI 3) ---------- */
-  // 從總時間 / 總人次，或是使用 subject_summary 中預先算好的 avg_time_sec 加權
-  const avgTime = totalPrac > 0 ? totalTime / totalPrac : 0; 
-
-
-  /* ---------- 校內總學生數 (分母) ---------- */
-  // 取得該篩選條件下的總學生數 (從 subjectSummary 中取最大值，或根據需求加總)
-   let totalSchoolStudents = 0;
-   if(filteredSubjectSummary.length > 0){
-       // 如果是單一年級/科目，直接取值。若是多個，為避免重複計算總人數，我們可以依賴 schoolSummary
-       const currentOrgId = userInfo?.organization_id;
-       const currentSchoolRows = schoolSummary.filter(
-         s => String(s.organization_id) === String(currentOrgId)
-       );
-     
-       if (selectedGrade === ALL_GRADE) {
-         totalSchoolStudents = _.sumBy(currentSchoolRows, "total_students");
-       } else {
-         const matched = currentSchoolRows.find(
-           s => String(s.grade) === String(selectedGrade)
-         );
-         totalSchoolStudents = matched?.total_students || 0;
-       }
-   }
-   
-
-  /* ---------- 參與率 ---------- */
-  const participationRate =
-    totalSchoolStudents > 0
-      ? (totalStudents / totalSchoolStudents) * 100
-      : 0;
-
-
-  /* ---------- 縣市平均 ---------- */
-  // 修正：使用 subjectSummary 計算縣市平均，才能反映科目差異
-  const uniqueSchools = _.uniqBy(subjectSummary, "organization_id");
-  const hasMultipleSchools = uniqueSchools.length > 1;
-  
-  const cityMatchedRows = subjectSummary.filter(s => {
-      if (selectedGrade !== ALL_GRADE && s.grade !== Number(selectedGrade)) return false;
-      if (selectedSubject !== ALL_SUBJECT && s.subject_name !== selectedSubject) return false;
-      return true;
-  });
-
-  const cityTotalPrac = _.sumBy(cityMatchedRows, "total_prac_count");
-  const cityScoreWeighted = cityMatchedRows.reduce(
-    (s, r) => s + (r.avg_score_rate || 0) * (r.total_prac_count || 0),
-    0
-  );
-
-  const cityAvgScore =
-    cityTotalPrac > 0 ? cityScoreWeighted / cityTotalPrac : 0;
-
-  return {
-    totalStudents,
-    totalSchoolStudents,
-    participationRate,
-    avgScore,
-    cityAvgScore,
-    hasMultipleSchools,
-    avgPracPerStudent,
-    avgTime,
-    totalTime,
-    notMasteredStudents,
-    notMasteredIndicators
-
+  const TEACHER_CHART_LABELS: Record<TeacherPracChartTarget, string> = {
+    teacher_overview: "總覽練習表現",
+    diagnostic: "教學診斷指標",
+    participation: "作答參與度",
+    practice_trend: "練習投入走勢",
+    performance_trend: "學習成效走勢",
+    student_risk: "高風險學生與弱點指標",
   };
 
-}, [
-  filteredSubjectSummary, // 依賴變更為 SubjectSummary
-  filteredPrac,
-  filteredIndicator,
-  filteredAlert,
-  schoolSummary,
-  subjectSummary, // 依賴變更
-  selectedGrade,
-  selectedSubject,
-  userInfo?.organization_id
-]);
-
-
-/* =========================
-     教學診斷指標 
-  ========================= */
-const quadrantData = useMemo(() => {
-  const rows = filteredIndicator.map(r => ({
-    name: r.indicate_name,
-    // 修改：改用人均作答次數 (total_prac_count / 學生數) 作為 X 軸
-    // 假設 r 裡面有該指標的總作答次數與學生數
-    avgCount: r.total_prac_count / (r.student_count || 1), 
-    avgScore: r.avg_score_rate ?? 0
-  }));
-
-  const xValues = rows.map(r => r.avgCount);
-  const yValues = rows.map(r => r.avgScore);
-
-  // X 軸基準：採用中位數，代表區域或班級的平均參與水準
-  const sortedX = [...xValues].sort((a, b) => a - b);
-  const xAvg = sortedX.length > 0 ? sortedX[Math.floor(sortedX.length / 2)] : 5;
-
-  // Y 軸基準：固定在 60% 作為及格/精熟邊界
-  const yAvg = 60; 
-
-  return {
-    rows,
-    xAvg,
-    yAvg,
-    xMax: Math.max(...xValues, 10)
-  };
-}, [filteredIndicator]);
-
-/* =========================
-     作答參與度
-  ========================= */
-const participationData = useMemo(() => {
-  const data = filteredIndicator
-    .map((r) => ({
-      name: r.indicator,
-      fullName: r.indicate_name,
-      rate: r.participation_rate ?? 0,
-      students: r.student_count ?? 0,
-    }))
-    .sort((a, b) => b.rate - a.rate);
-
-  
-  const dynamicHeight = Math.max(0, data.length * 10); 
-  return { data, dynamicHeight };
-}, [filteredIndicator]);
-
-
-
-/* =========================
-     AI 助手功能
-  ========================= */
-const runTeacherAIForChart = async (target: TeacherPracChartTarget | "teacher_overview") => {
-  setGeminiLoading(true);
-  const chartLabel = TEACHER_CHART_LABELS[target] || "全校練習表現";
-
-  // 1. 構建發送給 AI 的 Context (根據 buildTeacherPracPrompt 結構)
-  const prompt = buildTeacherPracPrompt({
-    city: String(userInfo.city || ""), 
-    organization_id: String(userInfo.organization_id || ""),
-    grade: selectedGrade,
-    subject: selectedSubject,
-    period: periodLabel,
-    // 傳入當前畫面上的 KPI 數據
-    stats: {
-      totalStudents: kpi.totalStudents,
-      avgScore: kpi.avgScore,
-      avgPracPerStudent: kpi.avgPracPerStudent,
-      notMasteredStudents: kpi.notMasteredStudents,
-      notMasteredIndicators: kpi.notMasteredIndicators,
-    },
-    selectedCharts: [target],
-  });
-
-  // 2. 觸發 UI 上的 Loading 狀態 (對應導覽列的 AI 視窗)
-  window.dispatchEvent(
-    new CustomEvent("teacher-ai-update", {
-      detail: {
-        loading: true,
-        questions: [chartLabel],
-      },
-    })
-  );
-
-  try {
-    const res = await fetch("/api/gemini", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt,
-        role: "teacher_diagnostic", 
-      }),
-    });
-
-    const data = await res.json();
-
-    // 3. 發送分析結果回 UI
-    window.dispatchEvent(
-      new CustomEvent("teacher-ai-update", {
-        detail: {
-          loading: false,
-          content: data.text,
-        },
-      })
-    );
-  } catch (err) {
-    console.error("Teacher AI error:", err);
-    window.dispatchEvent(
-      new CustomEvent("teacher-ai-update", {
-        detail: { loading: false, content: "AI 診斷暫時無法連線，請稍後再試。" },
-      })
-    );
-  } finally {
-    setGeminiLoading(false);
-  }
-};
-
-
-const TEACHER_CHART_LABELS: Record<TeacherPracChartTarget, string> = {
-  teacher_overview: "總覽練習表現",
-  diagnostic: "教學診斷指標",
-  participation: "作答參與度",
-  practice_trend: "練習投入走勢",
-  performance_trend: "學習成效走勢",
-  proficiency: "能力指標精熟度",
-  student_risk: "高風險學生與弱點指標",
-};
-
-/* =========================
-   監聽多圖整合分析 
-========================= */
-useEffect(() => {
-  const handler = async (e: Event) => {
-    // 1. 基本檢查：確認事件包含資料，且目前的 kpi 已運算完成
-    const detail = (e as CustomEvent<{ charts: string[] }>).detail;
-    if (!detail || !detail.charts?.length) return;
-    if (!kpi) return; 
-
-    // 2. 過濾出符合 TeacherPrac 定義的圖表目標
-    const selected: TeacherPracChartTarget[] = detail.charts.filter(
-      (c): c is TeacherPracChartTarget => c in TEACHER_CHART_LABELS
-    );
-
-    if (selected.length === 0) return;
-
+  const runTeacherAIForChart = async (target: TeacherPracChartTarget | "teacher_overview") => {
     setGeminiLoading(true);
+    const chartLabel = TEACHER_CHART_LABELS[target] || "全校練習表現";
 
-    // 取得人類可讀的標題（用於 UI 顯示正在分析哪些問題）
-    const chartLabels = selected.map((c) => TEACHER_CHART_LABELS[c]);
-
-    // 3. 構建 Prompt：傳入班級篩選條件與 KPI 數據
     const prompt = buildTeacherPracPrompt({
-      city: String(userInfo.city || ""), 
-      organization_id: String(userInfo.organization_id || ""),
-      grade: selectedGrade,        
+      city: String(userInfo?.city || ""), 
+      organization_id: String(organizationId || ""),
+      grade: selectedGrade,
       subject: selectedSubject,
       period: periodLabel,
-      selectedCharts: selected, 
-
       stats: {
         totalStudents: kpi.totalStudents,
-        avgScore: kpi.avgScore,
+        avgScore: kpi.masteryRate, 
         avgPracPerStudent: kpi.avgPracPerStudent,
-        notMasteredStudents: kpi.notMasteredStudents,   
-        notMasteredIndicators: kpi.notMasteredIndicators 
+        notMasteredStudents: kpi.notMasteredStudents,
+        notMasteredIndicators: 0, 
       },
+      selectedCharts: [target as any],
     });
 
-    // 🔹 觸發 UI Loading 狀態
-    window.dispatchEvent(
-      new CustomEvent("teacher-ai-update", {
-        detail: {
-          loading: true,
-          questions: chartLabels,
-        },
-      })
-    );
+    window.dispatchEvent(new CustomEvent("teacher-ai-update", { detail: { loading: true, questions: [chartLabel] } }));
 
     try {
       const res = await fetch("/api/gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          role: "teacher_diagnostic", // 指定後端處理角色
-        }),
+        body: JSON.stringify({ prompt, role: "teacher_diagnostic" }),
       });
-
-      if (!res.ok) throw new Error("AI 服務回應異常");
       const data = await res.json();
-
-      // 🔹 發送分析完成內容
-      window.dispatchEvent(
-        new CustomEvent("teacher-ai-update", {
-          detail: {
-            loading: false,
-            content: data.text,
-          },
-        })
-      );
+      window.dispatchEvent(new CustomEvent("teacher-ai-update", { detail: { loading: false, content: data.text } }));
     } catch (err) {
-      console.error("Teacher Multi AI error:", err);
-
-      window.dispatchEvent(
-        new CustomEvent("teacher-ai-update", {
-          detail: {
-            loading: false,
-            content: "AI 整合分析失敗，請檢查網路連線或稍後再試。",
-          },
-        })
-      );
+      console.error("Teacher AI error:", err);
+      window.dispatchEvent(new CustomEvent("teacher-ai-update", { detail: { loading: false, content: "AI 診斷暫時無法連線，請稍後再試。" } }));
     } finally {
       setGeminiLoading(false);
     }
   };
 
-  window.addEventListener("teacher-ai-multi-request", handler);
+  useEffect(() => {
+    const handler = async (e: Event) => {
+      const detail = (e as CustomEvent<{ charts: string[] }>).detail;
+      if (!detail || !detail.charts?.length || !kpi) return; 
 
-  return () => {
-    window.removeEventListener("teacher-ai-multi-request", handler);
-  };
-}, [
-  // 當這些相依項改變時，重新建立監聽器以捕捉最新的資料閉包
-  selectedGrade,
-  selectedSubject,
-  periodLabel,
-  kpi, 
-]);
+      const selected: TeacherPracChartTarget[] = detail.charts.filter((c): c is TeacherPracChartTarget => c in TEACHER_CHART_LABELS);
+      if (selected.length === 0) return;
 
-/* =========================
-   對過長的指標名稱進行換行
-========================= */
-const wrapText = (str, len = 20) => {
-  if (!str) return "";
-  const reg = new RegExp(`(.{${len}})`, "g");
-  return str.replace(reg, "$1<br>");
-};
+      setGeminiLoading(true);
+      const chartLabels = selected.map((c) => TEACHER_CHART_LABELS[c]);
+      const prompt = buildTeacherPracPrompt({
+        city: String(userInfo?.city || ""), 
+        organization_id: String(organizationId || ""),
+        grade: selectedGrade,        
+        subject: selectedSubject,
+        period: periodLabel,
+        selectedCharts: selected, 
+        stats: {
+          totalStudents: kpi.totalStudents,
+          avgScore: kpi.masteryRate,
+          avgPracPerStudent: kpi.avgPracPerStudent,
+          notMasteredStudents: kpi.notMasteredStudents,   
+          notMasteredIndicators: 0 
+        },
+      });
 
-const formatHoverText = (str: string, maxLength = 22) => {
-  if (!str) return "";
-  const res = str.match(new RegExp(`.{1,${maxLength}}`, "g"));
-  return res ? res.join("<br>") : str;
-};
+      window.dispatchEvent(new CustomEvent("teacher-ai-update", { detail: { loading: true, questions: chartLabels } }));
 
+      try {
+        const res = await fetch("/api/gemini", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt, role: "teacher_diagnostic" }),
+        });
+        const data = await res.json();
+        window.dispatchEvent(new CustomEvent("teacher-ai-update", { detail: { loading: false, content: data.text } }));
+      } catch (err) {
+        window.dispatchEvent(new CustomEvent("teacher-ai-update", { detail: { loading: false, content: "AI 整合分析失敗，請檢查網路連線或稍後再試。" } }));
+      } finally {
+        setGeminiLoading(false);
+      }
+    };
+    window.addEventListener("teacher-ai-multi-request", handler);
+    return () => window.removeEventListener("teacher-ai-multi-request", handler);
+  }, [selectedGrade, selectedSubject, periodLabel, kpi, organizationId, userInfo?.city]);
 
-
-/* =========================
-     Render
+  /* =========================
+     工具函數
   ========================= */
+  const wrapText = (str: string, len = 20) => {
+    if (!str) return "";
+    const reg = new RegExp(`(.{${len}})`, "g");
+    return str.replace(reg, "$1<br>");
+  };
+
+  const formatHoverText = (str: string, maxLength = 22) => {
+    if (!str) return "";
+    const res = str.match(new RegExp(`.{1,${maxLength}}`, "g"));
+    return res ? res.join("<br>") : str;
+  };
+
+  /* =========================
+       Render
+    ========================= */
   return (
-    <div className="min-h-screen p-4 space-y-6">
+    <div className="min-h-screen p-4 space-y-6 bg-slate-50">
       {/* 篩選器 */}
       <div className="flex flex-wrap items-center gap-2 p-3 ">
         <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
@@ -862,7 +504,6 @@ const formatHoverText = (str: string, maxLength = 22) => {
             {gradeOptions.map((grade) => <SelectItem key={grade} value={grade}>{grade} 年級</SelectItem>)}
           </SelectContent>
         </Select>
-
 
         {/* 科目 */}
          <span className="text-sm">科目：</span>
@@ -890,7 +531,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
             >
             {geminiLoading ? (
               <>
-                <span className="animate-spin"></span>
+                <span className="animate-spin"><Activity className="w-4 h-4"/></span>
                 分析中…
               </>
             ) : (
@@ -909,12 +550,12 @@ const formatHoverText = (str: string, maxLength = 22) => {
     {/* =========================
             KPI 區
   =========================  */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
 
         {/* KPI 1: 學生母數 */}
         <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
           <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
-            練習學生數
+            參與練習人數
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
             <div className="text-3xl font-black text-slate-800 tracking-tight">
@@ -924,29 +565,29 @@ const formatHoverText = (str: string, maxLength = 22) => {
           </div>
         </div>
 
-        {/* KPI 2: 平均正確率 */}
+        {/* KPI 2: 整體精熟率 (更新為精熟率) */}
         <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
           <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
-            平均答對率
+            平均答題正確率
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
             <div className="text-3xl font-black tracking-tight text-slate-800">
-              {kpi.avgScore.toFixed(1)}%
+               {kpi.masteryRate.toFixed(1)}%
             </div>
             
             <div className="mt-1 flex flex-col items-center">
               {kpi.hasMultipleSchools ? (
                 <>
                   <span className="text-[11px] text-slate-400">
-                    全市平均 {kpi.cityAvgScore.toFixed(1)}%
+                    全市平均 {kpi.cityOverallMasteryRate.toFixed(1)}%
                   </span>
-                  {kpi.avgScore >= kpi.cityAvgScore ? (
+                  {kpi.masteryRate >= kpi.cityOverallMasteryRate ? (
                     <span className="text-[11px] text-emerald-600 font-bold">
-                      （↑ {(kpi.avgScore - kpi.cityAvgScore).toFixed(1)}%）
+                      （↑ {(kpi.masteryRate - kpi.cityOverallMasteryRate).toFixed(1)}%）
                     </span>
                   ) : (
                     <span className="text-[11px] text-rose-500 font-bold">
-                      （↓ {(kpi.cityAvgScore - kpi.avgScore).toFixed(1)}%）
+                      （↓ {(kpi.cityOverallMasteryRate - kpi.masteryRate).toFixed(1)}%）
                     </span>
                   )}
                 </>
@@ -962,154 +603,134 @@ const formatHoverText = (str: string, maxLength = 22) => {
         {/* KPI 3: 練習時數 */}
         <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
           <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
-            平均練習時間
+            練習投入時間
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
-            <div className="text-3xl font-black text-slate-800 tracking-tight text-green-600">
-               {(kpi.avgTime).toFixed(0)} <span className="text-lg">秒</span>
+            <div className="text-3xl font-black text-slate-800 tracking-tight text-emerald-600">
+               {(kpi.totalTimePrac).toFixed(0)} <span className="text-lg">秒</span>
             </div>
+            <div className="text-[11px] text-center text-slate-400 mt-1">人均練習 {kpi.avgPracPerStudent.toFixed(1)} 次</div>
           </div>
         </div>
 
-        {/* KPI 4: 未精熟能力指標數 (可點擊) */}
-        <div 
-          onClick={scrollToUnmastered}
-          className="flex flex-col border border-rose-200 rounded-md overflow-hidden shadow-sm bg-white cursor-pointer hover:shadow-md transition-all active:scale-95 group"
-        >
-          <div className="bg-rose-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-rose-200 group-hover:bg-rose-600">
-            未精熟能力指標
-          </div>
-          <div className="flex-1 flex flex-col items-center justify-center p-4">
-            <div className="text-3xl font-black text-rose-600 tracking-tight">
-              {kpi.notMasteredIndicators}
-            </div>
-            <div className="text-[11px] text-slate-500  animate-pulse">點擊查看清單</div>
-          </div>
-        </div>
+        
 
-        {/* KPI 5: 未精熟人數 (可過濾) */}
-        <div 
-          onClick={handleKPI5Click}
-          className={`flex flex-col border rounded-md overflow-hidden shadow-sm transition-all cursor-pointer active:scale-95 group ${
-            isRiskOnly ? 'ring-2 ring-rose-500 bg-rose-50 border-red-900' : 'bg-white border-rose-200'
-          }`}
+        {/* KPI 4: 未精熟人數 (可過濾) */}
+       <div 
+          onClick={scrollToRiskTable}
+          className="flex flex-col bg-white border border-slate-200 rounded-md overflow-hidden shadow-sm cursor-pointer hover:shadow-md hover:border-rose-300 transition-all active:scale-[0.98] group"
         >
-          <div className={`text-white text-sm font-bold py-2.5 px-3 text-center border-b ${
-            isRiskOnly ? 'bg-rose-500 border-rose-200' : 'bg-rose-500 border-rose-200 group-hover:bg-rose-600'
-          }`}>
-            {isRiskOnly ? '未精熟人數' : '未精熟人數'}
+          <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
+            需關注未精熟人數
           </div>
-          <div className="flex-1 flex flex-col items-center justify-center p-4">
-            <div className={`text-3xl font-black tracking-tight ${kpi.notMasteredStudents > 0 ? "text-rose-600" : "text-slate-800"}`}>
-              {kpi.notMasteredStudents}
+          <div className="flex-1 flex flex-col items-center justify-center p-5">
+            <div className={`text-4xl font-black tracking-tight ${kpi.notMasteredStudents > 0 ? "text-rose-600" : "text-slate-300"}`}>
+              {kpi.notMasteredStudents} <span className="text-lg font-bold text-rose-400/70">人</span>
             </div>
-            <div className={`text-[11px] ${isRiskOnly ? 'text-rose-600' : 'text-slate-400'}`}>
-              {isRiskOnly ? '點擊取消過濾' : '點擊查看名單'}
+            <div className="text-[11px] text-rose-300 mt-2 font-medium px-2 py-1 rounded-full group-hover:text-rose-500 transition-colors">
+              點擊查看名單 ↓
             </div>
           </div>
         </div>
 
       </div>
 
-
-
       {/* =========================
             圖表區
   =========================  */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
 
         {/* ===== 教學診斷指標 ===== */}
-        <Card className="col-span-2 relative">
-           {loading && (
-              <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
-                <Activity className="animate-spin mr-2 w-4 h-4" />
-                <span className="text-sm text-slate-600">資料分析中...</span>
-              </div>
-            )}
+         <Card className="col-span-2 relative">
+           {loading && (
+              <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+                <Activity className="animate-spin mr-2 w-4 h-4" />
+                <span className="text-sm text-slate-600">資料分析中...</span>
+              </div>
+            )}
 
-          <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
-            {/* 左側：標題 */}
-            <CardTitle className="text-xl font-bold ">
-              教學診斷指標
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
+            {/* 左側：標題 */}
+            <CardTitle className="text-xl font-bold ">
+              教學診斷指標
+            </CardTitle>
 
-            {/* 右側：按鈕群組 */}
-            <div className="flex items-center gap-1">
-              {/* 圖表說明 Tooltip */}
-              <TooltipProvider delayDuration={100}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="
-                        flex items-center justify-center
-                        w-8 h-8
-                        rounded-full
-                        text-slate-400
-                        hover:bg-slate-100
-                        hover:text-slate-600
-                        transition
-                        "
-                    >
-                      <HelpCircle className="w-5 h-5" />
-                    </button>
-                  </TooltipTrigger>
-                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f8fafc] shadow-2xl border-slate-200 text-slate-700 z-50">
-                      <div className="space-y-3">
-                        <p className="font-bold border-b pb-1 text-violet-900 flex items-center gap-1">圖表診斷說明：</p>
-                        <ul className="text-xs space-y-2.5">
-                          <li className="flex gap-2">
-                            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500 mt-1" />
-                            <span>
-                              <b className="text-blue-700">精熟區 (高次數、高得分)：</b>
-                              代表教育關係人透過頻繁練習且維持高正確率。此指標掌握度極佳，建議可進入下一階段學習。
-                            </span>
-                          </li>
-                          <li className="flex gap-2">
-                            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1" />
-                            <span>
-                              <b className="text-emerald-700">潛力區 (低次數、高得分)：</b>
-                              代表教育關係人練習次數不多即獲得高分。可能是指標難度較低，或是教育關係人已具備深厚的先備知識。
-                            </span>
-                          </li>
-                          <li className="flex gap-2">
-                            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-amber-500 mt-1" />
-                            <span>
-                              <b className="text-amber-700">低參與 (低次數、低得分)：</b>
-                              代表實質練習量不足。應優先引導教育關係人進行基本作答，累積足夠的互動數據以利後續診斷。
-                            </span>
-                          </li>
-                          <li className="flex gap-2">
-                            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-rose-500 mt-1" />
-                            <span>
-                              <b className="text-rose-700">瓶頸區 (高次數、低得分)：</b>
-                              <b>關鍵警示！</b>代表教育關係人嘗試多次練習但成效不佳。此為核心學習障礙，需優先介入輔導。
-                            </span>
-                          </li>
-                        </ul>
-                        <p className="text-[12px] text-slate-400 pt-1 border-t leading-relaxed">
-                          ※ 本圖以<b>「人均練習次數」</b>作為 X 軸，排除無效掛機時間，真實反映教育關係人與學習內容的互動頻率與成效。
-                        </p>              
-                      </div>
-                    </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+            {/* 右側：按鈕群組 */}
+            <div className="flex items-center gap-1">
+              {/* 圖表說明 Tooltip */}
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="
+                        flex items-center justify-center
+                        w-8 h-8
+                        rounded-full
+                        text-slate-400
+                        hover:bg-slate-100
+                        hover:text-slate-600
+                        transition
+                        "
+                    >
+                      <HelpCircle className="w-5 h-5" />
+                    </button>
+                  </TooltipTrigger>
+                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f8fafc] shadow-2xl border-slate-200 text-slate-700 z-50">
+                      <div className="space-y-3">
+                        <p className="font-bold border-b pb-1 text-violet-900 flex items-center gap-1">圖表診斷說明：</p>
+                        <ul className="text-xs space-y-2.5">
+                          <li className="flex gap-2">
+                            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500 mt-1" />
+                            <span>
+                              <b className="text-blue-700">精熟區 (高次數、高得分)：</b>
+                              代表教育關係人透過頻繁練習且維持高正確率。此指標掌握度極佳，建議可進入下一階段學習。
+                            </span>
+                          </li>
+                          <li className="flex gap-2">
+                            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1" />
+                            <span>
+                              <b className="text-emerald-700">潛力區 (低次數、高得分)：</b>
+                              代表教育關係人練習次數不多即獲得高分。可能是指標難度較低，或是教育關係人已具備深厚的先備知識。
+                            </span>
+                          </li>
+                          <li className="flex gap-2">
+                            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-amber-500 mt-1" />
+                            <span>
+                              <b className="text-amber-700">低參與 (低次數、低得分)：</b>
+                              代表實質練習量不足。應優先引導教育關係人進行基本作答，累積足夠的互動數據以利後續診斷。
+                            </span>
+                          </li>
+                          <li className="flex gap-2">
+                            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-rose-500 mt-1" />
+                            <span>
+                              <b className="text-rose-700">瓶頸區 (高次數、低得分)：</b>
+                              代表教育關係人嘗試多次練習但成效不佳。此為核心學習障礙，需優先介入輔導。
+                            </span>
+                          </li>
+                        </ul>
+                        <p className="text-[12px] text-slate-400 pt-1 border-t leading-relaxed">
+                          ※ 以人均練習次數作為 X 軸，排除無效掛機時間，反映該校學生與學習內容的互動頻率與成效。
+                        </p>              
+                      </div>
+                    </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
-              {/* AI 分析按鈕 */}
-              <button
-                onClick={() => runTeacherAIForChart("diagnostic")}
-                className="
-                  flex items-center justify-center
-                  w-8 h-8
-                  rounded-full
-                  text-violet-500
-                  hover:bg-violet-50
-                  transition
-                "
-              >
-                <Bot className="w-5 h-5" />
-              </button>
-            </div>
-          </CardHeader>
-          
+              {/* AI 分析按鈕 */}
+              <button
+                onClick={() => runTeacherAIForChart("diagnostic")}
+                className="
+                  flex items-center justify-center
+                  w-8 h-8
+                  rounded-full
+                  text-violet-500
+                  hover:bg-violet-50
+                  transition
+                "
+              >
+                <Bot className="w-5 h-5" />
+              </button>
+            </div>
+          </CardHeader>
             
           <CardContent className="h-[260px] w-full">
             <Plot
@@ -1132,32 +753,21 @@ const formatHoverText = (str: string, maxLength = 22) => {
                   hovertemplate: 
                     "<b>能力指標：%{text}</b><br>" +
                     "實質參與：%{x:.1f} 次練習<br>" + 
-                    "平均正確率：%{y:.1f}%<br>" +
+                    "精熟率：%{y:.1f}%<br>" +
                     "<extra></extra>",
                   hoverlabel: { align: "left", namelength: -1 }
                 }
               ]}
               layout={{
                 height: 260,
-                margin: { t: 30, r: 30, b: 60, l: 60 }, // 增加左邊距以容納 Y 軸標題
+                margin: { t: 30, r: 30, b: 60, l: 60 },
                 xaxis: { 
-                  title: {
-                    text: "人均練習次數 (實質參與度)", // X 軸數值名稱
-                    font: { size: 12, color: '#64748b' },
-                    standoff: 15
-                  },
-                  gridcolor: '#f1f5f9',
-                  zeroline: false 
+                  title: { text: "人均練習次數", font: { size: 12, color: '#64748b' }, standoff: 15 },                                 
+                  gridcolor: '#f1f5f9', zeroline: false 
                 },
                 yaxis: { 
-                  title: {
-                    text: "平均正確率 (%)", // Y 軸數值名稱
-                    font: { size: 12, color: '#64748b' },
-                    standoff: 15
-                  },
-                  range: [0, 110], 
-                  gridcolor: '#f1f5f9',
-                  zeroline: false 
+                  title: { text: "學生精熟率 (%)", font: { size: 12, color: '#64748b' }, standoff: 15 },
+                  range: [-5, 110], gridcolor: '#f1f5f9', zeroline: false 
                 },
                 shapes: [
                   { type: "line", x0: quadrantData.xAvg, x1: quadrantData.xAvg, y0: 0, y1: 100, line: { color: "#94a3b8", dash: "dot", width: 2 } },
@@ -1179,62 +789,61 @@ const formatHoverText = (str: string, maxLength = 22) => {
         {/* ===== 作答參與度 ===== */}
         <Card className="col-span-1 lg:col-span-2 relative">
 
-          {loading && (
-            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
-              <Activity className="animate-spin mr-2 w-4 h-4" />
-              <span className="text-sm text-slate-600">資料分析中...</span>
-            </div>
-          )}
+          {loading && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+              <Activity className="animate-spin mr-2 w-4 h-4" />
+              <span className="text-sm text-slate-600">資料分析中...</span>
+            </div>
+          )}
 
-          <CardHeader className="flex flex-row items-center justify-between py-4 pb-2">
-            <CardTitle className="text-xl font-bold flex items-center gap-2">
-              作答參與度
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between py-4 pb-2">
+            <CardTitle className="text-xl font-bold flex items-center gap-2">
+              作答參與度
+            </CardTitle>
 
-            <div className="flex items-center gap-1">
-              <TooltipProvider delayDuration={100}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 transition">
-                      <HelpCircle className="w-5 h-5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f8fafc] shadow-2xl border-slate-200 text-slate-700 z-50">
-                    <div className="space-y-3">
-                      <p className="font-bold border-b pb-1 text-violet-900 flex items-center gap-1">圖表指標說明：</p>
-                      <ul className="text-xs space-y-2.5">
-                        <li className="flex gap-2">
-                          <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-slate-400 mt-1" />
-                          <span><b className="text-slate-700">參與率 (長條)：</b>該指標已作答人數佔班級總人數的百分比。</span>
-                        </li>
-                        <li className="flex gap-2">
-                          <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-violet-400 mt-1" />
-                          <span><b className="text-violet-700">學生數 (折線)：</b>實際參與該練習的具體人數。</span>
-                        </li>
-                      </ul>
-                      <p className="text-[12px] text-slate-400 pt-1 border-t">
-                        ※ 透過此圖可觀察參與率低且人數少的指標，確認是否為進度尚未排入或學生遺漏練習。
-                      </p>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+            <div className="flex items-center gap-1">
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 transition">
+                      <HelpCircle className="w-5 h-5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f8fafc] shadow-2xl border-slate-200 text-slate-700 z-50">
+                    <div className="space-y-3">
+                      <p className="font-bold border-b pb-1 text-violet-900 flex items-center gap-1">圖表指標說明：</p>
+                      <ul className="text-xs space-y-2.5">
+                        <li className="flex gap-2">
+                          <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-slate-400 mt-1" />
+                          <span><b className="text-slate-700">參與率 (長條)：</b>該指標已作答人數佔班級總人數的百分比。</span>
+                        </li>
+                        <li className="flex gap-2">
+                          <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-violet-400 mt-1" />
+                          <span><b className="text-violet-700">學生數 (折線)：</b>實際參與該練習的具體人數。</span>
+                        </li>
+                      </ul>
+                      <p className="text-[12px] text-slate-400 pt-1 border-t">
+                        ※ 透過此圖可觀察參與率低且人數少的指標，確認是否為進度尚未排入或學生遺漏練習。
+                      </p>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
-              {/* AI 分析按鈕 */}
-              <button
-                onClick={() => runTeacherAIForChart("participation")}
-                className="flex items-center justify-center w-8 h-8 rounded-full text-violet-500 hover:bg-violet-50 transition">
-                <Bot className="w-5 h-5" />
-              </button>
-            </div>
-          </CardHeader>
+              {/* AI 分析按鈕 */}
+              <button
+                onClick={() => runTeacherAIForChart("participation")}
+                className="flex items-center justify-center w-8 h-8 rounded-full text-violet-500 hover:bg-violet-50 transition">
+                <Bot className="w-5 h-5" />
+              </button>
+            </div>
+          </CardHeader>
 
           <CardContent className="h-[260px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-200">
             <div style={{ height: participationData.dynamicHeight }}>
               <Plot
                 data={[
                   {
-                    // 透明 Layer 用於顯示完整指標名稱的 Hover
                     x: participationData.data.map((d) => d.rate),
                     y: participationData.data.map((d) => d.name),
                     customdata: participationData.data.map((d) => formatHoverText(d.fullName, 20)), 
@@ -1255,13 +864,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
                       ),
                     },
                     hovertemplate: "參與率：%{x:.1f}%<extra></extra>",
-                    hoverlabel: {
-                      align: "left",
-                      namelength: -1,
-                      bgcolor: "#fff",
-                      bordercolor: "#e2e8f0",
-                      font: { size: 12, color: "#1e293b" }
-                    }
+                    hoverlabel: { align: "left", namelength: -1, bgcolor: "#fff", bordercolor: "#e2e8f0", font: { size: 12, color: "#1e293b" } }
                   },
                   {
                     x: participationData.data.map((d) => d.students),
@@ -1269,7 +872,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
                     type: "scatter",
                     mode: "lines+markers",
                     name: "參與人數",
-                    xaxis: "x2", // 連結到頂部的 X2 軸
+                    xaxis: "x2", 
                     line: { color: "rgb(76 29 149)", width: 2 },
                     marker: { size: 6 },
                     hovertemplate: "實際人數：%{x} 人<extra></extra>",
@@ -1278,40 +881,19 @@ const formatHoverText = (str: string, maxLength = 22) => {
                 layout={{
                   autosize: true,
                   height: participationData.dynamicHeight,
-                  margin: { l: 30, r: 30, t: 35, b: 60 }, // 增加邊距以容納標題
+                  margin: { l: 120, r: 30, t: 35, b: 60 },
                   showlegend: false,
                   xaxis: {
-                    title: {
-                      text: "參與率 (%)", // X1 軸名稱 (底部)
-                      font: { size: 12, color: '#64748b' },
-                      standoff: 15
-                    },
-                    range: [0, 105],
-                    side: "bottom",
-                    tickfont: { size: 10 },
-                    gridcolor: "#f1f5f9",
-                    zeroline: false
+                    title: { text: "參與率 (%)", font: { size: 12, color: '#64748b' }, standoff: 15 },
+                    range: [0, 105], side: "bottom", tickfont: { size: 10 }, gridcolor: "#f1f5f9", zeroline: false
                   },
                   xaxis2: {
-                    title: {
-                      text: "實際作答人數 (人)", // X2 軸名稱 (頂部)
-                      font: { size: 12, color: "rgb(76 29 149)" },
-                      standoff: 15
-                    },
-                    overlaying: "x",
-                    side: "top",
-                    showgrid: false,
-                    zeroline: false,
-                    tickfont: { size: 10, color: "rgb(76 29 149)" },
+                    title: { text: "實際作答人數 (人)", font: { size: 12, color: "rgb(76 29 149)" }, standoff: 15 },
+                    overlaying: "x", side: "top", showgrid: false, zeroline: false, tickfont: { size: 10, color: "rgb(76 29 149)" },
                   },
                   yaxis: {
-                    title: {
-                      text: "能力指標", // Y 軸名稱
-                      font: { size: 12, color: '#64748b' },
-                      standoff: 10
-                    },
-                    automargin: true,
-                    tickfont: { size: 10, color: "#64748b" },
+                    title: { text: "能力指標", font: { size: 12, color: '#64748b' }, standoff: 10 },
+                    automargin: true, tickfont: { size: 10, color: "#64748b" },
                   },
                   hovermode: "y unified",
                 }}
@@ -1321,108 +903,99 @@ const formatHoverText = (str: string, maxLength = 22) => {
             </div>
           </CardContent>
         </Card>
-
-
-
-
       </div>
 
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* ===== 練習投入走勢圖 ===== */}
         <Card className="col-span-1 relative">
-          {loading && (
-            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
-              <Activity className="animate-spin mr-2 w-4 h-4" />
-              <span className="text-sm text-slate-600">資料分析中...</span>
-            </div>
-          )}
+          {loading && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+              <Activity className="animate-spin mr-2 w-4 h-4" />
+              <span className="text-sm text-slate-600">資料分析中...</span>
+            </div>
+          )}
 
-            <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
-            {/* 左側：標題 */}
-            <CardTitle className="text-xl font-bold ">
-              練習投入走勢
-              <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
-            </CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
+            {/* 左側：標題 */}
+            <CardTitle className="text-xl font-bold ">
+              練習投入走勢
+              <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
+            </CardTitle>
 
-            {/* 右側：按鈕群組 */}
-            <div className="flex items-center gap-1">
-              {/* 圖表說明 Tooltip */}
-              <TooltipProvider delayDuration={100}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button 
-                    className="
-                        flex items-center justify-center
-                        w-8 h-8
-                        rounded-full
-                        text-slate-400
-                        hover:bg-slate-100
-                        hover:text-slate-600
-                        transition
-                        "
-                    >
-                      <HelpCircle className="w-5 h-5" />
-                    </button>
-                  </TooltipTrigger>
-                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#faf9fb] shadow-2xl border-violet-200 text-slate-700 z-50">
-                      <div className="space-y-3">
-                        <p className="font-bold border-b pb-1 text-violet-700">圖表計算說明：</p>
-                        <ul className="text-xs space-y-2 list-disc pl-4">
-                          <li>
-                            <b className="text-violet-600">活躍教育關係人數 (長條圖)：</b>
-                            指該日/週/月內有實際進行作答的教育關係人數
-                          </li>
-                          <li>
-                            <b className="text-violet-600">練習總次數 (折線圖)：</b>
-                            完成練習題的累計總量。
-                          </li>
-                        </ul>
-                          <p className="text-[12px] text-slate-400 pt-1 border-t">
-                            ※ 透過此圖可觀察使用參與度與學習投入強度是否隨課程進度波動。
-                          </p>
-                      </div>
-                    </TooltipContent>                    
-                </Tooltip>
-              </TooltipProvider>
+            {/* 右側：按鈕群組 */}
+            <div className="flex items-center gap-1">
+              {/* 圖表說明 Tooltip */}
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button 
+                    className="
+                        flex items-center justify-center
+                        w-8 h-8
+                        rounded-full
+                        text-slate-400
+                        hover:bg-slate-100
+                        hover:text-slate-600
+                        transition
+                        "
+                    >
+                      <HelpCircle className="w-5 h-5" />
+                    </button>
+                  </TooltipTrigger>
+                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#faf9fb] shadow-2xl border-violet-200 text-slate-700 z-50">
+                      <div className="space-y-3">
+                        <p className="font-bold border-b pb-1 text-violet-700">圖表計算說明：</p>
+                        <ul className="text-xs space-y-2 list-disc pl-4">
+                          <li>
+                            <b className="text-violet-600">活躍教育關係人數 (長條圖)：</b>
+                            指該日/週/月內有實際進行作答的教育關係人數
+                          </li>
+                          <li>
+                            <b className="text-violet-600">練習總次數 (折線圖)：</b>
+                            完成練習題的累計總量。
+                          </li>
+                        </ul>
+                          <p className="text-[12px] text-slate-400 pt-1 border-t">
+                            ※ 透過此圖可觀察使用參與度與學習投入強度是否隨課程進度波動。
+                          </p>
+                      </div>
+                    </TooltipContent>                    
+                </Tooltip>
+              </TooltipProvider>
 
-              {/* AI 分析按鈕 */}
+              {/* AI 分析按鈕 */}
+              <button
+                onClick={() => runTeacherAIForChart("practice_trend")}
+                className="
+                  flex items-center justify-center
+                  w-8 h-8
+                  rounded-full
+                  text-violet-500
+                  hover:bg-violet-50
+                  transition
+                "
+              >
+                <Bot className="w-5 h-5" />
+              </button>
+            </div>
+          </CardHeader>
+
+
+          {/* 日 / 週 / 月 切換按鈕 */}
+          <div className="flex items-center gap-1 mr-2 px-8">
+            {["day", "week", "month"].map((mode) => (
               <button
-                onClick={() => runTeacherAIForChart("practice_trend")}
-                className="
-                  flex items-center justify-center
-                  w-8 h-8
-                  rounded-full
-                  text-violet-500
-                  hover:bg-violet-50
-                  transition
-                "
+                key={mode}
+                onClick={() => setViewMode(mode as any)}
+                className={`px-3 py-1 text-xs rounded-md transition
+                  ${viewMode === mode ? "bg-violet-600 text-white shadow" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
               >
-                <Bot className="w-5 h-5" />
+                {mode === "day" ? "日線" : mode === "week" ? "週線" : "月線"}
               </button>
-            </div>
-          </CardHeader>
-
-
-          {/* 日 / 週 / 月 切換按鈕 */}
-            <div className="flex items-center gap-1 mr-2 px-8">
-              {["day", "week", "month"].map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setViewMode(mode as any)}
-                  className={`px-3 py-1 text-xs rounded-md transition
-                    ${
-                      viewMode === mode
-                        ? "bg-violet-600 text-white shadow"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
-                >
-                  {mode === "day" ? "日線" : mode === "week" ? "週線" : "月線"}
-                </button>
-              ))}
-            </div>
+            ))}
+          </div>
             
-
           <CardContent className="h-[350px] w-full">
             <Plot
               data={[
@@ -1430,7 +1003,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
                   x: aggregatedPracTrend.map(t => t.date),
                   y: aggregatedPracTrend.map(t => t.active_students),
                   type: "bar",
-                  name: "活躍教育關係人數",
+                  name: "總練習人數",
                   marker: { color: "rgba(139, 92, 246, 0.3)" },
                   hovertemplate: "活躍教育關係人數：%{y}人<extra></extra>",
                 },
@@ -1449,7 +1022,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
                 autosize: true,
                 margin: { t: 30, l: 40, r:30, b: 50 },
                 xaxis: { type: "category", tickangle: -35, tickfont: { size: 10 } ,color: "#64748b" },
-                yaxis: { title: "活躍教育關係人數", side: "left", showgrid: true, zeroline: true},
+                yaxis: { title: "總練習人數", side: "left", showgrid: true, zeroline: true},
                 yaxis2: { title: "練習總次數", overlaying: "y", side: "right", showgrid: false, zeroline: false },
                 legend: { orientation: "h", y: -0.25 },
                 hovermode: "x unified",
@@ -1463,100 +1036,92 @@ const formatHoverText = (str: string, maxLength = 22) => {
         {/* ===== 學習成效走勢圖 ===== */}
        <Card className="col-span-1 relative">
           {loading && (
-            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
-              <Activity className="animate-spin mr-2 w-4 h-4" />
-              <span className="text-sm text-slate-600">資料分析中...</span>
-            </div>
-          )}
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+              <Activity className="animate-spin mr-2 w-4 h-4" />
+              <span className="text-sm text-slate-600">資料分析中...</span>
+            </div>
+          )}
 
-          <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
-            {/* 左側：標題 */}
-            <CardTitle className="text-xl font-bold ">
-              學習成效走勢
-              <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
+            {/* 左側：標題 */}
+            <CardTitle className="text-xl font-bold ">
+              學習成效走勢
+              <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
+            </CardTitle>
 
-            {/* 右側：按鈕群組 */}
-            <div className="flex items-center gap-1">
-              {/* 圖表說明 Tooltip */}
-              <TooltipProvider delayDuration={100}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="
-                        flex items-center justify-center
-                        w-8 h-8
-                        rounded-full
-                        text-slate-400
-                        hover:bg-slate-100
-                        hover:text-slate-600
-                        transition
-                        "
-                    >
-                      <HelpCircle className="w-5 h-5" />
-                    </button>
-                  </TooltipTrigger>
-                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#faf9fb] shadow-2xl border-violet-200 text-slate-700 z-50">
-                      <div className="space-y-3">
-                        <p className="font-bold border-b pb-1 text-violet-700">圖表計算說明：</p>
-                        <ul className="text-xs space-y-2 list-disc pl-4">
-                          <li>
-                            <b className="text-slate-700 font-bold">平均：</b>
-                            顯示目前在特定單元下的平均正確率走勢，反映整體的理解程度。
-                          </li>
-                          <li>
-                            <b className="text-slate-600 font-bold">總平均：</b>
-                            作為基準線以判斷表現優於或低於整體該科平均。
-                          </li>
-                        </ul>
-                          <p className="text-[12px] text-slate-400 pt-1 border-t">
-                            ※ 透過此圖觀察曲線波動較大時，代表單元難度或教學進度可能有劇烈變化；若低於基準線，則建議進行補救教學。
-                          </p>                       
-                      </div>
-                    </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+            {/* 右側：按鈕群組 */}
+            <div className="flex items-center gap-1">
+              {/* 圖表說明 Tooltip */}
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="
+                        flex items-center justify-center
+                        w-8 h-8
+                        rounded-full
+                        text-slate-400
+                        hover:bg-slate-100
+                        hover:text-slate-600
+                        transition
+                        "
+                    >
+                      <HelpCircle className="w-5 h-5" />
+                    </button>
+                  </TooltipTrigger>
+                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#faf9fb] shadow-2xl border-violet-200 text-slate-700 z-50">
+                      <div className="space-y-3">
+                        <p className="font-bold border-b pb-1 text-violet-700">圖表計算說明：</p>
+                        <ul className="text-xs space-y-2 list-disc pl-4">
+                          <li>
+                            <b className="text-slate-700 font-bold">平均：</b>
+                            顯示目前在特定單元下的平均正確率走勢，反映整體的理解程度。
+                          </li>
+                          <li>
+                            <b className="text-slate-600 font-bold">總平均：</b>
+                            作為基準線以判斷表現優於或低於整體該科平均。
+                          </li>
+                        </ul>
+                          <p className="text-[12px] text-slate-400 pt-1 border-t">
+                            ※ 透過此圖觀察曲線波動較大時，代表單元難度或教學進度可能有劇烈變化；若低於基準線，則建議進行補救教學。
+                          </p>                       
+                      </div>
+                    </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
-              {/* AI 分析按鈕 */}
-              <button
-                onClick={() => runTeacherAIForChart("performance_trend")}
-                className="
-                  flex items-center justify-center
-                  w-8 h-8
-                  rounded-full
-                  text-violet-500
-                  hover:bg-violet-50
-                  transition
-                "
-              >
-                <Bot className="w-5 h-5" />
-              </button>
-            </div>
-          </CardHeader>
+              {/* AI 分析按鈕 */}
+              <button
+                onClick={() => runTeacherAIForChart("performance_trend")}
+                className="
+                  flex items-center justify-center
+                  w-8 h-8
+                  rounded-full
+                  text-violet-500
+                  hover:bg-violet-50
+                  transition
+                "
+              >
+                <Bot className="w-5 h-5" />
+              </button>
+            </div>
+          </CardHeader>
 
-          
-          {/* 日 / 週 / 月 切換按鈕 */}
           <div className="flex items-center gap-1 mr-2 px-8">
             {["day", "week", "month"].map((mode) => (
               <button
                 key={mode}
                 onClick={() => setViewMode(mode as any)}
                 className={`px-3 py-1 text-xs rounded-md transition
-                  ${
-                    viewMode === mode
-                      ? "bg-violet-600 text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
+                  ${viewMode === mode ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
               >
                 {mode === "day" ? "日線" : mode === "week" ? "週線" : "月線"}
               </button>
             ))}
           </div>
           
-
           <CardContent className="h-[350px] w-full">
             <Plot
               data={[
-                // 趨勢線：當前時間區間的平均正確率
                 {
                   x: aggregatedScoreTrend.map((d) => d.date),
                   y: aggregatedScoreTrend.map((d) => d.avgScore),
@@ -1564,42 +1129,20 @@ const formatHoverText = (str: string, maxLength = 22) => {
                   mode: "lines+markers",
                   name: "當前期間平均",
                   line: { color: "#7c3aed", width: 3, shape: 'spline' }, 
-                  hovertemplate: "平均正確率：%{y:.1f}%<extra></extra>",
-                },
-                // 動態基準線：kpi.avgScore (該篩選條件下的全局平均)
-                {
-                  x: aggregatedScoreTrend.map((d) => d.date),
-                  y: aggregatedScoreTrend.map(() => kpi.avgScore),
-                  type: "scatter",
-                  mode: "lines",
-                  name: `總平均 (${kpi.avgScore.toFixed(1)}%)`,
-                  line: {
-                    color: "#f05555",
-                    width: 3,
-                    dash: "dash",
-                  },
-                  hoverinfo: "skip", 
-                },
+                  hovertemplate: "答對率：%{y:.1f}%<extra></extra>",
+                }
               ]}
               layout={{
-                height: 350,
-                margin: { t: 30, l: 50, r: 40, b: 50 },
+                autosize: true,
+                margin: { t: 30, l: 50, r: 30, b: 80 },
                 xaxis: {
                   title: viewMode === "day" ? "日期" : viewMode === "week" ? "週起始日" : "月份",
-                  type: "category",
-                  tickangle: -45,
-                  tickfont: { size: 10, color: "#64748b" },
+                  type: "category", tickangle: -45, tickfont: { size: 10, color: "#64748b" },
                 },
                 yaxis: {
-                  title: "平均答題正確率 (%)",
-                  range: [0, 105],
-                  ticksuffix: "%",
-                  gridcolor: "#f1f5f9",
+                  title: "平均答對率 (%)", range: [0, 105], ticksuffix: "%", gridcolor: "#f1f5f9",
                 },
-                legend: {
-                  orientation: "h",
-                  y: -0.3,
-                },
+                legend: { orientation: "h", y: -0.3 },
                 hovermode: "x unified",
               }}
               style={{ width: "100%", height: "100%" }}
@@ -1611,166 +1154,8 @@ const formatHoverText = (str: string, maxLength = 22) => {
 
 
       <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
-        {/* 能力指標精熟度診斷 */}
-        <Card className="col-span-1 shadow-sm relative overflow-hidden" ref={proficiencyCardRef}>
-          {loading && (
-            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
-              <Activity className="animate-spin mr-2 w-4 h-4" />
-              <span className="text-sm text-slate-600">資料分析中...</span>
-            </div>
-          )}
-          
-          <CardHeader className="flex flex-row items-center justify-between py-4 pb-2">
-            {/* 左側：標題 */}
-            <CardTitle className="text-xl font-bold text-slate-700">
-              能力指標精熟度
-              <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
-            </CardTitle>
-
-            {/* 右側：按鈕群組 */}
-            <div className="flex items-center gap-1">
-              {/* 圖表說明 Tooltip：重新改寫 */}
-              <TooltipProvider delayDuration={100}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 transition">
-                      <HelpCircle className="w-5 h-5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#faf9fb] shadow-2xl border-violet-200 text-slate-700 z-50">
-                    <div className="space-y-3">
-                      <p className="font-bold border-b pb-1 text-violet-700"> 表格計算說明：</p>
-                      <ul className="text-xs space-y-2 list-disc pl-4">
-                        <li>
-                          <b className="text-slate-700 font-bold">未精熟 (紅色 0-59%)：</b>
-                          代表對該指標理解薄弱，建議立即進行補救教學。
-                        </li>
-                        <li>
-                          <b className="text-slate-700 font-bold"> (黃色 60-99%)：</b>
-                          已具備基本認知，但穩定度不足，建議增加進階練習。
-                        </li>
-                        <li>
-                          <b className="text-slate-700 font-bold">已精熟 (紫色 100%)：</b>
-                          完全掌握該指標內容，可進行下一階段教學。
-                        </li>
-                      </ul>
-                      <p className="text-[12px] text-slate-400 pt-1 border-t">
-                        ※ 數據採用加權正確率計算，反映出真實學習狀態。
-                      </p>
-                    </div>
-                  </TooltipContent>                    
-                </Tooltip>
-              </TooltipProvider>
-
-              {/* AI 分析按鈕 */}
-              <button
-                onClick={() => runTeacherAIForChart("proficiency")}
-                className="
-                  flex items-center justify-center
-                  w-8 h-8
-                  rounded-full
-                  text-violet-500
-                  hover:bg-violet-50
-                  transition
-                "
-              >
-                <Bot className="w-5 h-5" />
-              </button>
-            </div>
-          </CardHeader>
-
-          {/* 過濾按鈕群組：提高並優化間距 */}
-          <div className="flex flex-wrap gap-2 px-6 py-2 bg-slate-50/50 border-slate-100">
-            <button 
-              onClick={() => setFilterStatus('all')}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${filterStatus === 'all' ? 'bg-slate-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
-            >
-              全部指標 ({proficiencyList.length})
-            </button>
-            <button 
-              onClick={() => setFilterStatus('unmastered')}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm flex items-center gap-1 ${filterStatus === 'unmastered' ? 'bg-rose-500 text-white' : 'bg-white text-rose-500 border border-rose-200 hover:bg-rose-50'}`}
-            >
-              未精熟 ({counts.unmastered})
-            </button>
-            <button 
-              onClick={() => setFilterStatus('mastered')}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm flex items-center gap-1 ${filterStatus === 'mastered' ? 'bg-violet-600 text-white' : 'bg-white text-violet-600 border border-violet-200 hover:bg-violet-50'}`}
-            >
-              已精熟 ({counts.mastered})
-            </button>
-          </div>
-
-          <CardContent className="p-0">
-            <div className="max-h-[350px] overflow-y-auto">
-              <table className="w-full text-left border-collapse">
-                <thead className="sticky top-0 bg-white/95 backdrop-blur-sm shadow-sm z-10">
-                  <tr className="text-xs text-slate-500 border-b">
-                    <th className="p-2 font-bold w-40 text-center">能力指標</th>
-                    <th className="p-2 font-bold">單元精熟進度</th>
-                    <th className="p-2 font-bold w-40 text-center">狀態</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {filteredDisplayList.map((item) => {
-                    let barColor = "bg-violet-300"; 
-                    if (item.score < 60) barColor = "bg-rose-300"; 
-                    else if (item.score < 100) barColor = "bg-amber-300"; 
-
-                    return (
-                      <tr key={item.indicator} className="hover:bg-slate-50/80 transition-colors group cursor-pointer">
-                        <td className="p-4 text-sm font-mono font-bold text-slate-600 text-center">
-                          {item.indicator}
-                        </td>
-                        
-                        <td className="p-3">
-                          <div className="flex flex-col">
-                            <div className="w-full bg-slate-100 rounded-full h-5 relative border border-slate-200 shadow-inner overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full transition-all duration-700 flex items-center justify-center ${barColor}`}
-                                style={{ width: `${item.score}%` }}
-                              >
-                                <span className="text-[10px] font-black text-slate-800">
-                                  {item.score}%
-                                </span>
-                              </div>
-                            </div>
-                            <span className="text-[11px] text-slate-400 font-medium truncate w-full pl-1">
-                              {item.fullName}
-                            </span>
-                          </div>
-                        </td>
-
-                        <td className="p-3 text-center">
-                          {item.score < 60 ? (
-                            <span className="px-2 py-1 text-[11px] rounded border font-bold bg-rose-50 text-rose-600 border-rose-100">
-                              未精熟
-                            </span>
-                          ) : item.score < 100 ? (
-                            <span className="px-2 py-1 text-[11px] rounded border font-bold bg-amber-50 text-amber-600 border-amber-100">
-                              基礎
-                            </span>
-                          ) : (
-                            <span className="px-2 py-1 bg-violet-50 text-violet-600 text-[11px] rounded border border-violet-100 font-bold whitespace-nowrap">
-                              已精熟
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      
-
-      <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
           {/* 待關注教育關係人名單 */}
-          <Card className="col-span-1 shadow-sm relative overflow-hidden"  ref={riskCardRef}>
+          <Card className="col-span-1 relative overflow-hidden border-slate-200 shadow-sm"  ref={riskCardRef}>
             {loading && (
               <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
                 <Activity className="animate-spin mr-2 w-4 h-4" />
@@ -1779,15 +1164,13 @@ const formatHoverText = (str: string, maxLength = 22) => {
             )}
           
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-2">
-            {/* 左側：標題 */}
-            <CardTitle className="text-xl font-bold text-slate-700">
+            <CardTitle className="text-xl font-bold text-slate-800">
               高風險教育關係人與弱點指標 <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
               
-              {isRiskOnly && <span className="px-2 text-xs font-normal bg-rose-500 text-white">（已過濾未精熟名單）</span>}
             </CardTitle>
               
-              {/* Tooltip 說明 */}
               <div className="flex items-center gap-1">
+               {/* Tooltip 說明保留不變 */}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1797,32 +1180,15 @@ const formatHoverText = (str: string, maxLength = 22) => {
                       <div className="space-y-3">
                         <p className="font-bold border-b pb-1 text-violet-700"> 表格計算說明：</p>
                         <ul className="text-xs space-y-2 list-disc pl-4">
-                          <li>
-                            <b className="text-slate-700 font-bold">未精熟指標：</b>
-                            指正確率未達及格標準之能力單元。
-                          </li>
-                          <li>
-                            <b className="text-slate-700 font-bold"> 風險比例：</b>
-                            未精熟指標佔該教育關係人總作答指標之比例。
-                          </li>                       
+                          <li><b className="text-slate-700 font-bold">未精熟指標：</b>指正確率未達及格標準之能力單元。</li>
+                          <li><b className="text-slate-700 font-bold">風險比例：</b>未精熟指標佔該教育關係人總作答指標之比例。</li>                       
                         </ul>                       
                       </div>
                     </TooltipContent> 
                 </Tooltip>
               </TooltipProvider>
 
-                {/* AI 分析按鈕 */}
-                <button
-                  onClick={() => runTeacherAIForChart("proficiency")}
-                  className="
-                    flex items-center justify-center
-                    w-8 h-8
-                    rounded-full
-                    text-violet-500
-                    hover:bg-violet-50
-                    transition
-                  "
-                >
+                <button onClick={() => runTeacherAIForChart("student_risk")} className="flex items-center justify-center w-8 h-8 rounded-full text-violet-500 hover:bg-violet-50 transition">
                   <Bot className="w-5 h-5" />
                 </button>
               </div>
@@ -1833,51 +1199,60 @@ const formatHoverText = (str: string, maxLength = 22) => {
                 <table className="w-full text-left border-collapse">
                   <thead className="sticky top-0 bg-slate-50 z-10">
                     <tr className="text-xs text-slate-500 border-b">
-                      <th className="p-3 px-8 w-40">教育關係人 ID</th>
+                      <th className="p-3 px-8 w-40">學生 ID</th>
                       <th className="p-3 w-40">未精熟指標數</th>
                       <th className="p-3 w-60">風險比例</th>
                       <th className="p-3 w-40 text-center">狀態</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {studentRiskRanking.map((student) => (
-                      <tr key={student.userId} className="hover:bg-slate-50 transition group">
-                        <td className="px-8 py-3 text-sm">{student.userId}</td>
-                        <td className="px-4 py-3">
-                          {/* 滑鼠移動顯示名稱 */}
-                          <TooltipProvider delayDuration={0}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="text-rose-600 font-bold border-b border-rose-200 cursor-help">
-                                  {student.unmasteredCount}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="right" className="bg-rose-100 shadow-2xl border-rose-300 text-slate-800">
-                                <p className="text-sm font-bold mb-1">待加強指標：</p>
-                                <p className="text-[11px] leading-relaxed whitespace-pre-line max-w-[200px]">
-                                  {student.unmasteredNames || "無"}
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </td>
-                        <td className="px-2 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className="flex-1 bg-slate-100 rounded-full h-2 min-w-[80px]">
-                              <div className="bg-rose-500 h-2 rounded-full transition-all duration-500" style={{ width: `${student.riskScore}%` }} />
+                    {studentRiskRanking.length > 0 ? (
+                      studentRiskRanking.map((student) => (
+                        <tr key={student.userId} className="hover:bg-slate-50 transition group">
+                          {/* ... (你原本的 td 內容完全不用動，維持原樣) ... */}
+                          <td className="px-8 py-3 text-sm font-medium text-slate-700">{student.userId}</td>
+                          <td className="px-4 py-3">
+                            <TooltipProvider delayDuration={0}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-rose-600 font-bold border-b border-rose-200 cursor-help">
+                                    {student.unmasteredCount}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="bg-rose-50 shadow-2xl border-rose-200 text-slate-800">
+                                  <p className="text-sm font-bold mb-1">待加強指標：</p>
+                                  <p className="text-[11px] leading-relaxed whitespace-pre-line max-w-[200px]">
+                                    {student.unmasteredNames || "無"}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </td>
+                          <td className="px-2 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1 bg-slate-100 rounded-full h-2 min-w-[80px]">
+                                <div className="bg-rose-500 h-2 rounded-full transition-all duration-500" style={{ width: `${student.riskScore}%` }} />
+                              </div>
+                                <span className="text-xs font-medium text-slate-500 w-10">
+                                {student.riskScore.toFixed(0)}%
+                              </span>
                             </div>
-                              <span className="text-xs font-medium text-slate-500 w-10">
-                              {student.riskScore.toFixed(0)}%
+                          </td>
+                          <td className="px-4 p-3 text-center">
+                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${student.riskScore > 70 ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>
+                              {student.riskScore > 70 ? "高度風險" : "中度觀察"}
                             </span>
-                          </div>
-                        </td>
-                        <td className="px-4 p-3 text-center">
-                          <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${student.riskScore > 70 ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>
-                            {student.riskScore > 70 ? "高度風險" : "中度觀察"}
-                          </span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                    
+                      <tr>
+                        <td colSpan={4} className="px-4 py-12 text-center text-sm text-slate-500 bg-slate-50/50">
+                          目前無待關注之高風險名單，或尚無作答數據
                         </td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1887,4 +1262,3 @@ const formatHoverText = (str: string, maxLength = 22) => {
     </div>
   );
 }
-

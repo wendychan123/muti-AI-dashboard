@@ -55,7 +55,6 @@ export default function TeacherAIPanel({
     { id: "participation", label: "作答參與度" },
     { id: "practice_trend", label: "練習投入走勢" },
     { id: "performance_trend", label: "學習成效走勢" },
-    { id: "proficiency", label: "能力指標精熟度" },
     { id: "student_risk", label: "高風險學生與弱點指標" },
   ];
 

@@ -5,8 +5,8 @@ export type PolicyExplainTarget =
   | "gap_trend"          // 平均差距走勢 (面積圖)
   | "practice_trend"     // 練習投入走勢 (柱線雙軸)
   | "effect_trend"       // 學習成效走勢 (折線圖)
-  | "scissors_gap"       // 雙峰與剪刀差分析 (雙軸趨勢)
-  | "school_matrix";     // 教育平權檢視矩陣 (散佈圖)
+  | "scissors_gap"       // 校際差距走勢 (雙軸趨勢)
+  | "school_matrix";     // 學校落點 (散佈圖)
 
 // 供介面與 Prompt 使用的圖表顯示名稱
 const POLICY_CHART_LABEL_MAP: Record<PolicyExplainTarget, string> = {

@@ -4,7 +4,6 @@ export type TeacherPracChartTarget =
   | "participation"      // 作答參與度
   | "practice_trend"     // 練習投入走勢
   | "performance_trend"  // 學習成效走勢
-  | "proficiency"        // 能力指標精熟度
   | "student_risk";      // 待關注學生
 
 const TEACHER_CHART_LABEL_MAP: Record<TeacherPracChartTarget, string> = {
@@ -13,7 +12,6 @@ const TEACHER_CHART_LABEL_MAP: Record<TeacherPracChartTarget, string> = {
   participation: "作答參與度",
   practice_trend: "練習投入走勢",
   performance_trend: "學習成效走勢",
-  proficiency: "能力指標精熟度",
   student_risk: "高風險學生與弱點指標",
 };
 
