@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react"; 
+import { useOutletContext } from "react-router-dom";
 import Plot from "react-plotly.js";
 import { supabase } from "@/lib/supabase";
 import dayjs from "dayjs";
@@ -24,10 +25,17 @@ interface CityTrendRow {
   school_score_std: number;
 }
 
+interface CityContext {
+  selectedCity: string;
+  setSelectedCity: (city: string) => void;
+}
+
 type SchoolRow = {
   organization_id: string;
   city: string;
   total_students: number;
+  total_prac_count: number;
+  avg_score_rate: number;
 };
 
 type KPI = {
@@ -48,7 +56,9 @@ type PolicyExplainTarget =
   | "regional_gap"
   | "gap_trend"
   | "practice_trend"
-  | "effect_trend";
+  | "effect_trend"
+  | "scissors_gap"      
+  | "school_matrix";    
 
 
 export default function PolicyPrac() {
@@ -61,10 +71,13 @@ export default function PolicyPrac() {
   /* =========================
      篩選狀態
   ========================= */
-  const [selectedCity, setSelectedCity] = useState<string>(ALL_CITY);
+  const { selectedCity, setSelectedCity } = useOutletContext<CityContext>();
   const [selectedSubject, setSelectedSubject] = useState<string>(ALL_SUBJECT);
   const [startDate, setStartDate] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string | null>(null);
+
+  const scissorsGapRef = useRef<HTMLDivElement>(null);
+  
  
 
   /* =========================
@@ -80,7 +93,9 @@ export default function PolicyPrac() {
      圖表資料
   ========================= */
   const [trend, setTrend] = useState<CityTrendRow[]>([]);
+  const [allCitiesTrend, setAllCitiesTrend] = useState<CityTrendRow[]>([]); 
   const [baselineTrend, setBaselineTrend] = useState<CityTrendRow[]>([]); 
+  const [schoolData, setSchoolData] = useState<SchoolRow[]>([]); 
   const [viewMode, setViewMode] = useState<"day" | "week" | "month">("day");
   const [loading, setLoading] = useState(false);
 
@@ -196,7 +211,7 @@ export default function PolicyPrac() {
 
 
   /* =========================
-     查詢：目前條件 + baseline（全部縣市同區間）
+     查詢：目前條件 + baseline + 全縣市 + 學校層級
   ========================= */
   useEffect(() => {
     const loadTrend = async () => {
@@ -205,21 +220,12 @@ export default function PolicyPrac() {
       setLoading(true);
 
       try {
-        // =============================
-        // 決定查詢資料表
-        // =============================
         const isAllSubject = selectedSubject === ALL_SUBJECT;
-
-        const currentTable = isAllSubject
-          ? "city_trend_daily"
-          : "city_subject_trend_daily";
-
-        const baselineTable = isAllSubject
-          ? "city_trend_daily"
-          : "subject_trend_daily";
+        const currentTable = isAllSubject ? "city_trend_daily" : "city_subject_trend_daily";
+        const baselineTable = isAllSubject ? "city_trend_daily" : "subject_trend_daily";
 
         // =============================
-        // 查詢目前條件資料
+        // 1. 查詢目前條件資料 (受縣市過濾影響，供 KPI 與趨勢圖使用)
         // =============================
         let q = supabase
           .from(currentTable)
@@ -235,14 +241,28 @@ export default function PolicyPrac() {
           q = q.eq("subject_name", selectedSubject);
         }
 
-        const { data: currentData } = await q.order("activity_date", {
-          ascending: true,
-        });
-
+        const { data: currentData } = await q.order("activity_date", { ascending: true });
         setTrend(currentData ?? []);
 
         // =============================
-        // baseline 永遠是全部縣市
+        // 查詢「全縣市」資料 (不受縣市過濾影響，供四象限圖與差距排名圖使用)
+        // =============================
+        let allCitiesQ = supabase
+          .from(currentTable)
+          .select("*")
+          .gte("activity_date", startDate)
+          .lte("activity_date", endDate);
+
+        if (!isAllSubject) {
+          allCitiesQ = allCitiesQ.eq("subject_name", selectedSubject);
+        }
+        
+        const { data: allCitiesData } = await allCitiesQ.order("activity_date", { ascending: true });
+        setAllCitiesTrend(allCitiesData ?? []);
+
+
+        // =============================
+        // 3. baseline 永遠是全部縣市 (不分縣市維度)
         // =============================
         let baseQuery = supabase
           .from(baselineTable)
@@ -254,12 +274,24 @@ export default function PolicyPrac() {
           baseQuery = baseQuery.eq("subject_name", selectedSubject);
         }
 
-        const { data: baseData } = await baseQuery.order(
-          "activity_date",
-          { ascending: true }
-        );
-
+        const { data: baseData } = await baseQuery.order("activity_date", { ascending: true });
         setBaselineTrend(baseData ?? []);
+
+
+        // =============================
+        // 4. 查詢學校層級資料
+        // =============================
+        let schoolQ = supabase
+          .from("school_summary")
+          .select("organization_id, city, total_students, total_prac_count, avg_score_rate");
+        
+        if (selectedCity !== ALL_CITY) {
+          schoolQ = schoolQ.eq("city", selectedCity);
+        }
+        
+        const { data: sData } = await schoolQ;
+        setSchoolData(sData ?? []);
+
       } finally {
         setLoading(false);
       }
@@ -295,7 +327,6 @@ export default function PolicyPrac() {
 
     setSubjectList([ALL_SUBJECT, ...uniqSubjects]);
 
-    // 如果目前選的科目不在新清單裡 → 重置
     if (
       selectedSubject !== ALL_SUBJECT &&
       !uniqSubjects.includes(selectedSubject)
@@ -330,27 +361,20 @@ export default function PolicyPrac() {
       ? totalPrac / totalStudentsBySelection
       : 0;
 
-  // ===== 校際差距邏輯 (加權修正版) =====
-  let schoolStd: number = NaN; // 預設改為 NaN
+  let schoolStd: number = NaN; 
 
-  // 情境 1：全部科目 → 處理 trend 數據 (加權標準差)
   if (selectedSubject === ALL_SUBJECT) {
-    // 過濾有效資料：必須有分數且作答量 > 0
     const validRows = cityRows.filter(
       (r) => r.school_score_std != null && (r.total_prac_count || 0) > 0
     );
 
-    // 嚴謹判斷：必須有 2 間以上學校才有「差距」可言
     if (validRows.length > 1) {
-      // A. 計算加權平均值 (作為基準線)
       const totalWeight = _.sumBy(validRows, "total_prac_count");
       const weightedSum = validRows.reduce(
         (acc, r) => acc + (r.school_score_std * r.total_prac_count), 0
       );
       const weightedMean = weightedSum / totalWeight;
 
-      // B. 計算加權變異數與標準差
-      // Σ [wi * (xi - x_weighted)^2] / Σ wi
       const weightedVarianceNumerator = validRows.reduce((acc, r) => {
         const diff = r.school_score_std - weightedMean;
         return acc + (r.total_prac_count * (diff * diff));
@@ -358,26 +382,20 @@ export default function PolicyPrac() {
 
       schoolStd = Math.sqrt(weightedVarianceNumerator / totalWeight);
     } else {
-      // 只有一間學校或沒有資料，設為 NaN
       schoolStd = NaN;
     }
   } 
-
-  // 情境 2：單一科目 → 從預計算表中取得
   else {
     const row = citySubjectSummary.find(
       (r) => r.city === selectedCity && r.subject_name === selectedSubject
     );
-    
-    // 同樣的邏輯：如果該科目在該市只有一間學校參與，建議資料庫端或此處也導向 NaN
-    // 這裡我們暫時判斷 row 是否存在，若存在且只有單校資料可視情況設為 NaN
     schoolStd = row?.school_score_std ?? NaN;
   }
 
   return {
     total_students: totalStudentsBySelection,
-    avg_score_rate: avgScore, // 確保 avgScore 已定義
-    avg_prac_per_student: avgPracPerStudent, // 確保已定義
+    avg_score_rate: avgScore, 
+    avg_prac_per_student: avgPracPerStudent, 
     school_score_std: schoolStd, 
   };
 }, [
@@ -456,43 +474,11 @@ export default function PolicyPrac() {
     return { current: kpiCurrent, baseline: kpiBaseline };
   }, [kpiCurrent, kpiBaseline]);
 
-  /* =========================
-     工具：箭頭 ↑↓→ + 差值
-  ========================= */
   const compareArrow = (current: number, baseline: number, eps = 1e-9) => {
     const diff = current - baseline;
     if (Math.abs(diff) <= eps) return { arrow: "→", diff, cls: "text-slate-500" };
     if (diff > 0) return { arrow: "↑", diff, cls: "text-emerald-600" };
     return { arrow: "↓", diff, cls: "text-rose-600" };
-  };
-
-  /* =========================
-     趨勢變動判斷 
-     - 提高 (current > base)：綠色 (Success)
-     - 降低 (current < base)：紅色 (Warning)
-     - 持平 (current == base)：不改色 (預設灰/白)
-  ========================= */
-
-  // 1. 正確率趨勢：
-  const trafficLightForRate = (current: number, base: number) => {
-    if (current > base) return "bg-emerald-50 border-emerald-200 ";
-    if (current < base) return "bg-rose-50 border-rose-200 ";
-    return "bg-slate-50 border-slate-200 text-slate-600"; 
-  };
-
-  // 2. 人均練習趨勢
-  const trafficLightForPrac = (current: number, base: number) => {
-    if (current > base) return "bg-emerald-50 border-emerald-200 ";
-    if (current < base) return "bg-rose-50 border-rose-200 ";
-    return "bg-slate-50 border-slate-200 ";
-  };
-
-  // 3. 校際差距趨勢 (差距越小 = 表現越均衡 = 綠色)
-  const trafficLightForGap = (current: number, base: number) => {
-    // 截圖中 1.74 < 2.42，代表差距在縮小，應為綠色
-    if (current < base) return "bg-emerald-50 border-emerald-200 "; 
-    if (current > base) return "bg-rose-50 border-rose-200 ";          
-    return "bg-slate-50 border-slate-200 ";
   };
 
   /* =========================
@@ -548,7 +534,7 @@ export default function PolicyPrac() {
 }, [trend, viewMode]);
 
 /* =========================
-     只顯示共同有日期資料
+     只顯示共同有日期資料 (並將 std 提取出來，供剪刀差圖表使用)
   ========================= */
   const commonDates = useMemo(() => {
   const cityDates = new Set(
@@ -572,33 +558,46 @@ const alignedCommonData = useMemo(() => {
   const cityMap = new Map(
     trend.map((t) => [
       dayjs(t.activity_date).format("YYYY-MM-DD"),
-      t.avg_score_rate,
+      { score: t.avg_score_rate, std: t.school_score_std },
     ])
   );
 
   const baseMap = new Map(
     baselineTrend.map((t) => [
       dayjs(t.activity_date).format("YYYY-MM-DD"),
-      t.avg_score_rate,
+      { score: t.avg_score_rate, std: t.school_score_std },
     ])
   );
 
   return commonDates.map((date) => ({
     date,
-    city: cityMap.get(date) ?? null,
-    base: baseMap.get(date) ?? null,
+    city: cityMap.get(date)?.score ?? null,
+    cityStd: cityMap.get(date)?.std ?? null,
+    base: baseMap.get(date)?.score ?? null,
+    baseStd: baseMap.get(date)?.std ?? null,
   }));
 }, [commonDates, trend, baselineTrend]);
 
 /* =========================
-     日 / 週 / 月聚合資料（學習成效）
+     日 / 週 / 月聚合資料
+  ========================= */
+/* =========================
+     日 / 週 / 月聚合資料
   ========================= */
 const aggregatedScoreTrend = useMemo(() => {
   if (viewMode === "day") return alignedCommonData;
 
   const map = new Map<
     string,
-    { citySum: number; baseSum: number; count: number }
+    { 
+      citySum: number; 
+      baseSum: number; 
+      cityStdSum: number; 
+      stdCount: number; 
+      baseStdSum: number;   
+      baseStdCount: number; 
+      count: number; 
+    }
   >();
 
   alignedCommonData.forEach((d) => {
@@ -611,6 +610,10 @@ const aggregatedScoreTrend = useMemo(() => {
       map.set(key, {
         citySum: 0,
         baseSum: 0,
+        cityStdSum: 0,
+        stdCount: 0,
+        baseStdSum: 0,     
+        baseStdCount: 0,  
         count: 0,
       });
     }
@@ -619,17 +622,30 @@ const aggregatedScoreTrend = useMemo(() => {
     obj.citySum += d.city ?? 0;
     obj.baseSum += d.base ?? 0;
     obj.count += 1;
+    
+    // 累加本區標準差
+    if (d.cityStd != null) {
+      obj.cityStdSum += d.cityStd;
+      obj.stdCount += 1;
+    }
+
+    if (d.baseStd != null) {
+      obj.baseStdSum += d.baseStd;
+      obj.baseStdCount += 1;
+    }
   });
 
   return Array.from(map.entries()).map(([date, v]) => ({
     date,
     city: v.citySum / v.count,
     base: v.baseSum / v.count,
-  }));
+    cityStd: v.stdCount > 0 ? v.cityStdSum / v.stdCount : null,
+    baseStd: v.baseStdCount > 0 ? v.baseStdSum / v.baseStdCount : null, // 計算出平均並放進物件中
+  })).sort((a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf());
 }, [alignedCommonData, viewMode]);
 
 /* =========================
-     縣市KPI資料（四象限圖）
+     縣市KPI資料（改使用 allCitiesTrend 計算，供跨縣市比較圖表使用）
   ========================= */
 const cityKPIData = useMemo(() => {
   const map = new Map<
@@ -637,7 +653,8 @@ const cityKPIData = useMemo(() => {
     { totalPrac: number; totalStudents: number; totalScore: number; count: number }
   >();
 
-  trend.forEach((row) => {
+  //  allCitiesTrend這樣即使選了單一縣市，也能保留其他縣市用來畫灰色背景列
+  allCitiesTrend.forEach((row) => {
     const city = row.city;
     if (!map.has(city)) {
       map.set(city, {
@@ -659,7 +676,35 @@ const cityKPIData = useMemo(() => {
     avg_score: v.totalScore / v.count,
     avg_prac: v.totalPrac / (citySummary.find(c => c.city === city)?.total_students ?? 1),
   }));
-}, [trend, citySummary]);
+}, [allCitiesTrend, citySummary]);
+
+/* =========================
+     學校層次散佈圖
+  ========================= */
+const schoolMatrixData = useMemo(() => {
+  if (!schoolData || schoolData.length === 0) return [];
+  
+  const validData = schoolData.filter(s => s.total_students > 0);
+  const groupedSchools = _.groupBy(validData, 'organization_id');
+
+  const mergedData = Object.entries(groupedSchools).map(([org_id, group]) => {
+    const rows = group as SchoolRow[]; 
+    const city = rows[0].city;
+    const students = Math.max(...rows.map(r => r.total_students));
+    const totalPrac = rows.reduce((sum, r) => sum + (r.total_prac_count || 0), 0);
+    const avgScore = rows.reduce((sum, r) => sum + (r.avg_score_rate || 0), 0) / rows.length;
+
+    return {
+      organization_id: org_id,
+      city: city,
+      avg_prac: totalPrac / students, 
+      avg_score: avgScore,            
+      size: Math.sqrt(students) * 3.5 
+    };
+  });
+
+  return mergedData;
+}, [schoolData]);
 
 /* =========================
      本縣市 − 全部縣市平均（差距趨勢）
@@ -762,10 +807,12 @@ const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
   gap_trend: "平均差距走勢",
   practice_trend: "練習投入走勢",
   effect_trend: "學習成效走勢",
+  scissors_gap: "校際差距走勢",
+  school_matrix: "學校落點"
 };
 
 /* =========================
-   監聽多圖整合分析（型別安全版本）
+   監聽多圖整合分析
 ========================= */
 useEffect(() => {
   const handler = async (e: Event) => {
@@ -803,7 +850,6 @@ useEffect(() => {
       },
     });
 
-    // 🔹 發送 loading
     window.dispatchEvent(
       new CustomEvent("policy-ai-update", {
         detail: {
@@ -825,7 +871,6 @@ useEffect(() => {
 
       const data = await res.json();
 
-      // 🔹 發送完成
       window.dispatchEvent(
         new CustomEvent("policy-ai-update", {
           detail: {
@@ -865,9 +910,6 @@ useEffect(() => {
 ]);
 
 
-
-
-
   /* =========================
      Render
   ========================= */
@@ -880,7 +922,6 @@ useEffect(() => {
             <Filter className="w-5 h-5"/>
           </div>
 
-        {/* 縣市 */}
         <span className="text-sm">縣市：</span>
         <Select value={selectedCity} onValueChange={setSelectedCity}>
           <SelectTrigger className="w-[120px] bg-white border rounded">
@@ -1044,14 +1085,18 @@ useEffect(() => {
           })()}
 
           {/* KPI 4: 加權校際差距 */}
-          <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
-            <div className="bg-slate-500 text-white text-base font-bold py-2.5 px-3 text-center border-b border-slate-200">
+          <div 
+            className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white cursor-pointer hover:shadow-md hover:border-emerald-500 transition-all duration-300 relative group"
+            onClick={() => scissorsGapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+          >
+            
+
+            <div className="bg-slate-500 group-hover:bg-slate-600 transition-colors text-white text-base font-bold py-2.5 px-3 text-center border-b border-slate-200">
               平均校際差距
             </div>
             <div className="flex-1 flex flex-col items-center justify-center p-4">
               {isNaN(kpiCurrent?.school_score_std) ? (
                 <>
-                  {/* 單一學校顯示狀態 */}
                   <div className="text-3xl font-black tracking-tight text-slate-300">
                     NaN
                   </div>
@@ -1061,7 +1106,6 @@ useEffect(() => {
                 </>
               ) : (
                 <>
-                  {/* 多校比較顯示狀態 */}
                   {(() => {
                     const value = kpiCurrent.school_score_std || 0;
                     let statusColor = "text-emerald-600";
@@ -1083,6 +1127,10 @@ useEffect(() => {
                         <div className="text-[12px] text-slate-400 mt-1">
                           {label} 
                         </div>
+                        {/* 提示文字 */}
+                        <div className="text-[10px] text-emerald-600 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          點擊查看詳細走勢 ↓
+                        </div>
                       </>
                     );
                   })()}
@@ -1097,7 +1145,7 @@ useEffect(() => {
               區塊一（3張圖表）
       ========================= */}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* ===== 圖表 1：政策訂位四象限圖 ===== */}
         <Card className="col-span-1 relative">
@@ -1111,27 +1159,16 @@ useEffect(() => {
           
           
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
-            {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold ">
-              區域學習診斷
+              練習診斷指標
+               <span className="px-2 text-[9px] text-green-600">（ 科目：{selectedSubject} ）</span>
             </CardTitle>
 
-            {/* 右側：按鈕群組 */}
             <div className="flex items-center gap-1">
-              {/* 圖表說明 Tooltip */}
               <TooltipProvider delayDuration={100}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button className="
-                        flex items-center justify-center
-                        w-8 h-8
-                        rounded-full
-                        text-slate-400
-                        hover:bg-slate-100
-                        hover:text-slate-600
-                        transition
-                        "
-                    >
+                    <button className="flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
                       <HelpCircle className="w-5 h-5" />
                     </button>
                   </TooltipTrigger>
@@ -1151,17 +1188,9 @@ useEffect(() => {
                 </Tooltip>
               </TooltipProvider>
 
-              {/* AI 分析按鈕 */}
               <button
                 onClick={() => runPolicyAIForChart("development_index")}
-                className="
-                  flex items-center justify-center
-                  w-8 h-8
-                  rounded-full
-                  text-emerald-500
-                  hover:bg-emerald-50
-                  transition
-                "
+                className="flex items-center justify-center w-8 h-8 rounded-full text-emerald-500 hover:bg-emerald-50 transition"
               >
                 <Bot className="w-5 h-5" />
               </button>
@@ -1178,102 +1207,87 @@ useEffect(() => {
                     textposition: "top center",
                     
                     hovertemplate: 
+                      "<b>%{text}</b><br>" + 
                       "人均練習次數: %{x:.1f} 次<br>" + 
                       "平均答題正確率: %{y:.1f}%<br>" +
                       "<extra></extra>",
                     
                     marker: {
-                          size: 16,
-                          color: "rgba(0, 0, 0, 0.47)",
+                          size: 16,                          
+                          color: cityKPIData.map(d => 
+                            selectedCity === "全部縣市" || d.city === selectedCity 
+                              ? "rgba(0, 0, 0, 0.6)" 
+                              : "rgba(0, 0, 0, 0.1)"
+                          ),
                           line: {
-                            color: "#f4f800ff",
+                            color: cityKPIData.map(d => 
+                              selectedCity === "全部縣市" || d.city === selectedCity 
+                                ? "#f4f800ff" 
+                                : "transparent"
+                            ),
                             width: 4,
                           },
                     },
                     
-                    hoverlabel: {
-                      bgcolor: "rgba(0, 0, 0, 0.63)",  // 懸停框背景色
-                      font: { color: "#fff" },    // 懸停框文字顏色
-                      align: "left",
-                      namelength: -1
-                    }
+                    textfont: {
+                      color: cityKPIData.map(d => 
+                        selectedCity === "全部縣市" || d.city === selectedCity 
+                          ? "#334155" 
+                          : "rgba(100, 116, 139, 0.2)"
+                      ),
+                    },
                   },
                 ]}
                 layout={{
                   height: 260,
-                  margin: { t: 20, r: 50, b: 50, l: 70 }, 
+                  margin: { t: 20, r: 50, b: 20, l: 70 }, 
                   xaxis: {                    
-                    title: {
-                    text: "人均練習次數", // X 軸數值名稱
-                    font: { size: 10, color: '#64748b' },
-                    standoff: 15
-                  },
+                    title: { text: "人均練習次數", font: { size: 10, color: '#64748b' }, standoff: 15 },
                     range: [0, Math.max(...cityKPIData.map(d => d.avg_prac)) * 1.2 || 5], 
                     fixedrange: true,
                   },
                   yaxis: {
-                    title: {
-                    text: "平均答題正確率 (%)", // Y 軸數值名稱
-                    font: { size: 10, color: '#64748b' },
-                    standoff: 15
-                  },
+                    title: { text: `${selectedCity}平均答題正確率 (%)`, font: { size: 10, color: '#64748b' }, standoff: 15 },
                     range: [0, 105], 
                     fixedrange: true,
                   },
                   annotations: [
                     {
-                      x: (kpiBaseline?.avg_prac_per_student || 0) * 1.4,
-                      y: 95,
-                      text: "<b>標竿區</b>",
-                      showarrow: false,
+                      x: (kpiBaseline?.avg_prac_per_student || 0) * 1.4, y: 95,
+                      text: "<b>標竿區</b>", showarrow: false,
                       font: { size: 12, color: "rgba(37, 99, 235, 0.6)" }, 
-                      xref: "x", yref: "y",
-                      layer: "below"
+                      xref: "x", yref: "y", layer: "below"
                     },
                     {
-                      x: (kpiBaseline?.avg_prac_per_student || 0) * 0.3,
-                      y: 95,
-                      text: "<b>潛力區</b>",
-                      showarrow: false,
+                      x: (kpiBaseline?.avg_prac_per_student || 0) * 0.3, y: 95,
+                      text: "<b>潛力區</b>", showarrow: false,
                       font: { size: 12, color: "rgba(22, 163, 74, 0.6)" }, 
-                      xref: "x", yref: "y",
-                      layer: "below"
+                      xref: "x", yref: "y", layer: "below"
                     },
                     {
-                      x: (kpiBaseline?.avg_prac_per_student || 0) * 0.3,
-                      y: 10,
-                      text: "<b>待觀察</b>",
-                      showarrow: false,
+                      x: (kpiBaseline?.avg_prac_per_student || 0) * 0.3, y: 10,
+                      text: "<b>待觀察</b>", showarrow: false,
                       font: { size: 12, color: "rgba(234, 88, 12, 0.6)" }, 
-                      xref: "x", yref: "y",
-                      layer: "below"
+                      xref: "x", yref: "y", layer: "below"
                     },
                     {
-                      x: (kpiBaseline?.avg_prac_per_student || 0) * 1.4,
-                      y: 10,
-                      text: "<b>瓶頸區</b>",
-                      showarrow: false,
+                      x: (kpiBaseline?.avg_prac_per_student || 0) * 1.4, y: 10,
+                      text: "<b>瓶頸區</b>", showarrow: false,
                       font: { size: 12, color: "rgba(220, 38, 38, 0.6)" }, 
-                      xref: "x", yref: "y",
-                      layer: "below"
+                      xref: "x", yref: "y", layer: "below"
                     }
                   ],
-                  // --- 十字基準線 ---
                   shapes: [
                     {
                       type: "line",
-                      x0: kpiBaseline?.avg_prac_per_student ?? 0,
-                      x1: kpiBaseline?.avg_prac_per_student ?? 0,
-                      y0: 0,
-                      y1: 100,
+                      x0: kpiBaseline?.avg_prac_per_student ?? 0, x1: kpiBaseline?.avg_prac_per_student ?? 0,
+                      y0: 0, y1: 100,
                       line: { dash: "dash", color: "gray", width: 1 },
                     },
                     {
                       type: "line",
-                      y0: kpiBaseline?.avg_score_rate ?? 0,
-                      y1: kpiBaseline?.avg_score_rate ?? 0,
-                      x0: 0,
-                      x1: Math.max(...cityKPIData.map(d => d.avg_prac)) * 1.2 || 5,
+                      y0: kpiBaseline?.avg_score_rate ?? 0, y1: kpiBaseline?.avg_score_rate ?? 0,
+                      x0: 0, x1: Math.max(...cityKPIData.map(d => d.avg_prac)) * 1.2 || 5,
                       line: { dash: "dash", color: "gray", width: 1 },
                     },
                   ],
@@ -1282,8 +1296,119 @@ useEffect(() => {
                 config={{ displayModeBar: false, responsive: true }}
               />
         </Card>
+
+        {/* ===== 學校落點散佈圖 ===== */}
+        <Card className="col-span-1 relative">
+          {loading && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+              <Activity className="animate-spin mr-2 w-4 h-4" />
+              <span className="text-sm text-slate-600">資料分析中...</span>
+            </div>
+          )}
+
+          <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
+            <CardTitle className="text-xl font-bold ">
+              學校落點
+               <span className="px-2 text-[9px] text-green-600">（ 科目：{selectedSubject} ）</span>
+            </CardTitle>
+
+            <div className="flex items-center gap-1">              
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
+                      <HelpCircle className="w-5 h-5" />
+                    </button>
+                  </TooltipTrigger>
+                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f4fafb] shadow-xl border-slate-200 text-slate-700 z-50">
+                      <div className="space-y-3">
+                        <p className="font-bold border-b pb-1 text-emerald-700">圖表計算說明：</p>
+                        <ul className="text-xs space-y-2 list-disc pl-4">
+                          <li><b>每個氣泡：</b>代表該縣市內的一所學校，氣泡大小對應學校規模(學生數)。</li>
+                          <li><b>十字基準線：</b>交會點為該區的「平均練習量」與「平均正確率」。</li>
+                        </ul>
+                        <p className="text-[12px] text-slate-400 pt-1 border-t">
+                         - 落在<b>「高投入低成效(右下)」</b>：需提供師資培訓與教學法支援。<br/>
+                          - 落在<b>「低投入低成效(左下)」</b>：需行政力介入與硬體設備盤點。
+                        </p>
+                      </div>
+                    </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <button
+                onClick={() => runPolicyAIForChart("school_matrix")}
+                className="flex items-center justify-center w-8 h-8 rounded-full text-emerald-500 hover:bg-emerald-50 transition"
+              >
+                <Bot className="w-5 h-5" />
+              </button>
+            </div>
+          </CardHeader>
+
+          <CardContent className="h-[300px] w-full pt-6">
+            {schoolMatrixData.length === 0 ? (
+              <div className="h-full w-full flex flex-col items-center justify-center text-slate-400">
+              </div>
+            ) : (
+              <Plot
+                data={[
+                  {
+                    x: schoolMatrixData.map(d => d.avg_prac),
+                    y: schoolMatrixData.map(d => d.avg_score),
+                    text: schoolMatrixData.map(d => d.organization_id),
+                    mode: "markers+text",
+                    type: "scatter",
+                    textposition: "top center", 
+                    textfont: { size: 9, color: "#027d2fff" },
+                    marker: {
+                      size: schoolMatrixData.map(d => d.size),
+                      color: "rgba(22, 163, 74, 0.6)", 
+                      line: { color: "#16a34a", width: 1 },
+                    },
+                    hovertemplate: 
+                      "<b>學校代碼：%{text}</b><br>" +
+                      "人均練習：%{x:.1f} 次<br>" + 
+                      "平均正確率：%{y:.1f}%<br>" +
+                      "<extra></extra>",
+                  },
+                ]}
+                layout={{
+                  height: 260, 
+                  margin: { t: 0, r: 40, b: 50, l: 70 }, 
+                  xaxis: {                    
+                    title: { text: "學校人均練習次數", font: { size: 10, color: '#64748b' }, standoff: 15 },
+                    rangemode: 'tozero',
+                  },
+                  yaxis: {
+                    title: { text: "學校平均正確率 (%)", font: { size: 10, color: '#64748b' }, standoff: 15 },
+                    range: [0, 105], 
+                  },
+                  shapes: [
+                    {
+                      type: "line", x0: kpiCurrent?.avg_prac_per_student ?? 0, x1: kpiCurrent?.avg_prac_per_student ?? 0,
+                      y0: 0, y1: 100, line: { dash: "dash", color: "rgba(0,0,0,0.3)", width: 1.5 },
+                    },
+                    {
+                      type: "line", y0: kpiCurrent?.avg_score_rate ?? 0, y1: kpiCurrent?.avg_score_rate ?? 0,
+                      x0: 0, x1: Math.max(...schoolMatrixData.map(d => d.avg_prac)) * 1.2 || 10,
+                      line: { dash: "dash", color: "rgba(0,0,0,0.3)", width: 1.5 },
+                    },
+                  ],
+                  annotations: [
+                    { x: 0.05, y: 0.95, xref: "paper", yref: "paper", text: "<b>低投入高成效</b>", showarrow: false, font: { size: 12, color: "rgba(100, 116, 139, 0.4)" } },
+                    { x: 0.95, y: 0.95, xref: "paper", yref: "paper", text: "<b>高投入高成效</b>", showarrow: false, font: { size: 12, color: "rgba(100, 116, 139, 0.4)" } },
+                    { x: 0.05, y: 0.05, xref: "paper", yref: "paper", text: "<b>低投入低成效</b>", showarrow: false, font: { size: 12, color: "rgba(100, 116, 139, 0.4)" } },
+                    { x: 0.95, y: 0.05, xref: "paper", yref: "paper", text: "<b>高投入低成效</b>", showarrow: false, font: { size: 12, color: "rgba(100, 116, 139, 0.4)" } }
+                  ],
+                }}
+                style={{ width: "100%" }}
+                config={{ displayModeBar: false, responsive: true }}
+              />
+            )}
+          </CardContent>
+        </Card>
         
-        {/* ===== 圖表 2：區域學習成效排名 ===== */}
+        {/* ===== 區域學習差距 ===== */}
         <Card className="col-span-1 relative">
 
           {loading && (
@@ -1293,30 +1418,17 @@ useEffect(() => {
               </div>
             )}
           
-          
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
-            {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold ">
               區域學習差距
               <span className="px-2 text-[9px] text-green-600">（ 科目：{selectedSubject} ）</span>
             </CardTitle>
 
-            {/* 右側：按鈕群組 */}
             <div className="flex items-center gap-1">
-              {/* 圖表說明 Tooltip */}
               <TooltipProvider delayDuration={100}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button className="
-                        flex items-center justify-center
-                        w-8 h-8
-                        rounded-full
-                        text-slate-400
-                        hover:bg-slate-100
-                        hover:text-slate-600
-                        transition
-                        "
-                    >
+                    <button className="flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
                       <HelpCircle className="w-5 h-5" />
                     </button>
                   </TooltipTrigger>
@@ -1324,9 +1436,9 @@ useEffect(() => {
                       <div className="space-y-3">
                         <p className="font-bold border-b pb-1 text-emerald-700">圖表計算說明：</p>
                         <ul className="text-xs space-y-2 list-disc pl-4">
-                          <li><b>綠色長條軸：</b>該縣市練習平均值。</li>
+                          <li><b>長條軸：</b>該縣市練習平均值。</li>
                           <li><b>灰色基準軸：</b>代表全部縣市之同期平均值。</li>
-                          <li><b>正負差距 (±)：</b>綠色 (+) 表示領先、紅色 (-) 表示落後全部縣市平均的百分比幅度。</li>
+                          <li><b>正負差距 (±)：</b>綠色 (+) 表示領先、紅色 (-) 表示落後全部縣市平均的幅度。</li>
                         </ul>
                         <p className="text-[12px] text-slate-400 pt-1 border-t">
                           ※ 透過此圖可衡量該區域的學力離差，觀察正負離差的極端值，數值越大代表區域間的學力鴻溝越明顯。
@@ -1336,17 +1448,9 @@ useEffect(() => {
                 </Tooltip>
               </TooltipProvider>
 
-              {/* AI 分析按鈕 */}
               <button
                 onClick={() => runPolicyAIForChart("regional_gap")}
-                className="
-                  flex items-center justify-center
-                  w-8 h-8
-                  rounded-full
-                  text-emerald-500
-                  hover:bg-emerald-50
-                  transition
-                "
+                className="flex items-center justify-center w-8 h-8 rounded-full text-emerald-500 hover:bg-emerald-50 transition"
               >
                 <Bot className="w-5 h-5" />
               </button>
@@ -1357,102 +1461,81 @@ useEffect(() => {
           <Plot
             data={(() => {
               const baseline = kpiBaseline?.avg_score_rate ?? 0;
-
-              const sorted = [...cityKPIData].sort(
-                (a, b) => b.avg_score - a.avg_score
-              );
+              const sorted = [...cityKPIData].sort((a, b) => b.avg_score - a.avg_score);
 
               return [
-                // Baseline
                 {
                   x: sorted.map(() => baseline),
                   y: sorted.map(d => d.city),
-                  type: "bar",
-                  orientation: "h",
+                  type: "bar", orientation: "h",
                   name: "全部縣市平均",
-                  marker: {
-                    color: "rgba(148,163,184,0.4)",
-                  },
+                  marker: { color: "rgba(148,163,184,0.3)" },
                   offsetgroup: "baseline",
-                  hovertemplate:
-                    "全部縣市平均：%{x:.1f}%<extra></extra>",
+                  hovertemplate: "全部縣市平均：%{x:.1f}%<extra></extra>",
                 },
-
-                // City Avg
                 {
                   x: sorted.map(d => d.avg_score),
                   y: sorted.map(d => d.city),
-                  type: "bar",
-                  orientation: "h",
-                  name: `${selectedCity}平均`,
-                  marker: {
-                    color: "#16a34a",
+                  type: "bar", orientation: "h",
+                  name: "各縣市平均",
+                  // 區域差距圖：根據所選縣市變色高亮
+                  marker: { 
+                    color: sorted.map(d => 
+                      selectedCity === "全部縣市" || d.city === selectedCity
+                        ? "#16a34a" 
+                        : "rgba(22, 163, 74, 0.15)"
+                    )
                   },
                   offsetgroup: "city",
-                  hovertemplate:
-                    `${selectedCity}平均：%{x:.1f}%<extra></extra>`,
+                  hovertemplate: "%{y}平均：%{x:.1f}%<extra></extra>",
                 },
               ];
             })()}
             layout={{
-              height: 260,
-              margin: { t: 20, r: 40, b: 20, l: 50 }, 
-              barmode: "group",  
-              xaxis: {
-                title: "平均答題正確率 (%)",
-                range: [0, 100],
-              },
-              yaxis: {
+              height: 260, margin: { t: 20, r: 40, b: 20, l: 50 }, barmode: "group",  
+              xaxis: { title: "平均答題正確率 (%)", range: [0, 100] },
+              yaxis: { 
                 automargin: true,
+                tickfont: {
+                  color: (() => {
+                     const sorted = [...cityKPIData].sort((a, b) => b.avg_score - a.avg_score);
+                     return sorted.map(d => 
+                       selectedCity === "全部縣市" || d.city === selectedCity ? "#334155" : "#cbd5e1"
+                     );
+                  })()
+                }
               },
-              legend: {
-                orientation: "h",
-                y: -0.25,
-              },
+              legend: { orientation: "h", y: -0.25 },
 
-              // 差距線段
               shapes: (() => {
                 const baseline = kpiBaseline?.avg_score_rate ?? 0;
-                const sorted = [...cityKPIData].sort(
-                  (a, b) => b.avg_score - a.avg_score
-                );
-
-                return sorted.map((d, i) => ({
-                  type: "line",
-                  x0: baseline,
-                  x1: d.avg_score,
-                  y0: i,
-                  y1: i,
-                  xref: "x",
-                  yref: "y",
-                  line: {
-                    color: d.avg_score >= baseline
-                      ? "#16a34a"
-                      : "#ef4444",
-                    width: 4,
-                  },
-                }));
+                const sorted = [...cityKPIData].sort((a, b) => b.avg_score - a.avg_score);
+                return sorted.map((d, i) => {
+                  const isSelected = selectedCity === "全部縣市" || d.city === selectedCity;
+                  const isPositive = d.avg_score >= baseline;
+                  return {
+                    type: "line", x0: baseline, x1: d.avg_score, y0: i, y1: i, xref: "x", yref: "y",
+                    line: { 
+                      color: isPositive ? (isSelected ? "#16a34a" : "rgba(22, 163, 74, 0.2)") : (isSelected ? "#ef4444" : "rgba(239, 68, 68, 0.2)"), 
+                      width: isSelected ? 4 : 2 
+                    },
+                  };
+                });
               })(),
 
-              // 差距標註
               annotations: (() => {
                 const baseline = kpiBaseline?.avg_score_rate ?? 0;
-                const sorted = [...cityKPIData].sort(
-                  (a, b) => b.avg_score - a.avg_score
-                );
-
+                const sorted = [...cityKPIData].sort((a, b) => b.avg_score - a.avg_score);
                 return sorted.map((d, i) => {
                   const diff = d.avg_score - baseline;
-
+                  const isSelected = selectedCity === "全部縣市" || d.city === selectedCity;
+                  const isPositive = diff >= 0;
                   return {
-                    x: d.avg_score,
-                    y: d.city,
-                    text: `${diff >= 0 ? "+" : ""}${diff.toFixed(1)}%`,
-                    showarrow: false,
-                    xanchor: diff >= 0 ? "left" : "right",
-                    font: {
-                      size: 16,
-                      color: diff >= 0 ? "#16a34a" : "#ea1616ff",
+                    x: d.avg_score, y: d.city, text: `${isPositive ? "+" : ""}${diff.toFixed(1)}%`,
+                    showarrow: false, xanchor: isPositive ? "left" : "right",
+                    font: { 
+                      size: isSelected ? 16 : 11, 
+                      color: isPositive ? (isSelected ? "#16a34a" : "rgba(22, 163, 74, 0.4)") : (isSelected ? "#ea1616ff" : "rgba(234, 22, 22, 0.4)") 
                     },
                   };
                 });
@@ -1463,7 +1546,7 @@ useEffect(() => {
           />
       </Card>
 
-      {/* ===== 圖表 3：平均差距走勢 ===== */}
+      {/* ===== 平均差距走勢 ===== */}
       <Card className="col-span-1 relative">
 
         {loading && (
@@ -1474,13 +1557,11 @@ useEffect(() => {
         )}
 
         <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
-            {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold ">
               平均差距走勢
               <span className="px-2 text-[9px] text-green-600">（ 科目：{selectedSubject} ）</span>
             </CardTitle>
          
-
           <div className="flex items-center gap-1 mt-1">
             <TooltipProvider delayDuration={100}>
               <Tooltip>
@@ -1504,17 +1585,9 @@ useEffect(() => {
               </Tooltip>
             </TooltipProvider>
 
-            {/* AI 分析按鈕 */}
               <button
                 onClick={() => runPolicyAIForChart("gap_trend")}
-                className="
-                  flex items-center justify-center
-                  w-8 h-8
-                  rounded-full
-                  text-emerald-500
-                  hover:bg-emerald-50
-                  transition
-                "
+                className="flex items-center justify-center w-8 h-8 rounded-full text-emerald-500 hover:bg-emerald-50 transition"
               >
                 <Bot className="w-5 h-5" />
               </button>
@@ -1527,43 +1600,23 @@ useEffect(() => {
               {
                 x: gapTrend.map(d => dayjs(d.date).format("YYYY-MM-DD")),
                 y: gapTrend.map(d => d.gap),
-                type: "scatter",
-                mode: "lines+markers",
+                type: "scatter", mode: "lines+markers",
                 name: "成效差距",
                 line: { color: "#16a34a", width: 2, shape: 'spline' }, 
-                fill: "tozeroy",
-                fillcolor: "#16a34a30", 
+                fill: "tozeroy", fillcolor: "#16a34a30", 
                 hovertemplate: "日期：%{x}<br>差距：%{y:+.1f}%<extra></extra>",
               },
             ]}
             layout={{
-                height: 260,
-                margin: { t: 10, r: 40, b: 100, l: 90 }, 
+                height: 260, margin: { t: 10, r: 40, b: 100, l: 90 }, 
                 xaxis: { 
-                  title: {
-                    text: "練習期間", 
-                    font: { size: 10, color: '#64748b' },
-                    standoff: 15
-                  },
-                  tickangle: -45,
-                  tickfont: { size: 10 },
-                  type: 'category',
-                  
-                  range: [-0.5, gapTrend.length - 0.5],
-                  automargin: true,
+                  title: { text: "練習期間", font: { size: 10, color: '#64748b' }, standoff: 15 },
+                  tickangle: -45, tickfont: { size: 10 },
+                  type: 'category', range: [-0.5, gapTrend.length - 0.5], automargin: true,
                 },
                 yaxis: {
-                  title: {
-                    text: "差距幅度 (%)", 
-                    font: { size: 10, color: '#64748b' },
-                    standoff: 15
-                  },
-                  zeroline: true,
-                  zerolinecolor: "#040404", 
-                  zerolinewidth: 3,
-                  ticksuffix: "%",
-                  
-                  automargin: true, 
+                  title: { text: "差距幅度 (%)", font: { size: 10, color: '#64748b' }, standoff: 15 },
+                  zeroline: true, zerolinecolor: "#040404", zerolinewidth: 3, ticksuffix: "%", automargin: true, 
                 },
                 hovermode: "x unified", 
               }}
@@ -1572,8 +1625,6 @@ useEffect(() => {
           />
         </div>
       </Card>
-
-
     </div>
 
       {/* =========================
@@ -1581,7 +1632,7 @@ useEffect(() => {
       ========================= */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* ===== 圖表 1：練習投入走勢 ===== */}
+        {/* ===== 圖表 4：練習投入走勢 ===== */}
         <Card className="col-span-1 relative">
           {loading && (
             <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
@@ -1591,30 +1642,16 @@ useEffect(() => {
           )}
 
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-6">
-            {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold ">
               練習投入走勢
               <span className="px-2 text-xs text-green-600">（ 科目：{selectedSubject} ）</span>
             </CardTitle>
 
-            {/* 右側：按鈕群組 */}
             <div className="flex items-center gap-1">
-              {/* 圖表說明 Tooltip */}
               <TooltipProvider delayDuration={100}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button 
-                    onClick={() => runPolicyAIForChart("practice_trend")}
-                    className="
-                        flex items-center justify-center
-                        w-8 h-8
-                        rounded-full
-                        text-slate-400
-                        hover:bg-slate-100
-                        hover:text-slate-600
-                        transition
-                        "
-                    >
+                    <button onClick={() => runPolicyAIForChart("practice_trend")} className="flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
                       <HelpCircle className="w-5 h-5" />
                     </button>
                   </TooltipTrigger>
@@ -1622,130 +1659,60 @@ useEffect(() => {
                       <div className="space-y-3">
                         <p className="font-bold border-b pb-1 text-emerald-700">圖表計算說明：</p>
                         <ul className="text-xs space-y-2 list-disc pl-4">
-                          <li>
-                            <b className="text-emerald-600">活躍學生數 (長條圖)：</b>
-                            指所選期間內，每日/週/月至少有一次登入或練習紀錄的去重複學生人數。
-                          </li>
-                          <li>
-                            <b className="text-emerald-600">練習總次數 (折線圖)：</b>
-                            學生完成練習題組的累計總數。
-                          </li>
+                          <li><b className="text-emerald-600">活躍學生數 (長條圖)：</b>指所選期間內，去重複學生人數。</li>
+                          <li><b className="text-emerald-600">練習總次數 (折線圖)：</b>學生完成練習題組的累計總數。</li>
                         </ul>
-                          <p className="text-[12px] text-slate-400 pt-1 border-t">
-                            ※ 透過此圖可觀察使用參與度與學習投入強度之趨勢變動。
-                          </p>
+                          <p className="text-[12px] text-slate-400 pt-1 border-t">※ 透過此圖可觀察使用參與度與學習投入強度之趨勢變動。</p>
                       </div>
                     </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
 
-              {/* AI 分析按鈕 */}
-              <button
-                onClick={() => runPolicyAIForChart("effect_trend")}
-                className="
-                  flex items-center justify-center
-                  w-8 h-8
-                  rounded-full
-                  text-emerald-500
-                  hover:bg-emerald-50
-                  transition
-                "
-              >
+              <button onClick={() => runPolicyAIForChart("effect_trend")} 
+              className="flex items-center justify-center w-8 h-8 rounded-full text-emerald-500 hover:bg-emerald-50 transition">
                 <Bot className="w-5 h-5" />
               </button>
             </div>
           </CardHeader>
 
-
-          {/* 日 / 週 / 月 切換按鈕 */}
             <div className="flex items-center gap-1 mr-2 px-8 ">
               {["day", "week", "month"].map((mode) => (
                 <button
-                  key={mode}
-                  onClick={() => setViewMode(mode as any)}
-                  className={`px-3 py-1 text-xs rounded-md transition
-                    ${
-                      viewMode === mode
-                        ? "bg-emerald-600 text-white"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
+                  key={mode} onClick={() => setViewMode(mode as any)}
+                  className={`px-3 py-1 text-xs rounded-md transition ${viewMode === mode ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
                 >
                   {mode === "day" ? "日線" : mode === "week" ? "週線" : "月線"}
                 </button>
               ))}
             </div>
 
-
           <CardContent className="h-[350px] w-full">
           <Plot
             data={[
-              // 長條圖：活躍學生數
               {
-                x: aggregatedTrend.map((t) =>
-                  dayjs(t.activity_date).format("YYYY-MM-DD")
-                ),
+                x: aggregatedTrend.map((t) => dayjs(t.activity_date).format("YYYY-MM-DD")),
                 y: aggregatedTrend.map((t) => t.active_students),
-                type: "bar",
-                name: "活躍學生數",
-                marker: {
-                  color: "rgba(34,197,94,0.35)", 
-                },
-                hovertemplate:
-                  "活躍學生數：%{y}<extra></extra>",
+                type: "bar", name: "活躍學生數",
+                marker: { color: "rgba(34,197,94,0.35)" },
+                hovertemplate: "活躍學生數：%{y}<extra></extra>",
               },
-
-              // 折線圖：練習總次數
               {
-                x: aggregatedTrend.map((t) =>
-                  dayjs(t.activity_date).format("YYYY-MM-DD")
-                ),
+                x: aggregatedTrend.map((t) => dayjs(t.activity_date).format("YYYY-MM-DD")),
                 y: aggregatedTrend.map((t) => t.total_prac_count),
-                type: "scatter",
-                mode: "lines+markers",
-                name: "練習總次數",
-                line: {
-                  color: "#16a34a", 
-                  width: 3,
-                },
-                yaxis: "y2",
-                hovertemplate:
-                  "練習次數：%{y}<extra></extra>",
+                type: "scatter", mode: "lines+markers", name: "練習總次數",
+                line: { color: "#16a34a", width: 3 }, yaxis: "y2",
+                hovertemplate: "練習次數：%{y}<extra></extra>",
               },
             ]}
             layout={{
-              height: 350,
-              margin: { t: 20, l: 50, r: 50, b: 70 },
-              barmode: "group",
-
+              height: 350, margin: { t: 20, l: 50, r: 50, b: 70 }, barmode: "group",
               xaxis: {
-                title: viewMode === "day" ? "日期" :
-                      viewMode === "week" ? "週起始日" : "月份",
-                type: "category",
-                tickangle: -45,
-                tickfont: { size: 10, color: "#64748b" },
+                title: viewMode === "day" ? "日期" : viewMode === "week" ? "週起始日" : "月份",
+                type: "category", tickangle: -45, tickfont: { size: 10, color: "#64748b" },
               },
-
-              // 左軸：學生數
-              yaxis: {
-                title: "活躍學生數",
-                showgrid: true,
-                zeroline: true,
-              },
-
-              // 右軸：練習次數
-              yaxis2: {
-                title: "練習總次數",
-                overlaying: "y",
-                side: "right",
-                showgrid: false,
-                zeroline: false,
-              },
-
-              legend: {
-                orientation: "h",
-                y: -0.25,
-              },
-
+              yaxis: { title: "活躍學生數", showgrid: true, zeroline: true },
+              yaxis2: { title: "練習總次數", overlaying: "y", side: "right", showgrid: false, zeroline: false },
+              legend: { orientation: "h", y: -0.25 },
               hovermode: "x unified",
             }}
             config={{ displayModeBar: false, responsive: true }}
@@ -1755,7 +1722,7 @@ useEffect(() => {
           </CardContent>
         </Card>
 
-        {/* ===== 圖表 2：學習成效走勢 ===== */}
+        {/* ===== 學習成效走勢 ===== */}
         <Card className="col-span-1 relative">
           {loading && (
             <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
@@ -1765,29 +1732,16 @@ useEffect(() => {
           )}
 
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-6">
-            {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold ">
               學習成效走勢
               <span className="px-2 text-xs text-green-600">（ 科目：{selectedSubject} ）</span>
             </CardTitle>
-            
 
-            {/* 右側：按鈕群組 */}
             <div className="flex items-center gap-1">
-              {/* 圖表說明 Tooltip */}
               <TooltipProvider delayDuration={100}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button className="
-                        flex items-center justify-center
-                        w-8 h-8
-                        rounded-full
-                        text-slate-400
-                        hover:bg-slate-100
-                        hover:text-slate-600
-                        transition
-                        "
-                    >
+                    <button className="flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
                       <HelpCircle className="w-5 h-5" />
                     </button>
                   </TooltipTrigger>
@@ -1795,53 +1749,26 @@ useEffect(() => {
                       <div className="space-y-3">
                         <p className="font-bold border-b pb-1 text-emerald-700">圖表計算說明：</p>
                         <ul className="text-xs space-y-2 list-disc pl-4">
-                          <li>
-                            <b className="text-emerald-700">{selectedCity}平均：</b>
-                            顯示 {selectedCity} 的平均正確率趨勢，代表該區學生的實質掌握度。
-                          </li>
-                          <li>
-                            <b className="text-red-600">全部縣市平均：</b>
-                            作為基準線以判斷該區表現優於或低於全國平均。
-                          </li>
+                          <li><b className="text-emerald-700">{selectedCity}平均：</b>代表該區學生的實質掌握度。</li>
+                          <li><b className="text-red-600">全部縣市平均：</b>作為基準線以判斷該區表現優於或低於全國平均。</li>
                         </ul>
-                          <p className="text-[12px] text-slate-400 pt-1 border-t">
-                            ※ 透過此圖可觀察{selectedCity}平均答題正確率與全部縣市平均之波動穩定度。
-                          </p>                       
+                          <p className="text-[12px] text-slate-400 pt-1 border-t">※ 透過此圖可觀察{selectedCity}平均答題正確率與全部縣市平均之波動穩定度。</p>                       
                       </div>
                     </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
 
-              {/* AI 分析按鈕 */}
-              <button
-                className="
-                  flex items-center justify-center
-                  w-8 h-8
-                  rounded-full
-                  text-emerald-500
-                  hover:bg-emerald-50
-                  transition
-                "
-              >
+              <button className="flex items-center justify-center w-8 h-8 rounded-full text-emerald-500 hover:bg-emerald-50 transition">
                 <Bot className="w-5 h-5" />
               </button>
             </div>
           </CardHeader>
 
-        
-          
-          {/* 日 / 週 / 月 切換按鈕 */}
           <div className="flex items-center gap-1 mr-2 px-8">
             {["day", "week", "month"].map((mode) => (
               <button
-                key={mode}
-                onClick={() => setViewMode(mode as any)}
-                className={`px-3 py-1 text-xs rounded-md transition
-                  ${
-                    viewMode === mode
-                      ? "bg-emerald-600 text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
+                key={mode} onClick={() => setViewMode(mode as any)}
+                className={`px-3 py-1 text-xs rounded-md transition ${viewMode === mode ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
               >
                 {mode === "day" ? "日線" : mode === "week" ? "週線" : "月線"}
               </button>
@@ -1853,56 +1780,25 @@ useEffect(() => {
               {
                 x: aggregatedScoreTrend.map((d) => d.date),
                 y: aggregatedScoreTrend.map((d) => d.city),
-                type: "scatter",
-                mode: "lines+markers",
-                name:
-                  selectedCity === "全部縣市"
-                    ? "全部縣市平均"
-                    : `${selectedCity}平均`,
+                type: "scatter", mode: "lines+markers",
+                name: selectedCity === "全部縣市" ? "全部縣市平均" : `${selectedCity}平均`,
                 line: { color: "#16a34a", width: 3 },
-                hovertemplate:
-                  "平均正確率：%{y:.1f}%<extra></extra>",
+                hovertemplate: "平均正確率：%{y:.1f}%<extra></extra>",
               },
               {
                 x: aggregatedScoreTrend.map((d) => d.date),
                 y: aggregatedScoreTrend.map((d) => d.base),
-                type: "scatter",
-                mode: "lines+markers",
+                type: "scatter", mode: "lines+markers",
                 name: "全部縣市平均",
-                line: {
-                  color: "#f05555ff",
-                  width: 2,
-                  dash: "dash",
-                },
-                hovertemplate:
-                  "全部縣市平均：%{y:.1f}%<extra></extra>",
+                line: { color: "#f05555ff", width: 2, dash: "dash" },
+                hovertemplate: "全部縣市平均：%{y:.1f}%<extra></extra>",
               },
             ]}
             layout={{
-              height: 350,
-              margin: { t: 20, l: 50, r: 20, b: 40 },
-
-              xaxis: {
-                title: "日期",
-                type: "category",
-                tickangle: -45,
-                tickfont: {
-                  size: 10,
-                  color: "#64748b",
-                },
-              },
-
-              yaxis: {
-                title: "平均答題正確率 (%)",
-                range: [0, 105],
-                ticksuffix: "%",
-              },
-
-              legend: {
-                orientation: "h",
-                y: -0.25,
-              },
-
+              height: 350, margin: { t: 20, l: 50, r: 20, b: 40 },
+              xaxis: { title: "日期", type: "category", tickangle: -45, tickfont: { size: 10, color: "#64748b" } },
+              yaxis: { title: "平均答題正確率 (%)", range: [0, 105], ticksuffix: "%" },
+              legend: { orientation: "h", y: -0.25 },
               hovermode: "x unified",
             }}
             style={{ width: "100%" }}
@@ -1912,6 +1808,128 @@ useEffect(() => {
       </div>
 
       
+
+        {/* ===== 校際差距走勢 ===== */}
+          <Card 
+          ref={scissorsGapRef} 
+          className="col-span-1 relative scroll-mt-24 focus:ring-2 focus:ring-red-200 transition-all duration-500" // scroll-mt 確保滑動後不會被頂部導覽列遮住
+        >
+          {loading && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+              <Activity className="animate-spin mr-2 w-4 h-4" />
+              <span className="text-sm text-slate-600">資料分析中...</span>
+            </div>
+          )}
+
+          <CardHeader className="flex flex-row items-center justify-between py-4 pb-6">
+            <CardTitle className="text-xl font-bold ">
+              校際差距走勢
+              <span className="px-2 text-xs text-green-600">（ 科目：{selectedSubject} ）</span>
+            </CardTitle>
+
+            <div className="flex items-center gap-1">
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
+                      <HelpCircle className="w-5 h-5" />
+                    </button>
+                  </TooltipTrigger>
+                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f4fafb] shadow-xl border-emerald-200 text-slate-700 z-50">
+                      <div className="space-y-3">
+                        <p className="font-bold border-b pb-1 text-emerald-700">圖表計算說明：</p>
+                        <ul className="text-xs space-y-2 list-disc pl-4">
+                          <li><b className="text-emerald-700">平均正確率 (左軸)：</b>整體學生表現趨勢。</li>
+                          <li><b className="text-red-600">校際差距 (右軸)：</b>該時段各校平均分數的標準差。</li>
+                        </ul>
+                          ※ 若綠線上升但紅線也急遽上升，代表出現「強者越強，弱者越弱」的問題，需針對弱勢學校介入輔導。                 
+                      </div>
+                    </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+
+              <button
+                onClick={() => runPolicyAIForChart("scissors_gap")}
+                className="flex items-center justify-center w-8 h-8 rounded-full text-emerald-500 hover:bg-emerald-50 transition"
+              >
+                <Bot className="w-5 h-5" />
+              </button>
+            </div>
+          </CardHeader>
+
+          <CardContent className="h-[350px] w-full pt-0">
+          <Plot
+            data={[
+              // 綠線：平均正確率 (左Y軸)
+              {
+                x: aggregatedScoreTrend.map((d) => d.date),
+                y: aggregatedScoreTrend.map((d) => d.city),
+                type: "scatter",
+                mode: "lines+markers",
+                name: "平均正確率",
+                line: { color: "#16a34a", width: 3 },
+                hovertemplate: "平均正確率：%{y:.1f}%<extra></extra>",
+              },
+              {
+                x: aggregatedScoreTrend.map((d) => d.date),
+                y: aggregatedScoreTrend.map((d) => d.baseStd), 
+                type: "scatter",
+                mode: "lines",
+                name: "全國平均差距",
+                line: { color: "#94a3b8", width: 2, dash: "dash" },
+                yaxis: "y2",
+                hovertemplate: "全國校際標準差：%{y:.2f}<extra></extra>",
+              },
+              // 紅色面積圖：校際差距/標準差 (右Y軸)
+              {
+                x: aggregatedScoreTrend.map((d) => d.date),
+                y: aggregatedScoreTrend.map((d) => d.cityStd),
+                type: "scatter",
+                mode: "lines",
+                name: "校際差距 (標準差)",
+                line: { color: "#ef4444", width: 2, dash: "dot" },
+                fill: "tozeroy",
+                fillcolor: "rgba(239, 68, 68, 0.15)",
+                yaxis: "y2",
+                hovertemplate: "校際標準差：%{y:.2f}<extra></extra>",
+              },
+            ]}
+            layout={{
+              height: 350,
+              margin: { t: 10, l: 50, r: 50, b: 70 },
+              xaxis: {
+                title: viewMode === "day" ? "日期" : viewMode === "week" ? "週起始日" : "月份",
+                type: "category",
+                tickangle: -45,
+                tickfont: { size: 10, color: "#64748b" },
+              },
+              yaxis: {
+                title: "平均答題正確率 (%)",
+                range: [0, 105],
+                ticksuffix: "%",
+                titlefont: { color: '#16a34a' },
+                tickfont: { color: '#16a34a' },
+              },
+              yaxis2: {
+                title: "校際差距 (標準差)",
+                overlaying: "y",
+                side: "right",
+                rangemode: "tozero",
+                titlefont: { color: '#ef4444' },
+                tickfont: { color: '#ef4444' },
+                showgrid: false,
+              },
+              legend: { orientation: "h", y: -0.25 },
+              hovermode: "x unified",
+            }}
+            config={{ displayModeBar: false, responsive: true }}
+            useResizeHandler
+            style={{ width: "100%", height: "100%" }}
+          />
+          </CardContent>
+        </Card>
+
 
     </div>
   );

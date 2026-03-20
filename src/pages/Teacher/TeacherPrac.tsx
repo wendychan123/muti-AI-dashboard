@@ -5,7 +5,7 @@ import dayjs from "dayjs";
 import Plot from "react-plotly.js";
 import _ from "lodash";
 import { buildTeacherPracPrompt } from "@/lib/ai/buildTeacherPracPrompt";
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -21,7 +21,7 @@ Types
 ========================= */
 interface SchoolPracDaily {
   user_id: number;
-  organization_id: string; 
+  organization_id: string;
   grade: number;
   subject_name: string;
   indicator: string;
@@ -64,7 +64,6 @@ interface SubjectSummary {
   participation_rate: number;
 }
 
-
 interface StudentAlert {
   organization_id: string
   grade: number;
@@ -79,8 +78,8 @@ interface SchoolSummary {
   organization_id: string;
   grade: number;
   total_students: number; 
-  avg_score_rate:number;
-  total_prac_count:number
+  avg_score_rate: number;
+  total_prac_count: number;
 }
 
 type TeacherPracChartTarget = 
@@ -91,8 +90,6 @@ type TeacherPracChartTarget =
   | "performance_trend"  // 學習成效走勢
   | "proficiency"        // 能力指標精熟度
   | "student_risk";      // 高風險學生與弱點指標
-
-
 
 
  /* =========================
@@ -116,8 +113,8 @@ export default function TeacherPrac() {
 
   const [pracData, setPracData] = useState<SchoolPracDaily[]>([]);
   const [schoolSummary, setSchoolSummary] = useState<SchoolSummary[]>([]);
-  const [subjectSummary, setSubjectSummary] = useState<SubjectSummary[]>([]); 
   const [indicatorSummary, setIndicatorSummary] = useState<IndicatorSummary[]>([]);
+  const [subjectSummary, setSubjectSummary] = useState<SubjectSummary[]>([]); // 新增：SubjectSummary State
   const [alertData, setAlertData] = useState<StudentAlert[]>([]);
 
   const [selectedGrade, setSelectedGrade] = useState(ALL_GRADE);
@@ -151,7 +148,8 @@ export default function TeacherPrac() {
           .from("school_indicator_summary")
           .select("*")
           .eq("organization_id", organizationId);
-
+          
+        // 新增：讀取科目層級摘要
         const { data: subject } = await supabase
           .from("school_subject_summary")
           .select("*")
@@ -170,7 +168,7 @@ export default function TeacherPrac() {
         setSchoolSummary(summary ?? []);
         setPracData(prac ?? []);
         setIndicatorSummary(indicator ?? []);
-        setSubjectSummary(subject ?? []); 
+        setSubjectSummary(subject ?? []); // 寫入 State
         setAlertData(alert ?? []);
       } catch (error) {
         console.error("Data load error:", error);
@@ -200,7 +198,8 @@ export default function TeacherPrac() {
       return true;
     });
   }, [indicatorSummary, selectedGrade, selectedSubject]);
-
+  
+  // 新增：過濾本校的科目層級摘要
   const filteredSubjectSummary = useMemo(() => {
     return subjectSummary.filter((r) => {
       if (String(r.organization_id) !== String(organizationId)) return false;
@@ -210,7 +209,6 @@ export default function TeacherPrac() {
       return true;
     });
   }, [subjectSummary, organizationId, selectedGrade, selectedSubject]);
-
 
   const filteredAlert = useMemo(() => {
     return alertData.filter((a) => {
@@ -262,44 +260,52 @@ const scrollToUnmastered = () => {
 };
 
 
+  /* =========================
+  圖表
+  ========================= */
 
   /* =========================
-     圖表一：練習投入走勢 
+     練習投入走勢 
   ========================= */
   const aggregatedPracTrend = useMemo(() => {
-    const map = new Map<string, { active_students: Set<string>; total_prac: number }>();
+  const map = new Map<
+    string,
+    { active_students: number; total_prac: number }
+  >();
 
-    filteredPrac.forEach((r) => {
-      // 根據模式決定時間 Key
-      const dateObj = dayjs(r.activity_date);
-      const key = viewMode === "day" 
+  filteredPrac.forEach((r) => {
+    const dateObj = dayjs(r.activity_date);
+    const key =
+      viewMode === "day"
         ? dateObj.format("YYYY-MM-DD")
-        : viewMode === "week" 
-          ? dateObj.startOf("week").format("YYYY-MM-DD")
-          : dateObj.startOf("month").format("YYYY-MM-DD");
+        : viewMode === "week"
+        ? dateObj.startOf("week").format("YYYY-MM-DD")
+        : dateObj.startOf("month").format("YYYY-MM-DD");
 
-      if (!map.has(key)) {
-        map.set(key, { active_students: new Set(), total_prac: 0 });
-      }
+    if (!map.has(key)) {
+      map.set(key, {
+        active_students: 0,
+        total_prac: 0
+      });
+    }
 
-      const entry = map.get(key)!;
-      // 如果資料中有 student_count 或 user_id，請依據實際資料結構調整
-      // 這裡假設我們計算該區間內的活躍學生數
-      if (r.student_count) entry.active_students.add(String(r.student_count)); 
-      entry.total_prac += r.total_prac_count;
-    });
+    const entry = map.get(key)!;
+    entry.active_students += r.student_count || 0;
+    entry.total_prac += r.total_prac_count || 0;
+  });
 
-    return Array.from(map.entries())
-      .map(([date, val]) => ({
-        date,
-        active_students: val.active_students.size || 0, // 若資料結構無 ID，建議直接用 r.student_count
-        total_prac_count: val.total_prac,
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-  }, [filteredPrac, viewMode]);
+  return Array.from(map.entries())
+    .map(([date, val]) => ({
+      date,
+      active_students: val.active_students,
+      total_prac_count: val.total_prac
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+}, [filteredPrac, viewMode]);
 
   /* =========================
-     圖表：學習成效走勢 
+     學習成效走勢 
     ========================= */
   const aggregatedScoreTrend = useMemo(() => {
     const map = new Map<string, { scoreSum: number; weight: number }>();
@@ -334,23 +340,16 @@ const scrollToUnmastered = () => {
      能力指標精熟長條圖 
     ========================= */
   const proficiencyList = useMemo(() => {
-  const map = new Map();
-  filteredPrac.forEach((r) => {
-    const k = r.indicator || r.indicate_name;
-    if (!map.has(k)) {
-      map.set(k, { score: 0, weight: 0, fullName: r.indicate_name });
-    }
-    const curr = map.get(k);
-    curr.score += (r.avg_score_rate || 0) * (r.total_prac_count || 0);
-    curr.weight += (r.total_prac_count || 0);
-  });
 
-  return Array.from(map.entries()).map(([indicator, data]) => ({
-    indicator,
-    fullName: data.fullName,
-    score: data.weight > 0 ? Math.round(data.score / data.weight) : 0,
-  })).sort((a, b) => a.score - b.score);
-}, [filteredPrac]);
+  return filteredIndicator
+    .map(r => ({
+      indicator: r.indicator,
+      fullName: r.indicate_name,
+      score: Math.round(r.avg_score_rate ?? 0)
+    }))
+    .sort((a, b) => a.score - b.score);
+
+}, [filteredIndicator]);
 
 {/* 新增定義按鈕與個數 */}
 // 定義狀態過濾
@@ -359,15 +358,15 @@ const [filterStatus, setFilterStatus] = useState<'all' | 'unmastered' | 'mastere
 // 計算各狀態個數
 const counts = useMemo(() => {
   return {
-    unmastered: proficiencyList.filter(item => item.score < 100).length,
-    mastered: proficiencyList.filter(item => item.score === 100).length,
+    unmastered: proficiencyList.filter(item => item.score < 60).length, // 修正為 < 60
+    mastered: proficiencyList.filter(item => item.score >= 60).length,  // 修正為 >= 60
   };
 }, [proficiencyList]);
 
 // 根據按鈕過濾顯示清單
 const filteredDisplayList = useMemo(() => {
-  if (filterStatus === 'unmastered') return proficiencyList.filter(item => item.score < 100);
-  if (filterStatus === 'mastered') return proficiencyList.filter(item => item.score === 100);
+  if (filterStatus === 'unmastered') return proficiencyList.filter(item => item.score < 60);
+  if (filterStatus === 'mastered') return proficiencyList.filter(item => item.score >= 60);
   return proficiencyList;
 }, [proficiencyList, filterStatus]);
 
@@ -398,98 +397,175 @@ const filteredDisplayList = useMemo(() => {
       riskCardRef.current?.scrollIntoView({ behavior: 'smooth' }); // 平滑捲動
     };
 
+  /* =========================
+      高風險教育關係人排名表
+    ========================= */
   const studentRiskRanking = useMemo(() => {
-  const map = new Map<string, { unmastered: number; total: number; names: string[] }>();
-  
-    filteredAlert.forEach((a) => {
-      if (!map.has(a.user_id)) map.set(a.user_id, { unmastered: 0, total: 0, names: [] });
-      const curr = map.get(a.user_id)!;
-      curr.total += 1;
-      if (a.mastery_status === "未精熟") {
-        curr.unmastered += 1;
-        // 收集指標名稱，過濾掉重複項
-        if (!curr.names.includes(a.indicate_name)) curr.names.push(a.indicate_name);
+    // 1. 先算出每位教育關係人在各別指標的加權平均
+    const stakeholderIndMap = new Map<string, { userId: string; indicateName: string; scoreSum: number; pracCount: number }>();
+
+    filteredPrac.forEach((r) => {
+      if (r.user_id == null) return;
+      const key = `${r.user_id}_${r.indicate_name}`;
+      if (!stakeholderIndMap.has(key)) {
+        stakeholderIndMap.set(key, { userId: String(r.user_id), indicateName: r.indicate_name, scoreSum: 0, pracCount: 0 });
+      }
+      const curr = stakeholderIndMap.get(key)!;
+      curr.scoreSum += (r.avg_score_rate || 0) * (r.total_prac_count || 0);
+      curr.pracCount += (r.total_prac_count || 0);
+    });
+
+    // 2. 統計每位教育關係人「總共做過幾個指標」與「幾個未精熟 (<60)」
+    const userMap = new Map<string, { unmastered: number; total: number; names: string[] }>();
+
+    Array.from(stakeholderIndMap.values()).forEach((ind) => {
+      if (!userMap.has(ind.userId)) {
+        userMap.set(ind.userId, { unmastered: 0, total: 0, names: [] });
+      }
+      const u = userMap.get(ind.userId)!;
+      u.total += 1;
+
+      const indAvg = ind.pracCount > 0 ? ind.scoreSum / ind.pracCount : 0;
+      if (indAvg < 60) { // 統一使用 < 60 作為未精熟標準
+        u.unmastered += 1;
+        u.names.push(ind.indicateName);
       }
     });
 
-    let list = Array.from(map.entries())
+    // 3. 計算風險比例並排序
+    let list = Array.from(userMap.entries())
       .map(([userId, stats]) => ({
         userId,
-        riskScore: (stats.unmastered / stats.total) * 100,
+        riskScore: stats.total > 0 ? (stats.unmastered / stats.total) * 100 : 0,
         unmasteredCount: stats.unmastered,
         unmasteredNames: stats.names.map(name => `- ${name}`).join("\n")
-    }))
-    .sort((a, b) => b.riskScore - a.riskScore);
+      }))
+      .sort((a, b) => b.riskScore - a.riskScore);
 
-    // 聯動邏輯：如果 KPI 5 被啟動，則過濾只剩未精熟學生
+    // 聯動邏輯：如果 KPI 5 被啟動，則過濾只剩未精熟名單
     if (isRiskOnly) {
       list = list.filter(s => s.unmasteredCount > 0);
     }
 
     return list;
-  }, [filteredAlert, isRiskOnly]);
+  }, [filteredPrac, isRiskOnly]);
 
   
 
   /* =========================
      KPI
   ========================= */
+
 const kpi = useMemo(() => {
-  // --- 1. 基本數據 (來自 filteredPrac，代表本校且受篩選器影響的練習數據) ---
-  const totalPrac = filteredPrac.reduce((s, r) => s + (r.total_prac_count || 0), 0);
-  const totalTime = filteredPrac.reduce((s, r) => s + (r.total_time_sec || 0), 0);
-  const scoreWeighted = filteredPrac.reduce((s, r) => s + (r.avg_score_rate || 0) * (r.total_prac_count || 0), 0);
+  // 修改重點：從 filteredSubjectSummary 中獲取精確的學生數與時間
+  
+  /* ---------- 練習行為統計 ---------- */
+  const totalPrac = _.sumBy(filteredSubjectSummary, "total_prac_count");
+  const totalTime = _.sumBy(filteredSubjectSummary, "total_time_sec");
+  
+  // 計算加權平均正確率 (使用 subjectSummary 的資料)
+  const scoreWeighted = filteredSubjectSummary.reduce(
+    (s, r) => s + (r.avg_score_rate || 0) * (r.total_prac_count || 0),
+    0
+  );
   const avgScore = totalPrac > 0 ? scoreWeighted / totalPrac : 0;
 
-  // --- 2. 縣市比較邏輯 (基準線) ---
+  /* ---------- 練習學生數 (KPI 1) ---------- */
+  // 直接加總 filteredSubjectSummary 的 student_count (若選擇全部年級/科目，會將各群組加總)
+  // 注意：如果跨科目，同一個學生可能會被重複計算。最精確的做法是在後端準備一個 overall summary，
+  // 但目前基於現有資料，加總 SubjectSummary 是最接近真實情況的。
+  const totalStudents = _.sumBy(filteredSubjectSummary, "student_count");
+
+
+  /* ---------- 未精熟能力指標 ---------- */
+  const notMasteredIndicators = filteredIndicator.filter(
+    r => (r.avg_score_rate ?? 0) < 60
+  ).length;
+
+
+  /* ---------- 未精熟教育關係人  ---------- */
+  // 改由底層 filteredPrac 即時運算，確保與 KPI 4 (<60) 的標準完全一致
+  const studentIndMap = new Map<string, { scoreSum: number; pracCount: number }>();
+  filteredPrac.forEach((r) => {
+    if (r.user_id == null) return;
+    const key = `${r.user_id}_${r.indicator}`;
+    if (!studentIndMap.has(key)) {
+      studentIndMap.set(key, { scoreSum: 0, pracCount: 0 });
+    }
+    const curr = studentIndMap.get(key)!;
+    curr.scoreSum += (r.avg_score_rate || 0) * (r.total_prac_count || 0);
+    curr.pracCount += (r.total_prac_count || 0);
+  });
+
+  const unmasteredStakeholders = new Set<string>();
+  studentIndMap.forEach((val, key) => {
+    const avg = val.pracCount > 0 ? val.scoreSum / val.pracCount : 0;
+    if (avg < 60) {
+      // key 的格式為 "user_id_indicator"，取前半段
+      unmasteredStakeholders.add(key.split('_')[0]); 
+    }
+  });
   
-  // A. 判定該行政區內有多少間不重複的學校
-  // uniqueSchools 會列出 schoolSummary 中所有不同的 organization_id
-  const uniqueSchools = _.uniqBy(schoolSummary, "organization_id");
+  const notMasteredStudents = unmasteredStakeholders.size;
+
+
+  /* ---------- 平均練習次數 ---------- */
+  const avgPracPerStudent =
+    totalStudents > 0 ? totalPrac / totalStudents : 0;
+
+
+  /* ---------- 平均練習時間 (KPI 3) ---------- */
+  // 從總時間 / 總人次，或是使用 subject_summary 中預先算好的 avg_time_sec 加權
+  const avgTime = totalPrac > 0 ? totalTime / totalPrac : 0; 
+
+
+  /* ---------- 校內總學生數 (分母) ---------- */
+  // 取得該篩選條件下的總學生數 (從 subjectSummary 中取最大值，或根據需求加總)
+   let totalSchoolStudents = 0;
+   if(filteredSubjectSummary.length > 0){
+       // 如果是單一年級/科目，直接取值。若是多個，為避免重複計算總人數，我們可以依賴 schoolSummary
+       const currentOrgId = userInfo?.organization_id;
+       const currentSchoolRows = schoolSummary.filter(
+         s => String(s.organization_id) === String(currentOrgId)
+       );
+     
+       if (selectedGrade === ALL_GRADE) {
+         totalSchoolStudents = _.sumBy(currentSchoolRows, "total_students");
+       } else {
+         const matched = currentSchoolRows.find(
+           s => String(s.grade) === String(selectedGrade)
+         );
+         totalSchoolStudents = matched?.total_students || 0;
+       }
+   }
+   
+
+  /* ---------- 參與率 ---------- */
+  const participationRate =
+    totalSchoolStudents > 0
+      ? (totalStudents / totalSchoolStudents) * 100
+      : 0;
+
+
+  /* ---------- 縣市平均 ---------- */
+  // 修正：使用 subjectSummary 計算縣市平均，才能反映科目差異
+  const uniqueSchools = _.uniqBy(subjectSummary, "organization_id");
   const hasMultipleSchools = uniqueSchools.length > 1;
-
-  // B. 根據選擇的年級篩選出「全縣市」的資料列
-  const cityMatchedRows = selectedGrade === ALL_GRADE 
-    ? schoolSummary 
-    : schoolSummary.filter(s => String(s.grade) === String(selectedGrade));
-
-  // C. 計算全市加權平均
-  const cityTotalPrac = _.sumBy(cityMatchedRows, "total_prac_count");
-  const cityScoreWeighted = cityMatchedRows.reduce((s, r) => s + ((r.avg_score_rate || 0) * (r.total_prac_count || 0)), 0);
-  const cityAvgScore = cityTotalPrac > 0 ? cityScoreWeighted / cityTotalPrac : 0;
-
-  // --- 3. 學生人數計算 (精確鎖定「本校」) ---
-  // 使用您提供的 userInfo?.organization_id 作為比對基準
-  const currentOrgId = userInfo?.organization_id;
-
-  // 從包含全縣市的 schoolSummary 中過濾出僅屬於本校的列
-  const currentSchoolRows = schoolSummary.filter(s => String(s.organization_id) === String(currentOrgId));
-
-  let totalSchoolStudents = 0;
-  if (selectedGrade === ALL_GRADE) {
-    // 全部年級：加總本校所有年級的人數
-    totalSchoolStudents = _.sumBy(currentSchoolRows, "total_students");
-  } else {
-    // 特定年級：篩選本校該年級的人數
-    const matchedGradeData = currentSchoolRows.find(s => String(s.grade) === String(selectedGrade));
-    totalSchoolStudents = matchedGradeData?.total_students || 0;
-  }
-
-  // --- 4. 其他統計指標 ---
-  const practicedStudents = new Set(filteredAlert.map(a => a.user_id));
-  const totalStudents = practicedStudents.size;
   
-  // 參與率 = (有練習的不重複學生數 / 該校該年級總人數) * 100
-  const participationRate = totalSchoolStudents > 0 ? (totalStudents / totalSchoolStudents) * 100 : 0;
-  const avgPracPerStudent = totalStudents > 0 ? totalPrac / totalStudents : 0;
+  const cityMatchedRows = subjectSummary.filter(s => {
+      if (selectedGrade !== ALL_GRADE && s.grade !== Number(selectedGrade)) return false;
+      if (selectedSubject !== ALL_SUBJECT && s.subject_name !== selectedSubject) return false;
+      return true;
+  });
 
-  // 未精熟統計
-  const notMasteredIndicators = proficiencyList.filter(item => item.score < 100).length;
-  const notMasteredStudents = new Set(
-    filteredAlert
-      .filter(a => a.mastery_status === "未精熟")
-      .map(a => a.user_id)
-  ).size;
+  const cityTotalPrac = _.sumBy(cityMatchedRows, "total_prac_count");
+  const cityScoreWeighted = cityMatchedRows.reduce(
+    (s, r) => s + (r.avg_score_rate || 0) * (r.total_prac_count || 0),
+    0
+  );
+
+  const cityAvgScore =
+    cityTotalPrac > 0 ? cityScoreWeighted / cityTotalPrac : 0;
 
   return {
     totalStudents,
@@ -497,13 +573,26 @@ const kpi = useMemo(() => {
     participationRate,
     avgScore,
     cityAvgScore,
-    hasMultipleSchools, 
+    hasMultipleSchools,
     avgPracPerStudent,
+    avgTime,
     totalTime,
     notMasteredStudents,
-    notMasteredIndicators,
+    notMasteredIndicators
+
   };
-}, [filteredPrac, filteredAlert, proficiencyList, schoolSummary, selectedGrade, userInfo?.organization_id]);
+
+}, [
+  filteredSubjectSummary, // 依賴變更為 SubjectSummary
+  filteredPrac,
+  filteredIndicator,
+  filteredAlert,
+  schoolSummary,
+  subjectSummary, // 依賴變更
+  selectedGrade,
+  selectedSubject,
+  userInfo?.organization_id
+]);
 
 
 /* =========================
@@ -550,9 +639,11 @@ const participationData = useMemo(() => {
     .sort((a, b) => b.rate - a.rate);
 
   
-  const dynamicHeight = Math.max(250, data.length * 10); 
+  const dynamicHeight = Math.max(0, data.length * 10); 
   return { data, dynamicHeight };
 }, [filteredIndicator]);
+
+
 
 /* =========================
      AI 助手功能
@@ -815,10 +906,9 @@ const formatHoverText = (str: string, maxLength = 22) => {
           </div>
       </div>
 
-
-      {/* =========================
-          KPI 區 (參考圖設計)
-    ========================= */}
+    {/* =========================
+            KPI 區
+  =========================  */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
 
         {/* KPI 1: 學生母數 */}
@@ -876,7 +966,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
             <div className="text-3xl font-black text-slate-800 tracking-tight text-green-600">
-              {(kpi.totalTime / (kpi.totalStudents || 1) / 60).toFixed(0)} <span className="text-lg">分</span>
+               {(kpi.avgTime).toFixed(0)} <span className="text-lg">秒</span>
             </div>
           </div>
         </div>
@@ -924,8 +1014,8 @@ const formatHoverText = (str: string, maxLength = 22) => {
 
 
       {/* =========================
-                圖表區
-      ========================= */}
+            圖表區
+  =========================  */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
         {/* ===== 教學診斷指標 ===== */}
@@ -970,33 +1060,33 @@ const formatHoverText = (str: string, maxLength = 22) => {
                             <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500 mt-1" />
                             <span>
                               <b className="text-blue-700">精熟區 (高次數、高得分)：</b>
-                              代表學生透過頻繁練習且維持高正確率。此指標掌握度極佳，建議可進入下一階段學習。
+                              代表教育關係人透過頻繁練習且維持高正確率。此指標掌握度極佳，建議可進入下一階段學習。
                             </span>
                           </li>
                           <li className="flex gap-2">
                             <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1" />
                             <span>
                               <b className="text-emerald-700">潛力區 (低次數、高得分)：</b>
-                              代表學生練習次數不多即獲得高分。可能是指標難度較低，或是學生已具備深厚的先備知識。
+                              代表教育關係人練習次數不多即獲得高分。可能是指標難度較低，或是教育關係人已具備深厚的先備知識。
                             </span>
                           </li>
                           <li className="flex gap-2">
                             <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-amber-500 mt-1" />
                             <span>
                               <b className="text-amber-700">低參與 (低次數、低得分)：</b>
-                              代表實質練習量不足。應優先引導學生進行基本作答，累積足夠的互動數據以利後續診斷。
+                              代表實質練習量不足。應優先引導教育關係人進行基本作答，累積足夠的互動數據以利後續診斷。
                             </span>
                           </li>
                           <li className="flex gap-2">
                             <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-rose-500 mt-1" />
                             <span>
                               <b className="text-rose-700">瓶頸區 (高次數、低得分)：</b>
-                              <b>關鍵警示！</b>代表學生嘗試多次練習但成效不佳。此為核心學習障礙，需優先介入輔導。
+                              <b>關鍵警示！</b>代表教育關係人嘗試多次練習但成效不佳。此為核心學習障礙，需優先介入輔導。
                             </span>
                           </li>
                         </ul>
                         <p className="text-[12px] text-slate-400 pt-1 border-t leading-relaxed">
-                          ※ 本圖以<b>「人均練習次數」</b>作為 X 軸，排除無效掛機時間，真實反映學生與學習內容的互動頻率與成效。
+                          ※ 本圖以<b>「人均練習次數」</b>作為 X 軸，排除無效掛機時間，真實反映教育關係人與學習內容的互動頻率與成效。
                         </p>              
                       </div>
                     </TooltipContent>
@@ -1234,6 +1324,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
 
 
 
+
       </div>
 
 
@@ -1279,12 +1370,12 @@ const formatHoverText = (str: string, maxLength = 22) => {
                         <p className="font-bold border-b pb-1 text-violet-700">圖表計算說明：</p>
                         <ul className="text-xs space-y-2 list-disc pl-4">
                           <li>
-                            <b className="text-violet-600">活躍學生數 (長條圖)：</b>
-                            指該日/週/月班級內有實際進行作答的學生人數
+                            <b className="text-violet-600">活躍教育關係人數 (長條圖)：</b>
+                            指該日/週/月內有實際進行作答的教育關係人數
                           </li>
                           <li>
                             <b className="text-violet-600">練習總次數 (折線圖)：</b>
-                            全校學生完成練習題的累計總量。
+                            完成練習題的累計總量。
                           </li>
                         </ul>
                           <p className="text-[12px] text-slate-400 pt-1 border-t">
@@ -1339,9 +1430,9 @@ const formatHoverText = (str: string, maxLength = 22) => {
                   x: aggregatedPracTrend.map(t => t.date),
                   y: aggregatedPracTrend.map(t => t.active_students),
                   type: "bar",
-                  name: "活躍學生數",
+                  name: "活躍教育關係人數",
                   marker: { color: "rgba(139, 92, 246, 0.3)" },
-                  hovertemplate: "活躍學生：%{y}人<extra></extra>",
+                  hovertemplate: "活躍教育關係人數：%{y}人<extra></extra>",
                 },
                 {
                   x: aggregatedPracTrend.map(t => t.date),
@@ -1358,7 +1449,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
                 autosize: true,
                 margin: { t: 30, l: 40, r:30, b: 50 },
                 xaxis: { type: "category", tickangle: -35, tickfont: { size: 10 } ,color: "#64748b" },
-                yaxis: { title: "活躍學生數", side: "left", showgrid: true, zeroline: true},
+                yaxis: { title: "活躍教育關係人數", side: "left", showgrid: true, zeroline: true},
                 yaxis2: { title: "練習總次數", overlaying: "y", side: "right", showgrid: false, zeroline: false },
                 legend: { orientation: "h", y: -0.25 },
                 hovermode: "x unified",
@@ -1409,12 +1500,12 @@ const formatHoverText = (str: string, maxLength = 22) => {
                         <p className="font-bold border-b pb-1 text-violet-700">圖表計算說明：</p>
                         <ul className="text-xs space-y-2 list-disc pl-4">
                           <li>
-                            <b className="text-slate-700 font-bold">學校平均：</b>
-                            顯示目前該校在特定單元下的平均正確率走勢，反映全校整體的理解程度。
+                            <b className="text-slate-700 font-bold">平均：</b>
+                            顯示目前在特定單元下的平均正確率走勢，反映整體的理解程度。
                           </li>
                           <li>
                             <b className="text-slate-600 font-bold">總平均：</b>
-                            作為基準線以判斷該校表現優於或低於整體該科平均。
+                            作為基準線以判斷表現優於或低於整體該科平均。
                           </li>
                         </ul>
                           <p className="text-[12px] text-slate-400 pt-1 border-t">
@@ -1552,7 +1643,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
                       <ul className="text-xs space-y-2 list-disc pl-4">
                         <li>
                           <b className="text-slate-700 font-bold">未精熟 (紅色 0-59%)：</b>
-                          代表學校對該指標理解薄弱，建議立即進行全校性補救教學。
+                          代表對該指標理解薄弱，建議立即進行補救教學。
                         </li>
                         <li>
                           <b className="text-slate-700 font-bold"> (黃色 60-99%)：</b>
@@ -1651,9 +1742,13 @@ const formatHoverText = (str: string, maxLength = 22) => {
                         </td>
 
                         <td className="p-3 text-center">
-                          {item.score < 100 ? (
-                            <span className={`px-2 py-1 text-[11px] rounded border font-bold ${item.score < 60 ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                          {item.score < 60 ? (
+                            <span className="px-2 py-1 text-[11px] rounded border font-bold bg-rose-50 text-rose-600 border-rose-100">
                               未精熟
+                            </span>
+                          ) : item.score < 100 ? (
+                            <span className="px-2 py-1 text-[11px] rounded border font-bold bg-amber-50 text-amber-600 border-amber-100">
+                              基礎
                             </span>
                           ) : (
                             <span className="px-2 py-1 bg-violet-50 text-violet-600 text-[11px] rounded border border-violet-100 font-bold whitespace-nowrap">
@@ -1674,7 +1769,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
       
 
       <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
-          {/* 待關注學生名單 */}
+          {/* 待關注教育關係人名單 */}
           <Card className="col-span-1 shadow-sm relative overflow-hidden"  ref={riskCardRef}>
             {loading && (
               <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
@@ -1686,7 +1781,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-2">
             {/* 左側：標題 */}
             <CardTitle className="text-xl font-bold text-slate-700">
-              高風險學生與弱點指標 <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
+              高風險教育關係人與弱點指標 <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
               
               {isRiskOnly && <span className="px-2 text-xs font-normal bg-rose-500 text-white">（已過濾未精熟名單）</span>}
             </CardTitle>
@@ -1708,9 +1803,9 @@ const formatHoverText = (str: string, maxLength = 22) => {
                           </li>
                           <li>
                             <b className="text-slate-700 font-bold"> 風險比例：</b>
-                            未精熟指標佔該生總作答指標之比例。
-                          </li>                        
-                        </ul>                        
+                            未精熟指標佔該教育關係人總作答指標之比例。
+                          </li>                       
+                        </ul>                       
                       </div>
                     </TooltipContent> 
                 </Tooltip>
@@ -1738,7 +1833,7 @@ const formatHoverText = (str: string, maxLength = 22) => {
                 <table className="w-full text-left border-collapse">
                   <thead className="sticky top-0 bg-slate-50 z-10">
                     <tr className="text-xs text-slate-500 border-b">
-                      <th className="p-3 px-8 w-40">學生 ID</th>
+                      <th className="p-3 px-8 w-40">教育關係人 ID</th>
                       <th className="p-3 w-40">未精熟指標數</th>
                       <th className="p-3 w-60">風險比例</th>
                       <th className="p-3 w-40 text-center">狀態</th>

@@ -1,6 +1,6 @@
 // src/pages/Policy/PolicyLayout.tsx
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import PolicyIP from "@/assets/PolicyIP.png";
 import PolicyAIPanel from "@/pages/Policy/PolicyAIPanel"; 
 import {
@@ -17,11 +17,21 @@ export default function PolicyLayout() {
 
   // 1. 新增一個 refreshKey 狀態
   const [refreshKey, setRefreshKey] = useState(0);
+  const [selectedCity, setSelectedCity] = useState("全部縣市");
+
+  // 👉 3. 補上這段：打包要傳給子元件的 context
+  const contextValue = useMemo(() => ({
+    selectedCity,
+    setSelectedCity
+  }), [selectedCity]);
 
   // 2. 定義重整函數：每次點擊就讓 key 加 1
   const handleContentRefresh = () => {
     setRefreshKey(prev => prev + 1);
   };
+
+
+  
 
 
 
@@ -61,7 +71,7 @@ export default function PolicyLayout() {
               <span className="w-1.5 h-1.5 rounded-full bg-green-800"></span>
               
               <span className="text-sm font-semibold text-green-800">
-                教育管理員
+                {selectedCity} 教育管理員
               </span>
             </div>
           </div>
@@ -102,7 +112,7 @@ export default function PolicyLayout() {
         {/* ===================== Page Content ===================== */}
         <main className="flex-1 overflow-y-auto p-6">
           <div key={refreshKey} className="h-full">
-            <Outlet />
+            <Outlet context={contextValue} />
           </div>
         </main>
       </div>

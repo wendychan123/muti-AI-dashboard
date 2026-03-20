@@ -56,6 +56,8 @@ export default function PolicyAIPanel({
     { id: "gap_trend", label: "平均差距走勢" },
     { id: "practice_trend", label: "練習投入走勢" },
     { id: "effect_trend", label: "學習成效走勢" },
+    { id: "school_matrix", label: "學校落點分佈" },
+    { id: "scissors_gap", label: "校際差距走勢" },
   ];
 
   /* =========================
