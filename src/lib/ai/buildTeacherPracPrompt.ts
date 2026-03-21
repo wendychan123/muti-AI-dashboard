@@ -4,6 +4,7 @@ export type TeacherPracChartTarget =
   | "participation"      // 作答參與度
   | "practice_trend"     // 練習投入走勢
   | "performance_trend"  // 學習成效走勢
+  | "indicator_treemap"   // 能力指標熱力圖
   | "student_risk";      // 待關注學生
 
 const TEACHER_CHART_LABEL_MAP: Record<TeacherPracChartTarget, string> = {
@@ -12,7 +13,26 @@ const TEACHER_CHART_LABEL_MAP: Record<TeacherPracChartTarget, string> = {
   participation: "作答參與度",
   practice_trend: "練習投入走勢",
   performance_trend: "學習成效走勢",
+  indicator_treemap: "能力指標熱力圖",
   student_risk: "高風險學生與弱點指標",
+};
+
+// 針對每張圖表的 AI 判讀重點指引
+const CHART_INTERPRETATION_GUIDES: Record<TeacherPracChartTarget, string> = {
+  teacher_overview: 
+    "【總覽練習表現】：請從整體參與率、精熟率與人均練習量，評估全校/該年級在該科目的整體健康度。若精熟率低但練習量高，代表可能存在系統性的學習瓶頸。",
+  diagnostic: 
+    "【教學診斷指標(四象限)】：X軸為人均練習次數，Y軸為精熟率。請特別揪出落在「瓶頸區 (高練習次數、低精熟率)」的指標，這代表學生反覆練習卻無法掌握，需優先調整教學策略或進行補救。落在「低參與」區則可能為進度未到或學生缺乏動力。",
+  participation: 
+    "【作答參與度】：條形圖代表參與率，折線代表實際作答人數。請關注「參與率極低」的指標，判斷是否為課程進度尚未推動，或是部分班級/學生遺漏了該單元的練習。",
+  practice_trend: 
+    "【練習投入走勢】：柱狀圖為活躍人數，折線為總練習次數。請觀察是否有異常的「斷崖式下跌」或「突發性飆高」，並推測是否與學校作息、段考週期或特定作業派發有關。",
+  performance_trend: 
+    "【學習成效走勢】：觀察平均答對率的起伏。若正確率隨時間持續下滑，代表近期接觸的單元難度過高，或是學生對新單元的先備知識不足，需提醒老師放慢教學節奏。",
+  indicator_treemap: 
+    "【能力指標熱力圖】：區塊面積代表「參與練習人數」，顏色深淺代表「平均精熟率」。請務必優先抓出「大面積且顏色偏白或極淺紫」的區塊，這代表多數學生都有練習但普遍未達標的「全校性教學痛點」。",
+  student_risk: 
+    "【高風險學生與弱點指標】：此表列出有未精熟單元的學生。請分析這些高風險學生「最常共同卡關的指標名稱」是什麼？找出是否有一小群學生在特定單元上需要抽離式補救教學。"
 };
 
 export interface BuildTeacherPracPromptParams {
@@ -24,7 +44,7 @@ export interface BuildTeacherPracPromptParams {
   selectedCharts: TeacherPracChartTarget[];
 
   stats: {
-    totalStudents: number;         // 班級總人數
+    totalStudents: number;         // 參與學生總數
     avgScore: number;              // 平均正確率
     avgPracPerStudent: number;     // 人均練習次數
     notMasteredStudents: number;   // 未精熟學生人數
@@ -43,8 +63,14 @@ export function buildTeacherPracPrompt(params: BuildTeacherPracPromptParams): st
   const chartsText = selectedCharts.map((c) => `- ${TEACHER_CHART_LABEL_MAP[c]}`).join("\n");
   const isSingle = selectedCharts.length === 1;
 
+  // 動態組合被選中圖表的專屬 AI 判讀指引
+  const chartGuidesText = selectedCharts
+    .map(c => CHART_INTERPRETATION_GUIDES[c])
+    .filter(Boolean)
+    .join("\n");
+
   return `
-你是一位專業的「教學輔導專家」，協助 「${city} ${organization_id}」 國小老師判讀該學校學習大數據儀表板
+你是一位專業的「教學輔導專家」，協助 「${city} ${organization_id}」 國小老師判讀該校學習數據儀表板
 你的目標是透過數據識別該校的學習痛點與教學斷點，提供精準的教學調整建議。
 請使用「專業、具同理心、實務導向」的語氣，，不得使用口語化表達或對話式語句，且避免過度僵硬的行政用語。
 
@@ -93,10 +119,13 @@ ${
 - 找出是否存在高投入但低成效的瓶頸單元，或低參與導致低成效的進度遺漏。`
 }
 
+針對本次選定圖表的專屬判讀指引：
+${chartGuidesText}
+
 所有判讀需依據：
 - 提供之摘要數據
-- 所選圖表內容
-- 圖表所呈現之趨勢、差距或分布
+- 所選圖表內容與上述判讀指引
+- 圖表所呈現之趨勢、面積、顏色差距或分布
 
 ---------------------------------------------------
 

@@ -51,10 +51,11 @@ export default function TeacherAIPanel({
 
   const chartOptions = [
     { id: "teacher_overview", label: "總覽練習表現" },
-    { id: "diagnostic", label: "教學診斷指標" },
-    { id: "participation", label: "作答參與度" },
     { id: "practice_trend", label: "練習投入走勢" },
     { id: "performance_trend", label: "學習成效走勢" },
+    { id: "diagnostic", label: "教學診斷指標" },
+    { id: "participation", label: "作答參與度" },
+    { id: "indicator_treemap", label: "能力指標熱力圖" },
     { id: "student_risk", label: "高風險學生與弱點指標" },
   ];
 
