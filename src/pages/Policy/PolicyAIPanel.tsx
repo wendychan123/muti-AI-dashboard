@@ -53,7 +53,7 @@ export default function PolicyAIPanel({
     { id: "policy_overview", label: "總覽練習概況" },
     { id: "development_index", label: "練習診斷指標" },
     { id: "regional_gap", label: "區域學習差距" },
-    { id: "gap_trend", label: "平均差距走勢" },
+    { id: "gap_trend", label: "區域成效對標" },
     { id: "practice_trend", label: "練習投入走勢" },
     { id: "effect_trend", label: "學習成效走勢" },
     { id: "school_matrix", label: "學校落點分佈" },

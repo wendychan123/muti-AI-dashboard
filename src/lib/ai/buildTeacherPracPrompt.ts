@@ -40,6 +40,7 @@ export interface BuildTeacherPracPromptParams {
   organization_id: string;
   grade: string;
   subject: string;
+  indicator?: string;
   period: string;
   selectedCharts: TeacherPracChartTarget[];
 
@@ -57,7 +58,7 @@ function fmtInt(n: number) { return Number.isFinite(n) ? Math.round(n).toLocaleS
 function fmt1(n: number) { return Number.isFinite(n) ? n.toFixed(1) : "—"; }
 
 export function buildTeacherPracPrompt(params: BuildTeacherPracPromptParams): string {
-  const { city, organization_id, grade, subject, period, selectedCharts, stats } = params;
+  const { city, organization_id, grade, subject, period, selectedCharts, stats, indicator } = params;
 
   const subjectLabel = subject === "全部科目" ? "跨科目綜合表現" : subject;
   const chartsText = selectedCharts.map((c) => `- ${TEACHER_CHART_LABEL_MAP[c]}`).join("\n");
@@ -85,11 +86,12 @@ export function buildTeacherPracPrompt(params: BuildTeacherPracPromptParams): st
 • 學校：${organization_id}
 • 對象：${grade} 年級
 • 科目：${subjectLabel}
-• 分析區間：${period}
+- 特定能力指標：${indicator || "全部能力指標"}
+• 分析期間：${period}
 
 【班級關鍵 KPI】
 • 參與學生數：${fmtInt(stats.totalStudents)} 位
-• 全校平均正確率：${fmt1(stats.avgScore)}%
+• 全校平均正確率：${stats.avgScore.toFixed(1)}%
 • 每人平均練習次數：${fmt1(stats.avgPracPerStudent)} 次
 • 未精熟學生數：${fmtInt(stats.notMasteredStudents)} 位（需優先關注）
 • 未精熟能力指標數：${fmtInt(stats.notMasteredIndicators)} 項
@@ -137,7 +139,7 @@ ${chartGuidesText}
 第一部分：
 (此處請勿出現「｜快讀總結」字樣)
 這部分請控制在 3 句話內。
-- 第一句：總結該學校目前的教學健康狀態（如：進度穩定、出現分化、投入不足等）。
+- 第一句：總結該學校目前在該科目、能力指標的教學健康狀態（如：進度穩定、出現分化、投入不足等）。
 - 第二句：指出最迫切需要老師介入的「指標」或「學生群體」。
 - 第三句：給出一個最核心的教學建議動作。
 

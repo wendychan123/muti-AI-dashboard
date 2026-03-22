@@ -459,6 +459,11 @@ const participationData = useMemo(() => {
 
   const runTeacherAIForChart = async (target: TeacherPracChartTarget | "teacher_overview") => {
     setGeminiLoading(true);
+
+    // 取得當前選取的指標名稱與單一數據
+    const currentIndicatorName = selectedIndicator ? (activeIndicatorSummary[0]?.indicate_name || selectedIndicator) : null;
+    const currentAvgScore = selectedIndicator && activeIndicatorSummary.length > 0 ? activeIndicatorSummary[0].student_mastery_rate_pct : kpi.masteryRate;
+
     const chartLabel = TEACHER_CHART_LABELS[target] || "全校練習表現";
 
     const prompt = buildTeacherPracPrompt({
@@ -466,10 +471,11 @@ const participationData = useMemo(() => {
       organization_id: String(organizationId || ""),
       grade: selectedGrade,
       subject: selectedSubject,
+      indicator: currentIndicatorName || "全部能力指標",
       period: periodLabel,
       stats: {
         totalStudents: kpi.totalStudents,
-        avgScore: kpi.masteryRate, 
+        avgScore: currentAvgScore, 
         avgPracPerStudent: kpi.avgPracPerStudent,
         notMasteredStudents: kpi.notMasteredStudents,
         notMasteredIndicators: 0, 
@@ -504,17 +510,20 @@ const participationData = useMemo(() => {
       if (selected.length === 0) return;
 
       setGeminiLoading(true);
+      const currentIndicatorName = selectedIndicator ? (activeIndicatorSummary[0]?.indicate_name || selectedIndicator) : null;
+      const currentAvgScore = selectedIndicator && activeIndicatorSummary.length > 0 ? activeIndicatorSummary[0].student_mastery_rate_pct : kpi.masteryRate;
       const chartLabels = selected.map((c) => TEACHER_CHART_LABELS[c]);
       const prompt = buildTeacherPracPrompt({
         city: String(userInfo?.city || ""), 
         organization_id: String(organizationId || ""),
         grade: selectedGrade,        
         subject: selectedSubject,
+        indicator: currentIndicatorName || "全部能力指標",
         period: periodLabel,
         selectedCharts: selected, 
         stats: {
           totalStudents: kpi.totalStudents,
-          avgScore: kpi.masteryRate,
+          avgScore: currentAvgScore,
           avgPracPerStudent: kpi.avgPracPerStudent,
           notMasteredStudents: kpi.notMasteredStudents,   
           notMasteredIndicators: 0 
@@ -539,7 +548,7 @@ const participationData = useMemo(() => {
     };
     window.addEventListener("teacher-ai-multi-request", handler);
     return () => window.removeEventListener("teacher-ai-multi-request", handler);
-  }, [selectedGrade, selectedSubject, periodLabel, kpi, organizationId, userInfo?.city]);
+  }, [selectedGrade, selectedSubject, selectedIndicator, activeIndicatorSummary, periodLabel, kpi, organizationId, userInfo?.city]);
 
   /* =========================
      工具函數
@@ -687,20 +696,36 @@ const participationData = useMemo(() => {
 
         
 
-        {/* KPI 4: 未精熟人數 (可過濾) */}
+        {/* KPI 4: 未精熟人數  */}
        <div 
           onClick={scrollToRiskTable}
-          className="flex flex-col bg-white border border-slate-200 rounded-md overflow-hidden shadow-sm cursor-pointer hover:shadow-md hover:border-rose-300 transition-all active:scale-[0.98] group"
+          className={`flex flex-col bg-white border rounded-md overflow-hidden shadow-sm cursor-pointer transition-all active:scale-[0.98] group ${
+            kpi.notMasteredStudents > 0 
+              ? "border-rose-200 hover:shadow-md hover:border-rose-400" 
+              : "border-slate-200 hover:shadow-md hover:border-slate-300"
+          }`}
         >
-          <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
+          <div className={`text-white text-sm font-bold py-2.5 px-3 text-center border-b ${
+            kpi.notMasteredStudents > 0 ? "bg-rose-500 border-rose-200" : "bg-slate-500 border-slate-200"
+          }`}>
             需關注未精熟人數
           </div>
+          
           <div className="flex-1 flex flex-col items-center justify-center p-5">
-            <div className={`text-4xl font-black tracking-tight ${kpi.notMasteredStudents > 0 ? "text-rose-600" : "text-slate-300"}`}>
-              {kpi.notMasteredStudents} <span className="text-lg font-bold text-rose-400/70">人</span>
+            <div className={`text-4xl font-black tracking-tight ${
+              kpi.notMasteredStudents > 0 ? "text-rose-600" : "text-slate-300"
+            }`}>
+              {kpi.notMasteredStudents} 
+              <span className={`text-lg font-bold ${
+                kpi.notMasteredStudents > 0 ? "text-rose-400/70" : "text-slate-300/70"
+              }`}>人</span>
             </div>
-            <div className="text-[11px] text-rose-300 mt-2 font-medium px-2 py-1 rounded-full group-hover:text-rose-500 transition-colors">
-              點擊查看名單 ↓
+            <div className={`text-[11px] mt-2 font-medium px-2 py-1 rounded-full transition-colors ${
+              kpi.notMasteredStudents > 0 
+                ? "text-rose-400 group-hover:text-rose-600" 
+                : "text-slate-400 group-hover:text-slate-600"
+            }`}>
+              {kpi.notMasteredStudents > 0 ? "點擊查看名單 ↓" : "全數達標，無需關注"}
             </div>
           </div>
         </div>
@@ -1008,44 +1033,44 @@ const participationData = useMemo(() => {
                       <HelpCircle className="w-5 h-5" />
                     </button>
                   </TooltipTrigger>
-                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f8fafc] shadow-2xl border-slate-200 text-slate-700 z-50">
-                      <div className="space-y-3">
-                        <p className="font-bold border-b pb-1 text-violet-900 flex items-center gap-1">圖表診斷說明：</p>
-                        <ul className="text-xs space-y-2.5">
-                          <li className="flex gap-2">
-                            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500 mt-1" />
-                            <span>
-                              <b className="text-blue-700">精熟區 (高次數、高得分)：</b>
-                              代表教育關係人透過頻繁練習且維持高正確率。此指標掌握度極佳，建議可進入下一階段學習。
-                            </span>
-                          </li>
-                          <li className="flex gap-2">
-                            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1" />
-                            <span>
-                              <b className="text-emerald-700">潛力區 (低次數、高得分)：</b>
-                              代表教育關係人練習次數不多即獲得高分。可能是指標難度較低，或是教育關係人已具備深厚的先備知識。
-                            </span>
-                          </li>
-                          <li className="flex gap-2">
-                            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-amber-500 mt-1" />
-                            <span>
-                              <b className="text-amber-700">低參與 (低次數、低得分)：</b>
-                              代表實質練習量不足。應優先引導教育關係人進行基本作答，累積足夠的互動數據以利後續診斷。
-                            </span>
-                          </li>
-                          <li className="flex gap-2">
-                            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-rose-500 mt-1" />
-                            <span>
-                              <b className="text-rose-700">瓶頸區 (高次數、低得分)：</b>
-                              代表教育關係人嘗試多次練習但成效不佳。此為核心學習障礙，需優先介入輔導。
-                            </span>
-                          </li>
-                        </ul>
-                        <p className="text-[12px] text-slate-400 pt-1 border-t leading-relaxed">
-                          ※ 以人均練習次數作為 X 軸，排除無效掛機時間，反映該校學生與學習內容的互動頻率與成效。
-                        </p>              
-                      </div>
-                    </TooltipContent>
+                    <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#faf9fb] shadow-2xl border-violet-200 text-slate-700 z-50">
+                    <div className="space-y-3">
+                      <p className="font-bold border-b pb-1 text-violet-900 flex items-center gap-1">圖表計算說明：</p>
+                      <ul className="text-xs space-y-3">
+                        <li className="flex gap-2">
+                          <span className="shrink-0 w-2 h-2 rounded-full bg-blue-500 mt-1" />
+                          <span>
+                            <b className="text-blue-700 text-[13px]">精熟區</b><br/>
+                            學生投入度高且正確率穩定。此指標已達標，可規劃進階挑戰或進入下一單元。
+                          </span>
+                        </li>
+                        <li className="flex gap-2">
+                          <span className="shrink-0 w-2 h-2 rounded-full bg-emerald-500 mt-1" />
+                          <span>
+                            <b className="text-emerald-700 text-[13px]">潛力區</b><br/>
+                            練習次數少即獲得高分。可能難度較易或學生已有先備知識，適合縮短教學時數。
+                          </span>
+                        </li>
+                        <li className="flex gap-2">
+                          <span className="shrink-0 w-2 h-2 rounded-full bg-amber-500 mt-1" />
+                          <span>
+                            <b className="text-amber-700 text-[13px]">低參與</b><br/>
+                            作答量過低導致無法判斷成效。應優先確認是否為進度尚未排入，或引導學生開始作答。
+                          </span>
+                        </li>
+                        <li className="flex gap-2">
+                          <span className="shrink-0 w-2 h-2 rounded-full bg-rose-500 mt-1" />
+                          <span>
+                            <b className="text-rose-700 text-[13px]">瓶頸區</b><br/>
+                            學生嘗試多次但成效不佳。代表存在學習問題，需立即介入輔助教學。
+                          </span>
+                        </li>
+                      </ul>
+                      <p className="text-[12px] text-slate-400 pt-1 border-t leading-relaxed">
+                          ※ 透過此圖可識別該校在該科目練習作答時的投入度與實質成效之關聯性。
+                        </p>     
+                    </div>
+                  </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
 
@@ -1066,7 +1091,7 @@ const participationData = useMemo(() => {
             </div>
           </CardHeader>
             
-          <CardContent className="h-[260px] w-full">
+          <CardContent className="h-[300px] w-full">
             {selectedIndicator && (
               <div>
                 <span className="text-[12px] font-bold text-blue-700 ">
@@ -1101,7 +1126,7 @@ const participationData = useMemo(() => {
                     "實質參與：%{x:.1f} 次練習<br>" + 
                     "精熟率：%{y:.1f}%<br>" +
                     "<extra></extra>",
-                  hoverlabel: { align: "left", namelength: -1 }
+                  hoverlabel: { align: "left", namelength: -1, font: { color: "#ffffff" } }
                 }
               ]}
               // 新增 onClick 事件來更新 State
@@ -1116,13 +1141,13 @@ const participationData = useMemo(() => {
               }}
               layout={{
                 height: 300,
-                margin: { t: 30, r: 30, b: 70, l: 60 },
+                margin: { t: 30, r: 10, b: 70, l: 60 },
                 xaxis: { 
                   title: { text: "人均練習次數", font: { size: 12, color: '#64748b' }, standoff: 15 },                                 
                   gridcolor: '#f1f5f9', zeroline: false 
                 },
                 yaxis: { 
-                  title: { text: "學生精熟率 (%)", font: { size: 12, color: '#64748b' }, standoff: 15 },
+                  title: { text: "平均正確率 (%)", font: { size: 12, color: '#64748b' }, standoff: 15 },
                   range: [-5, 110], gridcolor: '#f1f5f9', zeroline: false 
                 },
                 shapes: [
@@ -1322,7 +1347,7 @@ const participationData = useMemo(() => {
                             代表平均精熟率。<span className="text-violet-200 font-bold">顏色偏白</span>表示精熟率低（需優先關注），<span className="text-violet-600 font-bold">顏色深紫</span>表示精熟率高（已達標）。
                           </li>
                         </ul>
-                        <p className="text-[11px] text-slate-500 pt-1 border-t italic">
+                        <p className="text-[11px] text-slate-500 pt-1 border-t">
                           ※ 提示：請特別注意<b className="text-violet-600">「面積大但顏色偏白」</b>的區塊，這通常是全校共同的學習瓶頸。
                         </p>                      
                       </div>

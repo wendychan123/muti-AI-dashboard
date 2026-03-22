@@ -738,6 +738,10 @@ const gapTrend = useMemo(() => {
 
   setGeminiLoading(true);
 
+  const safeSchoolGap = Number.isNaN(kpiCurrent.school_score_std) 
+      ? null 
+      : kpiCurrent.school_score_std;
+
   const prompt = buildPolicyPracPrompt({
     city: selectedCity,
     subject: selectedSubject,
@@ -773,6 +777,9 @@ const gapTrend = useMemo(() => {
         role: "policy",
       }),
     });
+    if (!res.ok) {
+        throw new Error(`API Error: ${res.status} - ${res.statusText}`);
+      }
 
     const data = await res.json();
 
@@ -804,7 +811,7 @@ const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
   policy_overview: "總覽練習概況",
   development_index: "練習診斷指標",
   regional_gap: "區域學習差距",
-  gap_trend: "平均差距走勢",
+  gap_trend: "區域成效對標",
   practice_trend: "練習投入走勢",
   effect_trend: "學習成效走勢",
   scissors_gap: "校際差距走勢",
@@ -832,6 +839,10 @@ useEffect(() => {
     const chartLabels = selected.map(
       (c) => POLICY_EXPLAIN_MAP[c]
     );
+
+    const safeSchoolGap = Number.isNaN(kpiCurrent.school_score_std) 
+      ? null 
+      : kpiCurrent.school_score_std;
 
     const prompt = buildPolicyPracPrompt({
       city: selectedCity,
@@ -868,6 +879,10 @@ useEffect(() => {
           role: "policy",
         }),
       });
+
+      if (!res.ok) {
+        throw new Error(`API Error: ${res.status} - ${res.statusText}`);
+      }
 
       const data = await res.json();
 
@@ -1084,60 +1099,87 @@ useEffect(() => {
             );
           })()}
 
-          {/* KPI 4: 加權校際差距 */}
-          <div 
-            className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white cursor-pointer hover:shadow-md hover:border-emerald-500 transition-all duration-300 relative group"
-            onClick={() => scissorsGapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-          >
-            
+          {/* KPI 4: 平均校際差距 */}
+            {(() => {
+              const value = kpiCurrent?.school_score_std;
+              const isNaNValue = isNaN(value);
+              
+              
+              let config = {
+                bg: "bg-slate-500",      // 標題背景
+                hoverBg: "group-hover:bg-slate-600",
+                text: "text-slate-500",  // 數值文字
+                border: "border-slate-200",
+                label: "數據計算中",
+                highlight: "hover:border-slate-400"
+              };
 
-            <div className="bg-slate-500 group-hover:bg-slate-600 transition-colors text-white text-base font-bold py-2.5 px-3 text-center border-b border-slate-200">
-              平均校際差距
-            </div>
-            <div className="flex-1 flex flex-col items-center justify-center p-4">
-              {isNaN(kpiCurrent?.school_score_std) ? (
-                <>
-                  <div className="text-3xl font-black tracking-tight text-slate-300">
-                    NaN
+              if (!isNaNValue) {
+                if (value > 3) {
+                  config = {
+                    bg: "bg-rose-500",
+                    hoverBg: "group-hover:bg-rose-600",
+                    text: "text-rose-600",
+                    border: "border-rose-100",
+                    label: "顯著失衡",
+                    highlight: "hover:border-rose-500"
+                  };
+                } else if (value > 1.5) {
+                  config = {
+                    bg: "bg-amber-500",
+                    hoverBg: "group-hover:bg-amber-600",
+                    text: "text-amber-600",
+                    border: "border-amber-100",
+                    label: "輕微差距",
+                    highlight: "hover:border-amber-500"
+                  };
+                } else {
+                  config = {
+                    bg: "bg-emerald-500",
+                    hoverBg: "group-hover:bg-emerald-600",
+                    text: "text-emerald-600",
+                    border: "border-emerald-100",
+                    label: "區域均衡",
+                    highlight: "hover:border-emerald-500"
+                  };
+                }
+              }
+
+              return (
+                <div 
+                  className={`flex flex-col border ${config.border} rounded-lg overflow-hidden shadow-sm bg-white cursor-pointer ${config.highlight} transition-all duration-300 relative group`}
+                  onClick={() => scissorsGapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                >
+                  {/* 動態標題背景 */}
+                  <div className={`${config.bg} ${config.hoverBg} transition-colors text-white text-base font-bold py-2.5 px-3 text-center`}>
+                    平均校際差距
                   </div>
-                  <div className="text-[12px] text-slate-400 mt-1 text-center">
-                    目前為該行政區唯一數據
-                  </div>
-                </>
-              ) : (
-                <>
-                  {(() => {
-                    const value = kpiCurrent.school_score_std || 0;
-                    let statusColor = "text-emerald-600";
-                    let label = "區域均衡";
 
-                    if (value > 3) {
-                      statusColor = "text-rose-600";
-                      label = "顯著失衡";
-                    } else if (value > 1.5) {
-                      statusColor = "text-amber-500";
-                      label = "輕微差距";
-                    }
-
-                    return (
+                  <div className="flex-1 flex flex-col items-center justify-center p-5">
+                    {isNaNValue ? (
                       <>
-                        <div className={`text-3xl font-black tracking-tight ${statusColor}`}>
+                        <div className="text-3xl font-black tracking-tight text-slate-300">NaN</div>
+                        <div className="text-[12px] text-slate-400 mt-1 text-center">目前為該行政區唯一數據</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className={`text-4xl font-black tracking-tight ${config.text}`}>
                           {value.toFixed(2)}
                         </div>
-                        <div className="text-[12px] text-slate-400 mt-1">
-                          {label} 
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="text-[13px] font-medium text-slate-500">{config.label}</span>
                         </div>
-                        {/* 提示文字 */}
-                        <div className="text-[10px] text-emerald-600 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          點擊查看詳細走勢 ↓
+                        
+                        {/* 提示文字優化 */}
+                        <div className={`text-[11px] ${config.text} opacity-0 group-hover:opacity-100 transform translate-y-1 group-hover:translate-y-0 transition-all`}>
+                          查看詳細走勢圖表 ↓
                         </div>
                       </>
-                    );
-                  })()}
-                </>
-              )}
-            </div>
-          </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
         </div>
       )}
 
@@ -1546,7 +1588,7 @@ useEffect(() => {
           />
       </Card>
 
-      {/* ===== 平均差距走勢 ===== */}
+      {/* ===== 區域成效對標===== */}
       <Card className="col-span-1 relative">
 
         {loading && (
@@ -1558,7 +1600,7 @@ useEffect(() => {
 
         <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
             <CardTitle className="text-xl font-bold ">
-              平均差距走勢
+              區域成效對標
               <span className="px-2 text-[9px] text-green-600">（ 科目：{selectedSubject} ）</span>
             </CardTitle>
          
@@ -1842,7 +1884,10 @@ useEffect(() => {
                           <li><b className="text-emerald-700">平均正確率 (左軸)：</b>整體學生表現趨勢。</li>
                           <li><b className="text-red-600">校際差距 (右軸)：</b>該時段各校平均分數的標準差。</li>
                         </ul>
-                          ※ 若綠線上升但紅線也急遽上升，代表出現「強者越強，弱者越弱」的問題，需針對弱勢學校介入輔導。                 
+                        
+                          <p className="text-[12px] text-slate-400 pt-1 border-t">
+                          ※ 若綠線上升但紅線也急遽上升，代表出現強者越強，弱者越弱的問題，需針對弱勢學校介入輔導。  
+                          </p>               
                       </div>
                     </TooltipContent>
                 </Tooltip>
@@ -1897,7 +1942,7 @@ useEffect(() => {
             ]}
             layout={{
               height: 350,
-              margin: { t: 10, l: 50, r: 50, b: 70 },
+              margin: { t: 30, l: 70, r: 50, b: 80 },
               xaxis: {
                 title: viewMode === "day" ? "日期" : viewMode === "week" ? "週起始日" : "月份",
                 type: "category",
@@ -1905,14 +1950,22 @@ useEffect(() => {
                 tickfont: { size: 10, color: "#64748b" },
               },
               yaxis: {
-                title: "平均答題正確率 (%)",
+                title: {
+                    text: "平均答題正確率 (%)", 
+                    font: { size: 10, color: '#64748b' },
+                    standoff: 15
+                  },
                 range: [0, 105],
                 ticksuffix: "%",
                 titlefont: { color: '#16a34a' },
                 tickfont: { color: '#16a34a' },
               },
               yaxis2: {
-                title: "校際差距 (標準差)",
+                title: {
+                    text: "校際差距 (標準差)", 
+                    font: { size: 10, color: '#64748b' },
+                    standoff: 15
+                  },
                 overlaying: "y",
                 side: "right",
                 rangemode: "tozero",

@@ -1772,6 +1772,7 @@ const topAssocPairs = useMemo(() => {
                           "<i>(點擊查看歷次進步軌跡)</i>" +
                           "<extra></extra>",
                         name: "最新作答",
+                        hoverlabel: { align: "left", namelength: -1, font: { color: "#ffffff" } }
                       },
                     ]
                   : [
@@ -1798,6 +1799,7 @@ const topAssocPairs = useMemo(() => {
                           "正確率：%{y:.0f}%<br>" +
                           "狀態：<b>%{customdata}</b><extra></extra>",
                         name: "歷次作答",
+                        hoverlabel: { align: "left", namelength: -1, font: { color: "#ffffff" } }
                       },
                       // ===== 詳細模式：最新一次作答（黃框標記） =====
                       {

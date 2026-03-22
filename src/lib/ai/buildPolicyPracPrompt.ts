@@ -2,7 +2,7 @@ export type PolicyExplainTarget =
   | "policy_overview"    // 總覽練習概況
   | "development_index"  // 練習診斷指標 (四象限)
   | "regional_gap"       // 區域學習差距 (長條圖)
-  | "gap_trend"          // 平均差距走勢 (面積圖)
+  | "gap_trend"          // 區域成效對標 (面積圖)
   | "practice_trend"     // 練習投入走勢 (柱線雙軸)
   | "effect_trend"       // 學習成效走勢 (折線圖)
   | "scissors_gap"       // 校際差距走勢 (雙軸趨勢)
@@ -13,7 +13,7 @@ const POLICY_CHART_LABEL_MAP: Record<PolicyExplainTarget, string> = {
   policy_overview: "總覽練習概況",
   development_index: "練習診斷指標",
   regional_gap: "區域學習差距",
-  gap_trend: "平均差距走勢",
+  gap_trend: "區域成效對標",
   practice_trend: "練習投入走勢",
   effect_trend: "學習成效走勢",
   scissors_gap: "校際差距走勢",
@@ -28,7 +28,7 @@ const CHART_FOCUS_GUIDE: Record<PolicyExplainTarget, string> = {
   gap_trend: "重點：觀察該區域與基準線差距的長期波動，抓出特定時間點(如考前/連假)的劇烈落差變化。",
   practice_trend: "重點：比對「活躍學生數」與「練習總次數」，觀察學習動能的延續性，並警示可能出現的「學習疲勞」期。",
   effect_trend: "重點：觀察平均正確率的波動穩定度，判斷學習成效是否具備長期可持續性，抑或只是短暫拉抬。",
-  scissors_gap: "重點：極端重要！必須交叉比對「平均正確率」與「校際差距(標準差)」。若出現平均上升但差距擴大的「剪刀差(馬太效應)」，請強烈預警資源嚴重傾斜的問題。",
+  scissors_gap: "重點：交叉比對「平均正確率」與「校際差距(標準差)」。若出現平均上升但差距擴大，請強烈預警資源嚴重傾斜的問題。",
   school_matrix: "重點：以學校為單位，揪出落入「高投入低成效(需教學端支援)」或「低投入低成效(需行政端介入)」的具體長尾/弱勢學校群體結構。"
 };
 
