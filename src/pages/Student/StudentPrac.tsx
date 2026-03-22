@@ -934,22 +934,9 @@ const topAssocPairs = useMemo(() => {
             總投入時間
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
-            <div className="text-2xl font-black text-slate-700 tracking-tight">
+            <div className="text-3xl font-black text-slate-700 tracking-tight">
               {Math.round(processedStats.totalTime / 60).toLocaleString()} <span className="text-base">分</span>
             </div>
-            {processedStats.schoolAvgTotalTime != null && (
-              <div className="text-[11px] text-center mt-1 font-medium">
-                <span className="text-slate-500">校平均 {Math.round(processedStats.schoolAvgTotalTime / 60).toLocaleString()} 分</span><br/>
-                <span className={`ml-1 ${
-                  processedStats.timeDiff >= 0 ? "text-green-500" : "text-red-500"
-                }`}>
-                  {processedStats.timeDiff === 0 ? " (與校平均持平)" : 
-                  processedStats.timeDiff > 0 
-                  ? ` (+${Math.round(Math.abs(processedStats.timeDiff) / 60).toLocaleString()}分)` 
-                  : ` (-${Math.round(Math.abs(processedStats.timeDiff) / 60).toLocaleString()}分)`}
-                </span>
-              </div>
-            )}
           </div>
         </div>
 
