@@ -896,7 +896,7 @@ const topAssocPairs = useMemo(() => {
             value={selectedSubject}
             onValueChange={(val) => {
               setSelectedSubject(val);
-              setSelectedIndicator("all"); // 切換科目時重置連動狀態
+              setSelectedIndicator("all"); 
             }}
           >
             <SelectTrigger className="w-[150px] font-medium text-slate-700 bg-white border rounded">
@@ -1674,7 +1674,7 @@ const topAssocPairs = useMemo(() => {
         </Card>
       </div>
 
-      {/* ===== 圖表：學習歷程表現圖 ===== */}
+      {/* ===== 學習歷程表現圖 ===== */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <Card className="col-span-2 relative">
 
@@ -1930,11 +1930,7 @@ const topAssocPairs = useMemo(() => {
           </CardHeader>
           
           <CardContent className="h-[300px] w-full">
-            {selectedIndicator !== "all" && (
-              <>
-                <span className="text-sm font-bold text-blue-700 ">{selectedIndicator}</span>
-              </>
-            )}
+            
             <Plot
               onClick={(e) => {
                 // 連動點擊：使用沒有換行符號的 customdata[0] 確保過濾器正常運作

@@ -116,6 +116,7 @@ export default function TeacherPrac() {
   const [schoolSummary, setSchoolSummary] = useState<SchoolSummary[]>([]);
   const [indicatorSummary, setIndicatorSummary] = useState<IndicatorSummary[]>([]);
   const [subjectSummary, setSubjectSummary] = useState<SubjectSummary[]>([]);
+  const [selectedIndicator, setSelectedIndicator] = useState<string | null>(null);
   const [alertData, setAlertData] = useState<StudentAlert[]>([]);
 
   const [selectedGrade, setSelectedGrade] = useState(ALL_GRADE);
@@ -215,18 +216,28 @@ export default function TeacherPrac() {
   };
 
   /* =========================
+   圖表連動篩選邏輯
+========================= */
+const activeIndicatorSummary = useMemo(() => {
+  if (!selectedIndicator) return filteredIndicator;
+  return filteredIndicator.filter(r => r.indicator === selectedIndicator);
+}, [filteredIndicator, selectedIndicator]);
+
+const activeAlertData = useMemo(() => {
+  if (!selectedIndicator) return filteredAlert;
+  return filteredAlert.filter(a => a.indicator === selectedIndicator);
+}, [filteredAlert, selectedIndicator]);
+
+  /* =========================
       高風險學生名單
   ========================= */
-  /* =========================
-      高風險學生名單 (修正版：新增練習指標統計)
-  ========================= */
   const studentRiskRanking = useMemo(() => {
-    if (!filteredAlert || filteredAlert.length === 0) return [];
+    if (!activeAlertData || activeAlertData.length === 0) return [];
 
     // userMap 結構調整：新增 allNames 紀錄所有練習過的單元
     const userMap = new Map<string, { unmastered: number; total: number; unmasteredNames: string[], allNames: string[] }>();
 
-    filteredAlert.forEach((a) => {
+    activeAlertData.forEach((a) => {
       const uId = a.user_id ? String(a.user_id) : null;
       if (!uId) return;
 
@@ -261,7 +272,7 @@ export default function TeacherPrac() {
     return list
       .filter(s => s.unmasteredCount > 0)
       .sort((a, b) => b.unmasteredCount - a.unmasteredCount);
-  }, [filteredAlert]);
+  }, [activeAlertData]);
 
   /* =========================
       KPI 
@@ -309,6 +320,7 @@ export default function TeacherPrac() {
   // 教學診斷四象限 
   const quadrantData = useMemo(() => {
     const rows = filteredIndicator.map(r => ({
+      id: r.indicator,
       name: r.indicate_name,
       avgCount: r.student_count > 0 ? (r.total_prac_count / r.student_count) : 0, 
       avgScore: r.student_mastery_rate_pct ?? 0 
@@ -325,23 +337,31 @@ export default function TeacherPrac() {
   }, [filteredIndicator]);
 
   // 作答參與度
-  const participationData = useMemo(() => {
-    const data = filteredIndicator
-      .map((r) => {
-        const gradeTotal = schoolSummary.find(s => s.grade === r.grade)?.total_students || 1;
-        const calcRate = (r.student_count / gradeTotal) * 100;
-        return {
-          name: r.indicator,
-          fullName: r.indicate_name,
-          rate: calcRate,
-          students: r.student_count ?? 0,
-        };
-      })
-      .sort((a, b) => b.rate - a.rate);
+const participationData = useMemo(() => {
+  const data = activeIndicatorSummary.map((r) => {
+      // 修正 1：同時比對 organization_id 與 grade，確保抓到「該校該年級」的總人數
+      const gradeSummary = schoolSummary.find(
+        s => String(s.organization_id) === String(organizationId) && s.grade === r.grade
+      );
+      const gradeTotal = gradeSummary?.total_students || 1; // 避免除以 0
 
-    const dynamicHeight = Math.max(260, data.length * 40); 
-    return { data, dynamicHeight };
-  }, [filteredIndicator, schoolSummary]);
+      // 計算參與率
+      let calcRate = (r.student_count / gradeTotal) * 100;
+      
+      // 修正 2：防呆機制，若因資料同步落差導致超過 100%，強制收斂最高為 100%
+      if (calcRate > 100) calcRate = 100;
+
+      return {
+        name: r.indicator,
+        fullName: r.indicate_name,
+        rate: calcRate,
+        students: r.student_count ?? 0,
+      };
+    })
+    .sort((a, b) => b.rate - a.rate);
+
+  return { data};
+}, [activeIndicatorSummary, schoolSummary, organizationId]); // 記得補上 organizationId 依賴
 
   // 練習趨勢與成效走勢
   const aggregatedPracTrend = useMemo(() => {
@@ -375,12 +395,11 @@ export default function TeacherPrac() {
   }, [filteredPrac, viewMode]);
 
   /* =========================
-      能力指標熱力圖+預警分析
+      能力指標熱力圖
   ========================= */
-  
-  // 1. Treemap (能力指標熱力圖)
+  // Treemap (能力指標熱力圖)
   const treemapData = useMemo(() => {
-    const validIndicators = filteredIndicator.filter(r => r.student_count > 0);
+    const validIndicators = activeIndicatorSummary.filter(r => r.student_count > 0);
     if (validIndicators.length === 0) return null;
 
     const rootName = selectedSubject !== ALL_SUBJECT ? selectedSubject : "所有科目";
@@ -406,7 +425,7 @@ export default function TeacherPrac() {
     });
 
     return { labels, parents, values, colors, customData, rootName };
-  }, [filteredIndicator, selectedSubject]);
+  }, [activeIndicatorSummary, selectedSubject]);
 
   // 2. 教學洞察：時序衰退 與 無效練習
   const teachingInsights = useMemo(() => {
@@ -660,7 +679,7 @@ export default function TeacherPrac() {
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
             <div className="text-3xl font-black text-slate-800 tracking-tight text-emerald-600">
-               {(kpi.totalTimePrac).toFixed(0)} <span className="text-lg">秒</span>
+               {(kpi.totalTimePrac/60).toFixed(0)} <span className="text-lg">分</span>
             </div>
             <div className="text-[11px] text-center text-slate-400 mt-1">人均練習 {kpi.avgPracPerStudent.toFixed(1)} 次</div>
           </div>
@@ -950,10 +969,25 @@ export default function TeacherPrac() {
             )}
 
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
+          <div className="flex flex-col gap-1">
             {/* 左側：標題 */}
-            <CardTitle className="text-xl font-bold ">
+            <CardTitle 
+              className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2 group"
+              onClick={() => setSelectedIndicator(null)}
+              >
+
               教學診斷指標
             </CardTitle>
+
+
+             {!selectedIndicator && (
+                <span className="text-[11px] text-slate-400 font-normal">
+                  點擊圖表圓點，可查看單一指標連動表現
+                </span>
+              )}
+
+            </div>
+            
 
             {/* 右側：按鈕群組 */}
             <div className="flex items-center gap-1">
@@ -1033,19 +1067,31 @@ export default function TeacherPrac() {
           </CardHeader>
             
           <CardContent className="h-[260px] w-full">
+            {selectedIndicator && (
+              <div>
+                <span className="text-[12px] font-bold text-blue-700 ">
+                  已選取：{activeIndicatorSummary[0]?.indicate_name || selectedIndicator}
+                </span>
+              </div>
+            )}
             <Plot
               data={[
                 {
                   x: quadrantData.rows.map(r => r.avgCount),
                   y: quadrantData.rows.map(r => r.avgScore),
+                  customdata: quadrantData.rows.map(r => r.id),
                   mode: "markers",
                   marker: {
-                    size: 12,
-                    color: quadrantData.rows.map(r => 
-                      r.avgScore >= quadrantData.yAvg 
+                    // 選取時放大該點
+                    size: quadrantData.rows.map(r => selectedIndicator === r.id ? 18 : 12),
+                    color: quadrantData.rows.map(r => {
+                      // 如果有選取指標，且不是當前這顆，就變成半透明灰色
+                      if (selectedIndicator && selectedIndicator !== r.id) return "rgba(203, 213, 225, 0.4)";
+                      
+                      return r.avgScore >= quadrantData.yAvg 
                         ? (r.avgCount >= quadrantData.xAvg ? "rgba(37, 100, 235, 0.8)" : "rgba(22, 163, 74, 0.8)") 
-                        : (r.avgCount >= quadrantData.xAvg ? "rgba(220, 38, 38, 0.8)" : "rgba(154, 154, 154, 1)") 
-                    ),
+                        : (r.avgCount >= quadrantData.xAvg ? "rgba(220, 38, 38, 0.8)" : "rgba(154, 154, 154, 1)");
+                    }),
                     opacity: 0.6,
                     line: { color: 'white', width: 1 }
                   },
@@ -1058,9 +1104,19 @@ export default function TeacherPrac() {
                   hoverlabel: { align: "left", namelength: -1 }
                 }
               ]}
+              // 新增 onClick 事件來更新 State
+              onClick={(data) => {
+                if (data.points && data.points.length > 0) {
+                  // 使用 pointIndex 對應原始資料陣列，避免 customdata 遺失的問題
+                  const pointIndex = data.points[0].pointIndex;
+                  const clickedIndicatorId = quadrantData.rows[pointIndex].id;
+                  // 若點擊同一個圓點則取消篩選，點擊不同圓點則切換篩選
+                  setSelectedIndicator(prev => prev === clickedIndicatorId ? null : clickedIndicatorId);
+                }
+              }}
               layout={{
-                height: 260,
-                margin: { t: 30, r: 30, b: 60, l: 60 },
+                height: 300,
+                margin: { t: 30, r: 30, b: 70, l: 60 },
                 xaxis: { 
                   title: { text: "人均練習次數", font: { size: 12, color: '#64748b' }, standoff: 15 },                                 
                   gridcolor: '#f1f5f9', zeroline: false 
@@ -1097,7 +1153,11 @@ export default function TeacherPrac() {
           )}
 
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-2">
-            <CardTitle className="text-xl font-bold flex items-center gap-2">
+            <CardTitle 
+              className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2 group"
+              onClick={() => setSelectedIndicator(null)}
+              >
+
               作答參與度
             </CardTitle>
 
@@ -1139,8 +1199,8 @@ export default function TeacherPrac() {
             </div>
           </CardHeader>
 
-          <CardContent className="h-[260px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-200">
-            <div style={{ height: participationData.dynamicHeight }}>
+          <CardContent className="p-0"> 
+            <div className="h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar">
               <Plot
                 data={[
                   {
@@ -1180,7 +1240,7 @@ export default function TeacherPrac() {
                 ]}
                 layout={{
                   autosize: true,
-                  height: participationData.dynamicHeight,
+                  height: Math.max(180, participationData.data.length * 38 + 60), 
                   margin: { l: 120, r: 30, t: 35, b: 60 },
                   showlegend: false,
                   xaxis: {
@@ -1198,7 +1258,7 @@ export default function TeacherPrac() {
                   hovermode: "y unified",
                 }}
                 config={{ displayModeBar: false, responsive: true }}
-                style={{ width: "100%", height: "100%" }}
+                style={{ width: "100%" }}
               />
             </div>
           </CardContent>
@@ -1222,7 +1282,10 @@ export default function TeacherPrac() {
         
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
             {/* 左側：標題 */}
-            <CardTitle className="text-xl font-bold ">
+            <CardTitle 
+              className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2 group"
+              onClick={() => setSelectedIndicator(null)}
+              >
               能力指標熱力圖
             </CardTitle>
 
