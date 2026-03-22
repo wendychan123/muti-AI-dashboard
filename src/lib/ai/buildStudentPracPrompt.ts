@@ -19,7 +19,7 @@ interface BuildPracPromptParams {
     learningProcess?: any;
     indicatorGap?: any;
     progressTrend?: any;
-    indicator_assoc?: any;
+    indicatorAssoc?: any;
   };
 }
 

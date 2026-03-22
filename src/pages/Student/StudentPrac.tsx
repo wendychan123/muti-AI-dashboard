@@ -664,7 +664,8 @@ const topAssocPairs = useMemo(() => {
         indicatorEffect: chart1Data.meta,
         learningProcess: chart3Data,
         indicatorGap: diffBarData,
-        progressTrend: progressTrendData
+        progressTrend: progressTrendData,
+        indicatorAssoc: topAssocPairs
         
       }
     });
@@ -748,7 +749,8 @@ const topAssocPairs = useMemo(() => {
             indicatorEffect: chart1Data.meta,
             learningProcess: chart3Data,
             indicatorGap: diffBarData,
-            progressTrend: progressTrendData
+            progressTrend: progressTrendData,
+            indicatorAssoc: topAssocPairs
           }
       });
   
@@ -799,6 +801,12 @@ const topAssocPairs = useMemo(() => {
       window.removeEventListener("student-ai-multi-request", handler);
     };
   }, [
+    selectedIndicator,
+    chart1Data,
+    chart3Data,
+    diffBarData,
+    progressTrendData,
+    assocHeatmapData,
     trendData,
     selectedDate,
     selectedSubject,
@@ -921,7 +929,7 @@ const topAssocPairs = useMemo(() => {
             總練習單元數
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
-            <div className="text-3xl font-black text-slate-700 tracking-tight">
+            <div className="text-4xl font-black text-slate-700 tracking-tight">
               {processedStats.count.toLocaleString()}
             </div>
             
@@ -934,7 +942,7 @@ const topAssocPairs = useMemo(() => {
             總投入時間
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
-            <div className="text-3xl font-black text-slate-700 tracking-tight">
+            <div className="text-4xl font-black text-slate-700 tracking-tight">
               {Math.round(processedStats.totalTime / 60).toLocaleString()} <span className="text-base">分</span>
             </div>
           </div>
@@ -946,11 +954,11 @@ const topAssocPairs = useMemo(() => {
             平均正確率
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
-            <div className="text-2xl font-black text-slate-700 tracking-tight">
+            <div className="text-3xl font-black text-slate-700 tracking-tight">
               {avgScoreCompare.studentAvg} %
             </div>
             <div className="text-[11px] text-center text-slate-400 font-medium mt-1">
-              <span className="text-slate-500">校平均 {avgScoreCompare.classAvg} % </span><br/>
+              <span className="text-slate-500">校平均 {avgScoreCompare.classAvg} % </span>
               <span
                       className={
                         avgScoreCompare.diff >= 0
@@ -1282,9 +1290,11 @@ const topAssocPairs = useMemo(() => {
               <span className="text-sm text-slate-600">資料分析中...</span>
             </div>
           )}
+          
 
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
             {/* 左側：標題 */}
+            <div className="flex flex-col gap-1">
             <CardTitle 
               className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2 group"
               onClick={() => setSelectedIndicator("all")}
@@ -1292,7 +1302,15 @@ const topAssocPairs = useMemo(() => {
             >
               能力指標投入
               
+              
             </CardTitle>
+            
+              {selectedIndicator === "all" && (
+                <span className="text-[11px] text-slate-400 font-normal">
+                  點擊下方長條圖，可查看單一指標連動表現
+                </span>
+              )}
+            </div>
 
             {/* 右側：按鈕群組 */}
             <div className="flex items-center gap-0">
@@ -1354,7 +1372,7 @@ const topAssocPairs = useMemo(() => {
                 style={{
                   // 依照資料比例拉長寬度，確保視窗內最多只顯示 10 筆
                   width: chart1Data.xShort.length > 10 
-                    ? `${(chart1Data.xShort.length / 10) * 100}%` 
+                    ? `${(chart1Data.xShort.length / 10) * 45}%` 
                     : '100%',
                   height: '100%',
                   minWidth: '100%',
@@ -1402,18 +1420,31 @@ const topAssocPairs = useMemo(() => {
                     autosize: true, // 確保圖表填滿我們剛剛設定的 div 寬度
                     margin: { t: 60, r: 40, b: 80, l: 50 }, // 稍微增加左邊距避免 Y 軸文字被切掉
                     xaxis: { 
+                      title: {
+                        text: "能力指標", 
+                        font: { size: 10, color: '#64748b' },
+                        standoff: 15
+                      },
                       tickangle: -30, 
-                      tickfont: { size: 11 },
+                      tickfont: { size: 9 },
                       fixedrange: true // 禁止直接在圖上縮放，強迫使用者用下方卷軸
                     },
-                    yaxis: { 
-                      title: "練習次數", 
+                    yaxis: {                       
+                      title: {
+                        text: "練習次數", 
+                        font: { size: 10, color: '#64748b' },
+                        standoff: 15
+                      },
                       gridcolor: "#f1f5f9", 
                       zeroline: false,
                       fixedrange: true 
                     },
-                    yaxis2: { 
-                      title: "平均正確率 (%)", 
+                    yaxis2: {
+                      title: {
+                        text: "平均正確率 (%)", 
+                        font: { size: 10, color: '#64748b' },
+                        standoff: 15
+                      },
                       overlaying: "y", 
                       side: "right", 
                       range: [0, 110], 
@@ -1462,6 +1493,7 @@ const topAssocPairs = useMemo(() => {
           )}
 
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
+            <div className="flex flex-col gap-1">
               {/* 左側：標題 */}
               <CardTitle 
               className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2 group"
@@ -1470,6 +1502,13 @@ const topAssocPairs = useMemo(() => {
             >
               能力指標差距
             </CardTitle>
+
+            {selectedIndicator === "all" && (
+                <span className="text-[11px] text-slate-400 font-normal">
+                  點擊下方長條圖，可查看單一指標連動表現
+                </span>
+              )}
+              </div>
               
               {/* 右側：按鈕群組 */}
               <div className="flex items-center gap-0">
@@ -1569,10 +1608,14 @@ const topAssocPairs = useMemo(() => {
                 // 動態計算高度：每筆資料給 40px，確保不縮放
                 height: Math.max(300, diffBarData.length * 25), 
                 autosize: true,
-                margin: { l: 120, r: 50, t: 45, b: 80 },
+                margin: { l: 120, r: 50, t: 65, b: 80 },
                 showlegend: false,
                 xaxis: {
-                  title: "與校平均差距（%）",
+                  title: {
+                    text: "與校平均差距（%）", 
+                    font: { size: 10, color: '#64748b' },
+                    standoff: 15
+                  },
                   zeroline: true,
                   zerolinewidth: 2,
                   zerolinecolor: "#94a3b8",
@@ -1580,6 +1623,11 @@ const topAssocPairs = useMemo(() => {
                   fixedrange: true, // 禁止縮放
                 },
                 yaxis: {
+                  title: {
+                    text: "能力指標", 
+                    font: { size: 10, color: '#64748b' },
+                    standoff: 15
+                  },
                   automargin: true,
                   fixedrange: true, // 禁止在圖表上拖曳縮放，改用外部卷軸
                 },
@@ -1638,6 +1686,7 @@ const topAssocPairs = useMemo(() => {
           )}
 
         <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
+          <div className="flex flex-col gap-1">
           <CardTitle 
             className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2 group"
             onClick={() => setSelectedIndicator("all")}
@@ -1650,6 +1699,14 @@ const topAssocPairs = useMemo(() => {
               </>
             )}
           </CardTitle>
+
+          {selectedIndicator === "all" && (
+                <span className="text-[11px] text-slate-400 font-normal">
+                  點擊下方任一圓點，可查看單一指標連動表現
+                </span>
+              )}
+          </div> 
+
           {/* 右側：按鈕群組 */}
             <div className="flex items-center gap-0">
               <TooltipProvider delayDuration={100}>
@@ -1817,13 +1874,24 @@ const topAssocPairs = useMemo(() => {
           )}
 
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
+            <div className="flex flex-col gap-1">
             <CardTitle 
             className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2 group"
             onClick={() => setSelectedIndicator("all")}
           >
             進步幅度變化
+
+            
             
           </CardTitle>
+          
+            {selectedIndicator === "all" && (
+                            <span className="text-[11px] text-slate-400 font-normal">
+                              點擊下方任一圓點，可查看單一指標連動表現
+                            </span>
+                          )}
+          </div> 
+
           {/* 右側：按鈕群組 */}
             <div className="flex items-center gap-0">
               <TooltipProvider delayDuration={100}>
@@ -1858,9 +1926,15 @@ const topAssocPairs = useMemo(() => {
                 <Bot className="w-4 h-4" />
               </button>
             </div>
+            
           </CardHeader>
           
           <CardContent className="h-[300px] w-full">
+            {selectedIndicator !== "all" && (
+              <>
+                <span className="text-sm font-bold text-blue-700 ">{selectedIndicator}</span>
+              </>
+            )}
             <Plot
               onClick={(e) => {
                 // 連動點擊：使用沒有換行符號的 customdata[0] 確保過濾器正常運作
@@ -1880,7 +1954,6 @@ const topAssocPairs = useMemo(() => {
                   },
                   line: { width: 2 },
                   customdata: progressTrendData?.customdata || [],
-                  // 動態切換 Hover 提示框的時間格式，並將指標名稱改讀取 customdata[3]
                   hovertemplate: 
                     "<b>指標：</b>%{customdata[3]}<br>" + 
                     `<b>時間：</b>%{x|${selectedIndicator === "all" ? "%Y-%m-%d" : "%Y-%m-%d %H:%M:%S"}}<br>` + 
@@ -1895,19 +1968,26 @@ const topAssocPairs = useMemo(() => {
               layout={{
                 
                 // 動態切換底部邊距：顯示秒數時字比較長，需要多留一點空間 (110)，只顯示日期時留 80 即可
-                margin: { t: 40, l: 30, r: 30, b: selectedIndicator === "all" ? 50 : 110 }, 
+                margin: { t: 20, l: 50, r: 20, b: selectedIndicator === "all" ? 70 : 110 }, 
 
-                xaxis: {
-                  title: "時間",
+                xaxis: {                  
+                  title: {
+                    text: "時間",
+                    font: { size: 10, color: '#64748b' },
+                    standoff: 15
+                  },
                   tickangle: -30,
                   type: "date",
-                  // 動態切換 X 軸標籤的時間格式
                   tickformat: selectedIndicator === "all" ? "%Y-%m-%d" : "%Y-%m-%d %H:%M:%S", 
                   tickfont: { size: 10 }, 
                 },
 
-                yaxis: {
-                  title: "進步幅度（正確率變化）",
+                yaxis: {                  
+                  title: {
+                    text: "進步幅度（正確率變化）",
+                    font: { size: 10, color: '#64748b' },
+                    standoff: 15
+                  },
                   zeroline: true,
                   zerolinewidth: 1,
                   zerolinecolor: "#999",
@@ -1963,26 +2043,25 @@ const topAssocPairs = useMemo(() => {
                       <HelpCircle className="w-4 h-4" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-white shadow-2xl border-slate-200 z-50">
-                    <div className="space-y-2 text-xs">
-                      <p className="font-bold border-b pb-1 text-blue-700">熱點圖說明：</p>
-                        <ul className="text-xs space-y-2 list-disc pl-4">
-
-                        <li><b>每個格子：</b>代表兩個能力指標之間的關聯強度。</li>
+                  <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
+                        <div className="space-y-3">
+                          <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
+                          <ul className="text-xs space-y-2 list-disc pl-4">
+                            <li><b>每個格子：</b>代表兩個能力指標之間的關聯強度。</li>
                         <li><b>顏色越深：</b>表示兩個能力越可能一起出現學習困難或表現關聯。</li>
                         <li><b>點擊軸標籤後：</b>可進一步搭配其他圖表查看該能力指標。</li>
-                        </ul>
-                        <p className="text-[12px] text-slate-400 pt-1 border-t">
-                        ※ 這張圖用來找出容易一起卡住的能力指標，幫助辨識知識結構上的弱點群。
-                        </p>
-                    </div>
-                  </TooltipContent>
+                          </ul>
+                          <p className="text-[12px] text-slate-400 pt-1 border-t">
+                            ※ 這張圖用來找出容易一起卡住的能力指標，幫助辨識知識結構上的弱點群。
+                          </p>
+                        </div>
+                      </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
 
               <button
                 onClick={() => runAIForChart("indicator_assoc")}
-                className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition shadow-md"
+                className="flex items-center justify-center w-8 h-8 rounded-full text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition shadow-sm"
               >
                 <Bot className="w-4 h-4" />
               </button>
@@ -2130,14 +2209,15 @@ const topAssocPairs = useMemo(() => {
           <CardHeader className="flex flex-col md:flex-row md:items-center py-4 pb-2 gap-4">
             <CardTitle className="text-xl font-bold text-slate-700 flex items-center gap-2">
               詳細練習紀錄 
+              <span className="text-xs text-blue-600">（ 科目：{selectedSubject}）</span>
             </CardTitle>
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-500">能力指標：</span>
               <Select
-                value={selectedIndicator} // 直接綁定全域狀態
+                value={selectedIndicator} 
                 onValueChange={setSelectedIndicator}
               >
-                <SelectTrigger className="w-[420px] h-8 text-xs focus:ring-0 font-medium text-slate-700 bg-slate-50 border rounded">
+                <SelectTrigger className="w-[500px] h-8 text-xs focus:ring-0 font-medium text-slate-700 bg-slate-50 border rounded">
                   <SelectValue placeholder="選擇能力指標" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2155,9 +2235,9 @@ const topAssocPairs = useMemo(() => {
               <table className="w-full text-left border-collapse">
                 <thead className="sticky top-0 bg-slate-50 z-10">
                   <tr className="text-xs text-slate-500 border-b">
-                    <th className="p-3 px-4 min-w-[120px]">練習日期</th>
+                    <th className="p-3 px-4 min-w-[50px]">練習日期</th>
                     {Array.from({ length: maxItemCount }).map((_, i) => (
-                      <th key={i} className="p-3 text-center">題{i + 1}</th>
+                      <th key={i} className="p-3 text-center">題目{i + 1}</th>
                     ))}
                     <th className="p-3 text-center">花費時間(秒)</th>
                     <th className="p-3 text-center">正確率</th>
@@ -2167,7 +2247,7 @@ const topAssocPairs = useMemo(() => {
                   {detailedRows.length > 0 ? (
                     detailedRows.map((row) => (
                       <tr key={row.prac_answer_sn} className="border-t hover:bg-slate-50/50 transition">
-                        <td className="px-4 py-2 font-mono text-xs text-slate-600">
+                        <td className="px-4 py-2 font-mono text-sm text-slate-600">
                           {formatDateTime(row.date)}
                         </td>
                         {Array.from({ length: maxItemCount }).map((_, i) => {
