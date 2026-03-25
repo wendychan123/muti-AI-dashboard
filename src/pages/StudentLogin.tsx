@@ -16,7 +16,7 @@ export default function Login() {
   const { setUserSn, setRole, setUserInfo } = useUserContext();
 
   // 1. 預設填入第一個常用 ID
-  const [userSnInput, setUserSnInput] = useState("");
+  const [userSnInput, setUserSnInput] = useState("195fbecfe09f95ef234a1c8fb6a0afcf");
   const [loading, setLoading] = useState(false);
   
   // 2. 存放從資料庫抓取的學生 ID 列表

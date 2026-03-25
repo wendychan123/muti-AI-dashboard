@@ -44,7 +44,6 @@ export function buildStudentPracPrompt(params: BuildPracPromptParams): string {
         indicator_gap: "能力指標差距",
         practice_trend: "練習投入走勢",
         score_trend: "學習成效走勢",
-        progress_trend: "進步幅度變化",
         indicator_assoc:"指標錯誤關聯",
       };
       return `- ${names[c] || c}`;
@@ -53,17 +52,15 @@ export function buildStudentPracPrompt(params: BuildPracPromptParams): string {
 
   const displaySubject = subject === "all" ? "所有科目" : subject;
 
-  // 🔥 核心關注指令：強制 AI 聚焦特定單元
+  // 核心關注指令：強制 AI 聚焦特定單元
   const focusInstruction = selectedIndicator !== "all"
-    ? `\n【🎯 核心關注單元：非常重要！】\n學生目前在儀表板上特別點擊了「${selectedIndicator}」這個單元。你的詳細分析與學習建議【務必】以這個單元為主角！請仔細解讀這個單元在 JSON 裡的表現。\n`
-    : `\n【🎯 核心關注單元】\n學生目前看的是「全部單元」的總覽。請從 JSON 中挑選數據最突出（極端好或極端弱）的具體單元來進行分析。\n`;
+    ? `\n【核心關注單元：非常重要！】\n學生目前在儀表板上特別點擊了「${selectedIndicator}」這個單元。你的詳細分析與學習建議【務必】以這個單元為主角！請仔細解讀這個單元在 JSON 裡的表現。\n`
+    : `\n【核心關注單元】\n學生目前看的是「全部單元」的總覽。請從 JSON 中挑選數據最突出（極端好或極端弱）的具體單元來進行分析。\n`;
 
 
   let chartSummaryDirective = "";
   if (selectedCharts.includes("indicator_gap")) {
     chartSummaryDirective = "請直接指出「落差最大」或「領先最多」的具體單元名稱與相差百分比（例如：你的『分數加減』比校平均高出15%，但『小數乘法』低了8%）。";
-  } else if (selectedCharts.includes("progress_trend")) {
-    chartSummaryDirective = "請直接指出「進步幅度最大」或「退步最多」的具體單元名稱、日期與變化數值（例如：3/15 在『小數乘法』進步了 +20%）。";
   } else if (selectedCharts.includes("learning_process")) {
     chartSummaryDirective = "請直接指出學生（或該單元）目前主要落在哪個學習區（如精熟區或卡關區），並點出對應的作答秒數與正確率。";
   } else if (selectedCharts.includes("indicator_effect")) {
