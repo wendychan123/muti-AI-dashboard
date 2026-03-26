@@ -49,14 +49,13 @@ export default function StudentAiPanel({
   ========================= */
 
   const chartOptions = [
-    { id: "總覽", label: "練習狀況表現" },
-    { id: "投入走勢", label: "練習投入走勢" }, 
-    { id: "成效走勢", label: "學習成效走勢" },
-    { id: "投入", label: "能力指標投入" },
-    { id: "差距", label: "能力指標差距" },
+    { id: "總覽", label: "總覽練習狀況" },
+    { id: "投入", label: "能力指標練習次數" },
+    { id: "差距", label: "與全校平均的差距" },
+    { id: "投入走勢", label: "練習時間走勢" }, 
+    { id: "成效走勢", label: "答對率走勢" },
     { id: "歷程", label: "學習歷程表現" },
-    { id: "進步走勢", label: "進步幅度變化" },
-    { id: "弱點", label: "指標弱點關聯" },
+    { id: "弱點", label: "能力指標弱點關聯" },
   ];
 
   /* =========================
@@ -142,7 +141,7 @@ export default function StudentAiPanel({
   ========================= */
 
   return (
-    <aside className="w-[320px] h-full bg-white border-l flex flex-col">
+    <aside className="w-[300px] h-full bg-white border-l flex flex-col">
       {/* Header */}
       <div className="h-14 flex items-center justify-between px-5 ">
         <div className="flex items-center justify-center gap-2 font-semibold text-slate-800 w-full">

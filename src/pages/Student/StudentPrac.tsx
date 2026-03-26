@@ -302,67 +302,74 @@ export default function StudentPrac() {
 
   
   // KPI 
-  const processedStats = useMemo(() => {
-    const totalAttemptsCount = filteredAttempts.length;
-    const matchedOrgRows = OrgIndicatorData.filter(d => selectedSubject === "all" || d.subject_name === selectedSubject);
-    const userCount = matchedOrgRows.length > 0 ? Math.max(...matchedOrgRows.map(d => d.participant_count || 0)) : 0;
-    const schoolTotalPracSum = _.sumBy(matchedOrgRows, "school_prac_count");
-    const schoolAvgCount = userCount > 0 ? (schoolTotalPracSum / userCount).toFixed(1) : "0.0";
-    const attemptsByIndicator = _.groupBy(filteredAttempts, "indicate_name");
-    const unitCount = Object.keys(attemptsByIndicator).length; 
-    const totalTime = Math.round(_.sumBy(filteredAttempts, "during_time"));
-    const schoolTotalTimeSec = _.sumBy(matchedOrgRows, r => (r.school_avg_time_sec || 0) * (r.school_prac_count || 0));
-    const schoolAvgTotalTime = userCount > 0 ? Math.round(schoolTotalTimeSec / userCount) : 0;
-    const timeDiff = totalTime - schoolAvgTotalTime; 
-    const avgScore = totalAttemptsCount > 0 ? _.meanBy(filteredAttempts, "score_rate") : 0;
-    const avgSpeedSec = totalAttemptsCount > 0 ? (_.meanBy(filteredAttempts, "avg_item_time_ms") / 1000).toFixed(1) : "0.0";
-
-    let improvedCount = 0; 
-    let perfectCount = 0;  
-    let struggleCount = 0; 
-
-    Object.values(attemptsByIndicator).forEach((attempts: AttemptRow[]) => {
-      const sorted = _.orderBy(attempts, ["date", "id"], ["asc", "asc"]);
-      if (!sorted.length) return;
-      const latest = sorted[sorted.length - 1];
-      const latestScore = Number(latest.score_rate);
-      const everLow = sorted.some(a => (Number(a.score_rate) > 1 ? Number(a.score_rate) < 60 : Number(a.score_rate) < 0.6));
-      const isLatestPerfect = latestScore === 100 || latestScore >= 0.99;
-
-      if (isLatestPerfect) {
-        if (everLow) improvedCount++; 
-        else perfectCount++;  
-      }
-      if (latestScore > 1 ? latestScore < 60 : latestScore < 0.6) struggleCount++;
-    });
-
-    return {
-      count: unitCount,          
-      userCount,          
-      schoolAvgCount,
-      totalTime,                 
-      schoolAvgTotalTime,        
-      timeDiff,                  
-      avgScore: Math.round(avgScore * 100),
-      avgSpeedSec,
-      struggleCount,
-      improvedCount,
-      perfectCount,
-      reachedGoal: struggleCount === 0 && (improvedCount > 0 || perfectCount > 0),
-    };
-  }, [filteredAttempts, OrgIndicatorData, selectedSubject]);
+    const processedStats = useMemo(() => {
+      const totalAttemptsCount = filteredAttempts.length;
+      const matchedOrgRows = OrgIndicatorData.filter(d => selectedSubject === "all" || d.subject_name === selectedSubject);
+      const userCount = matchedOrgRows.length > 0 ? Math.max(...matchedOrgRows.map(d => d.participant_count || 0)) : 0;
+      const schoolTotalPracSum = _.sumBy(matchedOrgRows, "school_prac_count");
+      const schoolAvgCount = userCount > 0 ? (schoolTotalPracSum / userCount).toFixed(1) : "0.0";
+      const attemptsByIndicator = _.groupBy(filteredAttempts, "indicate_name");
+      const unitCount = Object.keys(attemptsByIndicator).length; 
+      const totalTime = Math.round(_.sumBy(filteredAttempts, "during_time"));
+      const schoolTotalTimeSec = _.sumBy(matchedOrgRows, r => (r.school_avg_time_sec || 0) * (r.school_prac_count || 0));
+      const schoolAvgTotalTime = userCount > 0 ? Math.round(schoolTotalTimeSec / userCount) : 0;
+      const timeDiff = totalTime - schoolAvgTotalTime; 
+      const avgScore = totalAttemptsCount > 0 ? _.meanBy(filteredAttempts, "score_rate") : 0;
+      const avgSpeedSec = totalAttemptsCount > 0 ? (_.meanBy(filteredAttempts, "avg_item_time_ms") / 1000).toFixed(1) : "0.0";
+  
+      let improvedCount = 0; 
+      let perfectCount = 0;  
+      let struggleCount = 0; 
+      
+      // ⭐️ 紀錄具體的指標名稱
+      let improvedIndicators: string[] = [];
+      let perfectIndicators: string[] = [];
+  
+      Object.entries(attemptsByIndicator).forEach(([indicate_name, attempts]: [string, AttemptRow[]]) => {
+        const sorted = _.orderBy(attempts, ["date", "id"], ["asc", "asc"]);
+        if (!sorted.length) return;
+        const latest = sorted[sorted.length - 1];
+        const latestScore = Number(latest.score_rate);
+        const everLow = sorted.some(a => (Number(a.score_rate) > 1 ? Number(a.score_rate) < 60 : Number(a.score_rate) < 0.6));
+        const isLatestPerfect = latestScore === 100 || latestScore >= 0.99;
+        
+        if (isLatestPerfect) { 
+          if (everLow) {
+            improvedCount++; 
+            improvedIndicators.push(indicate_name);
+          } else {
+            perfectCount++;  
+            perfectIndicators.push(indicate_name);
+          }
+        }
+        if (latestScore > 1 ? latestScore < 60 : latestScore < 0.6) struggleCount++;
+      });
+  
+      return {
+        count: unitCount, userCount, schoolAvgCount, totalTime, schoolAvgTotalTime, timeDiff, 
+        avgScore: Math.round(avgScore * 100), avgSpeedSec, struggleCount, improvedCount, perfectCount,
+        reachedGoal: struggleCount === 0 && (improvedCount > 0 || perfectCount > 0),
+        improvedIndicators, perfectIndicators // 輸出給 KPI 使用
+      };
+    }, [filteredAttempts, OrgIndicatorData, selectedSubject]);
 
   const belowClassAvgStats = useMemo(() => {
-    if (!filteredAttempts.length) return { count: 0, classPracPeople: null };
-    const attemptsByIndicator = _.groupBy(filteredAttempts, "indicate_name");
-    let struggleCount = 0;
-    Object.values(attemptsByIndicator).forEach((attempts: AttemptRow[]) => {
-      const hasPerfectRecord = attempts.some(a => (a.score_rate >= 0.99 && a.score_rate <= 1) || a.score_rate === 100);
-      if (!hasPerfectRecord) struggleCount++;
-    });
-    const classPracPeople = OrgIndicatorData.length > 0 ? Math.max(...OrgIndicatorData.map(c => c.participant_count || 0)) : null;
-    return { count: struggleCount, classPracPeople };
-  }, [filteredAttempts, OrgIndicatorData]);
+      if (!filteredAttempts.length) return { count: 0, classPracPeople: null, needsEffortIndicators: [] };
+      const attemptsByIndicator = _.groupBy(filteredAttempts, "indicate_name");
+      let struggleCount = 0;
+      let needsEffortIndicators: string[] = [];
+  
+      Object.entries(attemptsByIndicator).forEach(([indicate_name, attempts]: [string, AttemptRow[]]) => {
+        const hasPerfectRecord = attempts.some(a => (a.score_rate >= 0.99 && a.score_rate <= 1) || a.score_rate === 100);
+        if (!hasPerfectRecord) {
+          struggleCount++;
+          needsEffortIndicators.push(indicate_name);
+        }
+      });
+      
+      const classPracPeople = OrgIndicatorData.length > 0 ? Math.max(...OrgIndicatorData.map(c => c.participant_count || 0)) : null;
+      return { count: struggleCount, classPracPeople, needsEffortIndicators };
+    }, [filteredAttempts, OrgIndicatorData]);
 
   const filteredIndicators = useMemo(() => {
     if (selectedSubject === "all") return indicatorData;
@@ -408,133 +415,148 @@ export default function StudentPrac() {
     精熟區: "#22c55e", 穩定區: "#3b82f6", 猜測區: "#f97316", 卡關區: "#ef4444",
   };
 
-  // ⭐️ 圖表二：學習歷程表現圖 (支援多指標陣列)
-  const chart3Data = useMemo(() => {
-    if (!filteredAttempts.length) return { mode: "overview", passScore: 60, traces: [] };
-    const passScore = 60;
-    const zoneOf = (acc: number, timeSec: number, median: number) => {
-      if (acc >= passScore && timeSec <= median) return "精熟區";
-      if (acc >= passScore && timeSec > median) return "穩定區";
-      if (acc < passScore && timeSec <= median) return "猜測區";
-      return "卡關區";
+  // 圖表二：學習歷程表現圖 (支援多指標陣列)
+const chart3Data = useMemo(() => {
+  if (!filteredAttempts.length) return { mode: "overview", passScore: 60, traces: [] };
+  const passScore = 60;
+  const zoneOf = (acc: number, timeSec: number, median: number) => {
+    if (acc >= passScore && timeSec <= median) return "精熟區";
+    if (acc >= passScore && timeSec > median) return "穩定區";
+    if (acc < passScore && timeSec <= median) return "猜測區";
+    return "卡關區";
+  };
+
+  if (selectedIndicators.length === 0) {
+    // 模式 A：總覽模式 (顯示所有最新作答)
+    const attemptsByIndicator = _.groupBy(filteredAttempts, "indicate_name");
+    const latestAttempts = Object.values(attemptsByIndicator).map((attempts: AttemptRow[]) => {
+      const sorted = _.orderBy(attempts, ["date", "prac_answer_sn"], ["asc", "asc"]);
+      const latest = sorted[sorted.length - 1];
+      return { ...latest, avg_item_time_sec: latest.items_count > 0 ? latest.during_time / latest.items_count : 0 };
+    }).filter(a => a.items_count > 0);
+
+    const timeSecValues = latestAttempts.map(d => d.avg_item_time_sec);
+    const medianTimeSec = calculateMedian(timeSecValues) || 5;
+
+    const overviewTrace = {
+      x: latestAttempts.map(d => d.avg_item_time_sec),
+      y: latestAttempts.map(d => d.score_rate),
+      mode: "markers", 
+      type: "scatter" as const,
+      text: latestAttempts.map(d => d.indicate_name),
+      marker: {
+        size: 14,
+        // ⭐️ 修改：將原本的 ZONE_COLOR 邏輯改為固定灰色
+        color: "#94a3b8", 
+        opacity: 0.7,
+        line: { color: "white", width: 1.5 },
+      },
+      customdata: latestAttempts.map(d => [zoneOf(d.score_rate, d.avg_item_time_sec, medianTimeSec), d.items_count]),
+      hovertemplate:
+        "<b>%{text}</b><br>" + 
+        "狀態：%{customdata[0]}<br>" +
+        "作答時間：%{x:.1f} 秒/題<br>" +
+        "正確率：%{y:.0f}%<br>" +
+        "<i>(點擊查看歷次進步軌跡)</i><extra></extra>",
+      name: "最新作答",
+      
     };
 
-    if (selectedIndicators.length === 0) {
-      // 模式 A：總覽模式 (顯示所有最新作答)
-      const attemptsByIndicator = _.groupBy(filteredAttempts, "indicate_name");
-      const latestAttempts = Object.values(attemptsByIndicator).map((attempts: AttemptRow[]) => {
-        const sorted = _.orderBy(attempts, ["date", "prac_answer_sn"], ["asc", "asc"]);
-        const latest = sorted[sorted.length - 1];
-        return { ...latest, avg_item_time_sec: latest.items_count > 0 ? latest.during_time / latest.items_count : 0 };
-      }).filter(a => a.items_count > 0);
+    return {
+      mode: "overview",
+      medianTimeSec,
+      passScore,
+      traces: [overviewTrace],
+      aiData: latestAttempts.map(d => ({
+        單元名稱: d.indicate_name,
+        平均作答秒數: Math.round(d.avg_item_time_sec * 10) / 10,
+        正確率: Math.round(d.score_rate),
+        落點區域: zoneOf(d.score_rate, d.avg_item_time_sec, medianTimeSec)
+      }))
+    };
+  } else {
+    // 模式 B：詳細歷程模式 (支援多指標，為每個指標畫一條軌跡)
+    const colors = ["#2563eb", "#16b40bff", "#d97706", "#8b5cf6"];
+    const traces: any[] = [];
+    let globalMedian = 5;
+    const allValidPoints: any[] = [];
 
-      const timeSecValues = latestAttempts.map(d => d.avg_item_time_sec);
+    selectedIndicators.forEach((ind, idx) => {
+      const color = colors[idx % colors.length];
+      const specificAttempts = filteredAttempts.filter(a => a.indicate_name === ind);
+      const sorted = _.orderBy(specificAttempts, ["date", "prac_answer_sn"], ["asc", "asc"]);
+      const validPoints = sorted.map((a, i) => ({
+        ...a, attemptIndex: i + 1, isLatest: i === sorted.length - 1,
+        avg_item_time_sec: a.items_count > 0 ? a.during_time / a.items_count : 0,
+      })).filter(a => a.items_count > 0);
+      
+      if(validPoints.length === 0) return;
+      allValidPoints.push(...validPoints);
+
+      const timeSecValues = validPoints.map(d => d.avg_item_time_sec);
       const medianTimeSec = calculateMedian(timeSecValues) || 5;
+      globalMedian = medianTimeSec; 
 
-      const overviewTrace = {
-        x: latestAttempts.map(d => d.avg_item_time_sec),
-        y: latestAttempts.map(d => d.score_rate),
-        mode: "markers", 
-        type: "scatter" as const,
-        text: latestAttempts.map(d => d.indicate_name),
+      // 歷史軌跡線 + 點
+      traces.push({
+        x: validPoints.map(d => d.avg_item_time_sec),
+        y: validPoints.map(d => d.score_rate),
+        mode: "lines+markers+text",
+        type: "scatter",
+        text: validPoints.map(d => String(d.attemptIndex)),
+        textposition: "top center",
+        line: { color: color, width: 2, dash: "dot" }, 
         marker: {
           size: 14,
-          color: latestAttempts.map(d => ZONE_COLOR[zoneOf(d.score_rate, d.avg_item_time_sec, medianTimeSec) as keyof typeof ZONE_COLOR]),
-          opacity: 0.85,
-          line: { color: "white", width: 2 },
+          color: "#9fa5aeff", 
+          opacity: 0.8,
+          line: { color: color, width: 3 }, // 邊框保留指標顏色
         },
-        customdata: latestAttempts.map(d => [zoneOf(d.score_rate, d.avg_item_time_sec, medianTimeSec), d.items_count]),
+        customdata: validPoints.map(d => zoneOf(d.score_rate, d.avg_item_time_sec, medianTimeSec)),
         hovertemplate:
-          "<b>%{text}</b><br>" + 
-          "狀態：%{customdata[0]}<br>" +
+          `<b>${ind} (第%{text}次)</b><br>` +
           "作答時間：%{x:.1f} 秒/題<br>" +
           "正確率：%{y:.0f}%<br>" +
-          "<i>(點擊查看歷次進步軌跡)</i><extra></extra>",
-        name: "最新作答",
-      };
-
-      return {
-        mode: "overview",
-        medianTimeSec,
-        passScore,
-        traces: [overviewTrace]
-      };
-    } else {
-      // 模式 B：詳細歷程模式 (支援多指標，為每個指標畫一條軌跡)
-      const colors = ["#2563eb", "#db2777", "#16a34a", "#d97706", "#8b5cf6"];
-      const traces: any[] = [];
-      let globalMedian = 5;
-      const allValidPoints: any[] = [];
-
-      selectedIndicators.forEach((ind, idx) => {
-        const color = colors[idx % colors.length];
-        const specificAttempts = filteredAttempts.filter(a => a.indicate_name === ind);
-        const sorted = _.orderBy(specificAttempts, ["date", "prac_answer_sn"], ["asc", "asc"]);
-        const validPoints = sorted.map((a, i) => ({
-          ...a, attemptIndex: i + 1, isLatest: i === sorted.length - 1,
-          avg_item_time_sec: a.items_count > 0 ? a.during_time / a.items_count : 0,
-        })).filter(a => a.items_count > 0);
-        
-        if(validPoints.length === 0) return;
-        allValidPoints.push(...validPoints);
-
-        const timeSecValues = validPoints.map(d => d.avg_item_time_sec);
-        const medianTimeSec = calculateMedian(timeSecValues) || 5;
-        globalMedian = medianTimeSec; // 簡化處理，取最後一個的或全部算
-
-        // 歷史軌跡線 + 點
-        traces.push({
-          x: validPoints.map(d => d.avg_item_time_sec),
-          y: validPoints.map(d => d.score_rate),
-          mode: "lines+markers+text",
-          type: "scatter",
-          text: validPoints.map(d => String(d.attemptIndex)),
-          textposition: "top center",
-          line: { color: color, width: 2, dash: "dot" }, 
-          marker: {
-            size: 14,
-            color: validPoints.map(d => ZONE_COLOR[zoneOf(d.score_rate, d.avg_item_time_sec, medianTimeSec)]),
-            opacity: 0.85,
-            line: { color: "white", width: 2 },
-          },
-          customdata: validPoints.map(d => zoneOf(d.score_rate, d.avg_item_time_sec, medianTimeSec)),
-          hovertemplate:
-            `<b>${ind} (第%{text}次)</b><br>` +
-            "作答時間：%{x:.1f} 秒/題<br>" +
-            "正確率：%{y:.0f}%<br>" +
-            "狀態：<b>%{customdata}</b><extra></extra>",
-          name: ind,
-        });
-
-        // 最新點加上特別框線
-        const latest = validPoints[validPoints.length - 1];
-        traces.push({
-          x: [latest.avg_item_time_sec],
-          y: [latest.score_rate],
-          mode: "markers",
-          type: "scatter",
-          marker: {
-            size: 18,
-            color: "rgba(255, 255, 255, 0)",
-            line: { color: "#eab308", width: 3 }, 
-          },
-          hoverinfo: "skip",
-          showlegend: false,
-        });
+          "狀態：<b>%{customdata}</b><extra></extra>",
+        name: ind,
       });
 
-      if (allValidPoints.length > 0) {
-        globalMedian = calculateMedian(allValidPoints.map(d => d.avg_item_time_sec));
-      }
+      // 最新點加上特別框線
+      const latest = validPoints[validPoints.length - 1];
+      traces.push({
+        x: [latest.avg_item_time_sec],
+        y: [latest.score_rate],
+        mode: "markers",
+        type: "scatter",
+        marker: {
+          size: 18,
+          color: "rgba(255, 255, 255, 0)",
+          line: { color: "#fffb00ff", width: 4 }, 
+        },
+        hoverinfo: "skip",
+        showlegend: false,
+      });
+    });
 
-      return {
-        mode: "detail",
-        medianTimeSec: globalMedian,
-        passScore,
-        traces
-      };
+    if (allValidPoints.length > 0) {
+      globalMedian = calculateMedian(allValidPoints.map(d => d.avg_item_time_sec));
     }
-  }, [filteredAttempts, selectedIndicators]);
+
+    return {
+      mode: "detail",      
+      medianTimeSec: globalMedian,
+      passScore,
+      traces,
+      aiData: allValidPoints.map(d => ({
+        單元名稱: d.indicate_name,
+        練習次序: `第 ${d.attemptIndex} 次`,
+        平均作答秒數: Math.round(d.avg_item_time_sec * 10) / 10,
+        正確率: Math.round(d.score_rate),
+        落點區域: zoneOf(d.score_rate, d.avg_item_time_sec, globalMedian)
+      }))
+    };
+  }
+}, [filteredAttempts, selectedIndicators]);
 
   const activeIndicators = useMemo(() => {
     return _.uniqBy(filteredAttempts.map(d => ({ subject_name: d.subject_name, indicate_name: d.indicate_name })), d => `${d.subject_name}__${d.indicate_name}`);
@@ -587,121 +609,109 @@ export default function StudentPrac() {
   };
 
   /* =========================
-   ⭐️ 練習投入(花費時間)與正確率走勢 
+   練習投入(花費時間)與正確率走勢 
   ========================= */
-  const trendPlotData = useMemo(() => {
-    const rawData = (attemptsData || []) as AttemptRow[];
-    const baseFiltered = rawData.filter(d => selectedSubject === "all" || d.subject_name === selectedSubject);
+const trendPlotData = useMemo(() => {
+  const rawData = (attemptsData || []) as AttemptRow[];
+  
+  const baseFiltered = rawData
+    .filter(d => selectedSubject === "all" || d.subject_name === selectedSubject)
+    .sort((a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf());
 
-    const groupByDate = (rows: AttemptRow[]) => {
-      const grouped = _.groupBy(rows, (r) => {
-        // 強制使用 YYYY-MM-DD HH:mm:ss 進行分群
-        return dayjs(r.date).format("YYYY-MM-DD HH:mm:ss");
-      });
+  const formatLabel = (isoDate: string) => {
+    const localTimeStr = isoDate.replace(/Z/g, '').split('+')[0];
+    return dayjs(localTimeStr).format("MM/DD HH:mm"); 
+  };
+
+  const groupByDate = (rows: AttemptRow[]) => {
+    const grouped = _.groupBy(rows, (r) => formatLabel(r.date));
+    
+    return Object.entries(grouped).map(([date, gRows]) => {
+      const currentRows = gRows as AttemptRow[]; 
+      const totalPrac = currentRows.length;
+      const totalTimeSec = Math.round(_.sumBy(currentRows, "during_time"));
+      const totalItems = _.sumBy(currentRows, "items_count");
+      const weightScoreSum = _.sumBy(currentRows, (r) => (r.score_rate || 0) * (r.items_count || 0));
       
-      return Object.entries(grouped).map(([date, gRows]) => {
-        const currentRows = gRows as AttemptRow[]; 
-        
-        const totalPrac = currentRows.length;
-        // 改用秒數作圖更精確
-        const totalTimeSec = Math.round(_.sumBy(currentRows, "during_time"));
-        const totalItems = _.sumBy(currentRows, "items_count");
-        const weightScoreSum = _.sumBy(currentRows, (r) => (r.score_rate || 0) * (r.items_count || 0));
-        
-        return { 
-          date, 
-          totalPrac, 
-          totalTimeSec, 
-          avgScore: totalItems > 0 ? Math.round(weightScoreSum / totalItems) : 0 
-        };
-      }).sort((a, b) => a.date.localeCompare(b.date));
-    };
-
-    if (selectedIndicators.length === 0) {
-      const globalData = groupByDate(baseFiltered);
-      return {
-         practice: [
-           // 只留下一條顯示「花費時間(秒)」的折線
-           { x: globalData.map(t => t.date), y: globalData.map(t => t.totalTimeSec), type: "scatter", mode: "lines+markers", name: "花費時間 (秒)", line: { color: "#2563eb", width: 3 }, hovertemplate: "花費時間：%{y} 秒<extra></extra>" }
-         ],
-         score: [
-           { x: globalData.map(t => t.date), y: globalData.map(t => t.avgScore), type: "scatter", mode: "lines+markers", name: "我的正確率", line: { color: "#2563eb", width: 3, shape: 'spline' }, hovertemplate: "我的正確率：%{y}% <extra></extra>" },
-           { x: globalData.map(t => t.date), y: globalData.map(() => avgScoreCompare.classAvg || 0), type: "scatter", mode: "lines", name: `全校平均 (${avgScoreCompare.classAvg}%)`, line: { color: "#ef4444", width: 2, dash: "dash" }, hoverinfo: "skip" }
-         ],
-         rawGlobal: globalData
+      return { 
+        date, 
+        totalPrac, 
+        totalTimeSec, 
+        avgScore: totalItems > 0 ? Math.round(weightScoreSum / totalItems) : 0 
       };
-    } else {
-      const colors = ["#2563eb", "#db2777", "#16a34a", "#d97706", "#8b5cf6"];
-      const practice: any[] = [];
-      const score: any[] = [];
-      let allDates = new Set<string>();
+    }).sort((a, b) => dayjs(a.date, "MM/DD HH:mm:ss").valueOf() - dayjs(b.date, "MM/DD HH:mm:ss").valueOf());
+  };
 
-      selectedIndicators.forEach((ind, idx) => {
-         const color = colors[idx % colors.length];
-         const indData = groupByDate(baseFiltered.filter(d => d.indicate_name === ind));
-         indData.forEach(d => allDates.add(d.date));
+  if (selectedIndicators.length === 0) {
+    const globalData = groupByDate(baseFiltered);
+    return {
+       practice: [
+         { x: globalData.map(t => t.date), y: globalData.map(t => t.totalTimeSec), type: "scatter", mode: "lines+markers", name: "花費時間 (秒)", line: { color: "#2563eb", width: 3 }, hoverlabel: { align: "left" }, hovertemplate: "花費時間：%{y} 秒<extra></extra>" }
+       ],
+       score: [
+         { x: globalData.map(t => t.date), y: globalData.map(t => t.avgScore), type: "scatter", mode: "lines+markers", name: "我的正確率", line: { color: "#2563eb", width: 3, shape: 'spline' }, hoverlabel: { align: "left" }, hovertemplate: "正確率：%{y}% <extra></extra>" },
+         { x: globalData.map(t => t.date), y: globalData.map(() => avgScoreCompare.classAvg || 0), type: "scatter", mode: "lines", name: `全校平均 (${avgScoreCompare.classAvg}%)`, line: { color: "#ef4444", width: 2, dash: "dash" }, hoverinfo: "skip" }
+       ],
+       rawGlobal: globalData,
+       aiTrendData: globalData.map(t => ({ date: t.date, 花費時間: t.totalTimeSec, 正確率: t.avgScore })),
+       dates: globalData.map(t => t.date) 
+    };
+  } else {
+    const colors = ["#2563eb", "#20d913ff", "#d97706", "#8b5cf6"];
+    const practice: any[] = [];
+    const score: any[] = [];
+    let allDatesSet = new Set<string>();
 
-         practice.push({
-           x: indData.map(t => t.date), y: indData.map(t => t.totalTimeSec), type: "scatter", mode: "lines+markers", name: ind, line: { color, width: 3 }, hovertemplate: `<b>${ind}</b><br>花費時間：%{y} 秒<extra></extra>`
-         });
-         score.push({
-           x: indData.map(t => t.date), y: indData.map(t => t.avgScore), type: "scatter", mode: "lines+markers", name: ind, line: { color, width: 3, shape: 'spline' }, hovertemplate: `<b>${ind}</b><br>正確率：%{y}%<extra></extra>`
-         });
-      });
+    selectedIndicators.forEach((ind, idx) => {
+       const color = colors[idx % colors.length];
+       const indData = groupByDate(baseFiltered.filter(d => d.indicate_name === ind));
+       indData.forEach(d => allDatesSet.add(d.date));
 
-      const sortedDates = Array.from(allDates).sort();
-      score.push({
-           x: sortedDates, y: sortedDates.map(() => avgScoreCompare.classAvg || 0), type: "scatter", mode: "lines", name: `全校平均`, line: { color: "#ef4444", width: 2, dash: "dash" }, hoverinfo: "skip"
-      });
+       const shortIndName = ind.length > 18 ? ind.substring(0, 18) + "..." : ind;
 
-      return { practice, score, rawGlobal: [] };
-    }
-  }, [attemptsData, selectedSubject, selectedIndicators, avgScoreCompare.classAvg]);
+       practice.push({
+         x: indData.map(t => t.date), 
+         y: indData.map(t => t.totalTimeSec), 
+         type: "scatter", mode: "lines+markers", 
+         name: shortIndName,
+         line: { color, width: 3 }, 
+         hoverlabel: { align: "left" },
+         hovertemplate: `<b>${ind}</b><br>花費時間：%{y} 秒<extra></extra>`
+       });
+       score.push({
+         x: indData.map(t => t.date), 
+         y: indData.map(t => t.avgScore), 
+         type: "scatter", mode: "lines+markers", 
+         name: shortIndName, 
+         line: { color, width: 3, shape: 'spline' }, 
+         hoverlabel: { align: "left" },
+         hovertemplate: `<b>${ind}</b><br>正確率：%{y}%<extra></extra>`
+       });
+    });
+
+    const sortedAllDates = Array.from(allDatesSet).sort((a, b) => 
+      dayjs(a, "MM/DD HH:mm:ss").valueOf() - dayjs(b, "MM/DD HH:mm:ss").valueOf()
+    );
+
+    score.push({
+         x: sortedAllDates, 
+         y: sortedAllDates.map(() => avgScoreCompare.classAvg || 0), 
+         type: "scatter", mode: "lines", name: `全校平均`, line: { color: "#ef4444", width: 2, dash: "dash" }, hoverinfo: "skip"
+    });
+
+      const aiTrendData = selectedIndicators.map(ind => {
+      const indData = groupByDate(baseFiltered.filter(d => d.indicate_name === ind));
+      return {
+        單元名稱: ind,
+        趨勢紀錄: indData.map(t => ({ date: t.date, 花費時間: t.totalTimeSec, 正確率: t.avgScore }))
+      };
+    });
+
+    return { practice, score, aiTrendData, dates: sortedAllDates };
+  }
+}, [attemptsData, selectedSubject, selectedIndicators, avgScoreCompare.classAvg]);
 
   
-  /* =========================
-   進步幅度分析圖 (支援多指標陣列)
-  ========================= */
-  const progressTrendTraces = useMemo(() => {
-    if (!filteredAttempts.length) return [];
-    const splitLongText = (str: string, len: number = 18) => str ? (str.match(new RegExp(`.{1,${len}}`, "g"))?.join("<br>") || str) : "";
-
-    if (selectedIndicators.length === 0) {
-      const valid = _.orderBy(filteredAttempts, ["date"], ["asc"]).filter(d => d.accuracy_diff !== null && d.accuracy_diff !== undefined);
-      return [{
-        x: valid.map(d => d.date),
-        y: valid.map(d => d.accuracy_diff),
-        type: "scatter" as const,
-        mode: "lines+markers" as const,
-        marker: { size: 8, color: valid.map(d => (d.accuracy_diff ?? 0) >= 0 ? "#22c55e" : "#ef4444") },
-        line: { width: 2, color: "#cbd5e1" },
-        customdata: valid.map(d => [d.indicate_name, d.during_time, d.learning_pattern ?? "未分類", splitLongText(d.indicate_name, 18)]),
-        hovertemplate: "<b>指標：</b>%{customdata[3]}<br><b>時間：</b>%{x|%Y-%m-%d %H:%M:%S}<br><b>進步幅度：</b>%{y:.2f}%<br><b>作答時間：</b>%{customdata[1]} 秒<br><extra></extra>",
-        name: "進步幅度",
-      }];
-    } else {
-      const colors = ["#2563eb", "#db2777", "#16a34a", "#d97706", "#8b5cf6"];
-      const traces: any[] = [];
-      selectedIndicators.forEach((ind, idx) => {
-        const color = colors[idx % colors.length];
-        const valid = _.orderBy(filteredAttempts.filter(d => d.indicate_name === ind), ["date"], ["asc"]).filter(d => d.accuracy_diff !== null && d.accuracy_diff !== undefined);
-        if(valid.length === 0) return;
-        
-        traces.push({
-          x: valid.map(d => d.date),
-          y: valid.map(d => d.accuracy_diff),
-          type: "scatter",
-          mode: "lines+markers",
-          name: ind,
-          marker: { size: 8, color },
-          line: { width: 2, color },
-          customdata: valid.map(d => [d.indicate_name, d.during_time, d.learning_pattern ?? "未分類", splitLongText(d.indicate_name, 18)]),
-          hovertemplate: "<b>指標：</b>%{customdata[3]}<br><b>時間：</b>%{x|%Y-%m-%d %H:%M:%S}<br><b>進步幅度：</b>%{y:.2f}%<br><b>作答時間：</b>%{customdata[1]} 秒<br><extra></extra>",
-        });
-      });
-      return traces;
-    }
-  }, [filteredAttempts, selectedIndicators]);
 
   /* =========================
     錯題關聯圖 
@@ -762,27 +772,40 @@ const topAssocPairs = useMemo(() => {
     setGeminiLoading(true);
   
     const prompt = buildStudentPracPrompt({
-      date: selectedDate,
-      subject: selectedSubject,
-      selectedIndicator: selectedIndicators.length > 0 ? selectedIndicators.join(", ") : "all",
-      selectedCharts: [chart], 
-      stats: {
-        avgScore: avgScoreCompare.studentAvg,
-        avgSpeedSec: Number(processedStats.avgSpeedSec),
-        totalCount: processedStats.count,
-        belowClassCount: belowClassAvgStats.count,
-        reachedGoal: processedStats.reachedGoal,
-      },
-      chartData: {
-        practiceTrend: trendPlotData.rawGlobal, 
-        scoreTrend: trendPlotData.rawGlobal,
-        indicatorEffect: chart1Data.meta,
-        learningProcess: chart3Data,
-        indicatorGap: diffBarData,
-        progressTrend: progressTrendTraces,
-        indicatorAssoc: topAssocPairs
-      }
-    });
+    // 修正：傳入實際的資料起訖日期
+    date: startDate && endDate ? `${startDate} ~ ${endDate}` : null,
+    subject: selectedSubject,
+    // 核心修正：傳入陣列，讓 AI 知道現在是單選、多選還是總覽
+    selectedIndicators: selectedIndicators, 
+    selectedCharts: [chart], // (若是 multi-request 則為 explainTargets)
+    stats: {
+      avgScore: avgScoreCompare.studentAvg,
+      avgSpeedSec: Number(processedStats.avgSpeedSec),
+      totalCount: processedStats.count,
+      belowClassCount: belowClassAvgStats.count,
+      reachedGoal: processedStats.reachedGoal,
+    },
+    chartData: {
+      // 這裡全部替換成我們剛剛提煉的乾淨資料！
+      practiceTrend: trendPlotData.aiTrendData, 
+      scoreTrend: trendPlotData.aiTrendData,
+      indicatorEffect: chart1Data.meta, 
+      learningProcess: chart3Data.aiData, 
+      // 差距圖直接 map 出乾淨的物件
+      indicatorGap: diffBarData.map(d => ({ 
+        單元名稱: d.original_name, 
+        你的正確率: d.latestScore, 
+        校平均: d.classAvg, 
+        落差: d.latestDiff 
+      })),
+      // 關聯圖提取中文名稱與機率
+      indicatorAssoc: topAssocPairs.map(p => ({ 
+        單元A: p.source_name, 
+        單元B: p.target_name, 
+        關聯度: `${Math.round(p.correlation_score * 100)}%` 
+      }))
+    }
+  });
   
     window.dispatchEvent(
       new CustomEvent("student-ai-update", {
@@ -828,10 +851,12 @@ const topAssocPairs = useMemo(() => {
       setGeminiLoading(true);
   
       const prompt = buildStudentPracPrompt({
-        date: selectedDate,
+        // 修正：傳入實際的資料起訖日期
+        date: startDate && endDate ? `${startDate} ~ ${endDate}` : null,
         subject: selectedSubject,
-        selectedIndicator: selectedIndicators.length > 0 ? selectedIndicators.join(", ") : "all",
-        selectedCharts: explainTargets,
+        // 核心修正：傳入陣列，讓 AI 知道現在是單選、多選還是總覽
+        selectedIndicators: selectedIndicators, 
+        selectedCharts: explainTargets, 
         stats: {
           avgScore: avgScoreCompare.studentAvg,
           avgSpeedSec: Number(processedStats.avgSpeedSec),
@@ -840,14 +865,25 @@ const topAssocPairs = useMemo(() => {
           reachedGoal: processedStats.reachedGoal,
         },
         chartData: {
-            practiceTrend: trendPlotData.rawGlobal, 
-            scoreTrend: trendPlotData.rawGlobal,
-            indicatorEffect: chart1Data.meta,
-            learningProcess: chart3Data,
-            indicatorGap: diffBarData,
-            progressTrend: progressTrendTraces,
-            indicatorAssoc: topAssocPairs
-          }
+          // 這裡全部替換成我們剛剛提煉的乾淨資料！
+          practiceTrend: trendPlotData.aiTrendData, 
+          scoreTrend: trendPlotData.aiTrendData,
+          indicatorEffect: chart1Data.meta, 
+          learningProcess: chart3Data.aiData, 
+          // 差距圖直接 map 出乾淨的物件
+          indicatorGap: diffBarData.map(d => ({ 
+            單元名稱: d.original_name, 
+            你的正確率: d.latestScore, 
+            校平均: d.classAvg, 
+            落差: d.latestDiff 
+          })),
+          // 關聯圖提取中文名稱與機率
+          indicatorAssoc: topAssocPairs.map(p => ({ 
+            單元A: p.source_name, 
+            單元B: p.target_name, 
+            關聯度: `${Math.round(p.correlation_score * 100)}%` 
+          }))
+        }
       });
   
       window.dispatchEvent(new CustomEvent("student-ai-update", { detail: { loading: true, questions: chartLabels } }));
@@ -877,7 +913,6 @@ const topAssocPairs = useMemo(() => {
     chart1Data,
     chart3Data,
     diffBarData,
-    progressTrendTraces,
     assocHeatmapData,
     trendPlotData,
     selectedDate,
@@ -896,23 +931,24 @@ const topAssocPairs = useMemo(() => {
     { key: "daily_overview", label: "總覽練習概況", description: "總覽投入時間與正確率變化" },
     { key: "indicator_effect", label: "能力指標練習次數", description: "各能力指標的練習次數與表現" },
     { key: "learning_process", label: "學習歷程表現", description: "答題速度 × 正確率的學習區域" },
-    { key: "practice_trend", label: "練習投入走勢", description: "分析練習時間與次數的規律性" },
+    { key: "practice_trend", label: "練習時間走勢", description: "分析練習時間與次數的規律性" },
     { key: "score_trend", label: "正確率走勢", description: "分析正確率隨時間進步的幅度" },
     { key: "progress_trend", label: "進步幅度變化", description: "分析多次練習間的正確率變化與學習狀態" },
-    { key: "indicator_assoc", label: "指標弱點關聯", description: "分析哪些能力指標容易一起出現學習困難" },
+    { key: "indicator_assoc", label: "能力指標弱點關聯", description: "分析哪些能力指標容易一起出現學習困難" },
   ];
   
   const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
     Object.fromEntries(EXPLAIN_CHART_OPTIONS.map(opt => [opt.key, opt.label])) as Record<ExplainTarget, string>;
   
   const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
-    "練習狀況表現": "daily_overview",
-    "練習投入走勢": "practice_trend",
+    "總覽練習狀況": "daily_overview",
+    "練習時間走勢": "practice_trend",
     "正確率走勢": "score_trend",
     "能力指標練習次數": "indicator_effect",
     "學習歷程表現": "learning_process",
+    "能力指標差距": "indicator_gap",
     "進步幅度變化": "progress_trend",
-    "指標弱點關聯": "indicator_assoc",
+    "能力指標弱點關聯": "indicator_assoc",
   };
 
   const currentSelectValue = selectedIndicators.length === 1 
@@ -929,7 +965,7 @@ const topAssocPairs = useMemo(() => {
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
         <div className="flex flex-wrap items-center gap-3 p-2 pb-1">
           <div className="p-2 text-slate-400"><Filter className="w-5 h-5"/></div>
-          <span className="text-sm">科目：</span>
+          <span className="text-sm">選擇科目：</span>
           <Select
             value={selectedSubject}
             onValueChange={(val) => {
@@ -964,7 +1000,7 @@ const topAssocPairs = useMemo(() => {
         {/* KPI 1: 次數 */}
         <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
           <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
-            總練習單元數
+            練習的單元數
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
             <div className="text-4xl font-black text-slate-700 tracking-tight">
@@ -976,7 +1012,7 @@ const topAssocPairs = useMemo(() => {
         {/* KPI 2: 總投入時間 */}
         <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
           <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
-            總投入時間
+            投入練習總時間
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
             <div className="text-4xl font-black text-slate-700 tracking-tight">
@@ -988,7 +1024,7 @@ const topAssocPairs = useMemo(() => {
         {/* KPI 3: 平均正確率 */}
         <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
           <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
-            平均正確率
+            平均答對率
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
             <div className="text-3xl font-black text-slate-700 tracking-tight">
@@ -1003,33 +1039,84 @@ const topAssocPairs = useMemo(() => {
           </div>
         </div>
 
-        {/* KPI 4: 低於校平均 */}
+        {/* KPI 4: 低於校平均 (附帶 Tooltip & 點擊連動) */}
         <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
           <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
-            表現狀態
+            目前表現狀態
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
-            <div className={`text-2xl font-black tracking-tight ${belowClassAvgStats.count > 0 ? "text-red-500" : "text-blue-600"}`}>
-              {belowClassAvgStats.count > 0 ? "需加強" : "已滿分"}
+            <div className={`text-xl font-black tracking-tight ${belowClassAvgStats.count > 0 ? "text-red-500" : "text-blue-600"}`}>
+              {belowClassAvgStats.count > 0 ? "還要再加油" : "都全對了"}
             </div>
-            <div className="text-[11px] text-slate-500 mt-2 text-center">
-              {belowClassAvgStats.count > 0 ? `尚有 ${belowClassAvgStats.count} 項指標未達滿分` : "已完成指標且滿分"}
+              <div className="text-[11px] text-slate-500 mt-2 text-center">
+              {belowClassAvgStats.count > 0 
+                ? `尚有 ${belowClassAvgStats.count} 項單元可以再挑戰` 
+                : "已完成所有指標且都滿分"}
             </div>
           </div>
         </div>
 
-        {/* KPI 5：目標達成率 */}
+        {/* KPI 5：目標達成率 (附帶 Tooltip & 點擊連動) */}
         <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
           <div className="bg-slate-500 text-white text-sm font-bold py-2.5 px-3 text-center border-b border-slate-200">
-            是否達成滿分
+            我的學習挑戰
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-4">
-            <div className={`text-2xl font-black tracking-tight ${processedStats.reachedGoal ? "text-blue-600" : "text-red-500"}`}>
-              {processedStats.reachedGoal ? "已達成" : "尚未達成"}
+            <div className={`text-xl font-black tracking-tight ${processedStats.reachedGoal ? "text-blue-600" : "text-red-500"}`}>
+              {processedStats.reachedGoal ? "成功" : "繼續努力"}
             </div>
-            <div className="gap-2 mt-2 font-medium text-center">
-              <span className="text-[11px] bg-slate-100 px-1 rounded text-slate-500">克服弱點：{processedStats.improvedCount}</span><br/>
-              <span className="text-[11px] bg-slate-100 px-1 rounded text-slate-500">初次精熟：{processedStats.perfectCount}</span>
+            <div className="gap-2 mt-3 font-bold text-center flex flex-col">
+              {/* 搞懂的弱點 */}
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger className="text-[10px] bg-slate-100 text-slate-600 px-3 py-1 rounded border border-slate-200 cursor-help hover:bg-slate-200 transition">
+                    搞懂的單元：{processedStats.improvedCount}
+                  </TooltipTrigger>
+                  {processedStats.improvedIndicators.length > 0 && (
+                    <TooltipContent side="bottom" className="bg-white border-slate-200 text-slate-700 shadow-xl max-w-xs p-3">
+                      <p className="font-bold mb-2 text-blue-600">從不會到會的單元：</p>
+                      <ul className="list-disc pl-4 text-xs space-y-1.5 max-h-[200px] overflow-y-auto custom-scrollbar font-medium text-left">
+                        {processedStats.improvedIndicators.map(ind => (
+                          <li 
+                            key={ind}
+                            className="cursor-pointer hover:text-blue-600 transition-colors underline decoration-transparent hover:decoration-blue-400 underline-offset-4"
+                            onClick={() => setSelectedIndicators([ind])}
+                            title="點擊查看此單元的詳細圖表"
+                          >
+                            {ind}
+                          </li>
+                        ))}
+                      </ul>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
+
+              {/* 一次就全對 */}
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger className="text-[10px] bg-slate-100 text-slate-600 px-3 py-1 rounded border border-slate-200 cursor-help hover:bg-slate-200 transition">
+                    一次就全對：{processedStats.perfectCount}
+                  </TooltipTrigger>
+                  {processedStats.perfectIndicators.length > 0 && (
+                    <TooltipContent side="bottom" className="bg-white border-slate-200 text-slate-700 shadow-xl max-w-xs p-3">
+                      <p className="font-bold mb-2 text-emerald-600">表現超棒的單元：</p>
+                      <ul className="list-disc pl-4 text-xs space-y-1.5 max-h-[200px] overflow-y-auto custom-scrollbar font-medium text-left">
+                        {processedStats.perfectIndicators.map(ind => (
+                          <li 
+                            key={ind}
+                            className="cursor-pointer hover:text-emerald-600 transition-colors underline decoration-transparent hover:decoration-emerald-400 underline-offset-4"
+                            onClick={() => setSelectedIndicators([ind])}
+                            title="點擊查看此單元的詳細圖表"
+                          >
+                            {ind}
+                          </li>
+                        ))}
+                      </ul>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </div>
@@ -1037,6 +1124,63 @@ const topAssocPairs = useMemo(() => {
       </div>
 
       {/* 3. Charts Grid */}
+
+      
+        {/* ===== 需要再加油的能力指標 ===== */}
+        <Card className="col-span-1 relative flex flex-col">
+          {loading && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+              <Activity className="animate-spin mr-2 w-4 h-4" />
+              <span className="text-sm text-slate-600">資料分析中...</span>
+            </div>
+          )}
+
+          <CardHeader className="py-3 px-4 border-b">
+            <CardTitle className="text-xl font-bold text-slate-700 flex items-center gap-2">
+              需要再加強的能力指標
+              {belowClassAvgStats.count > 0 && (
+                <span className="bg-rose-100 text-rose-600 text-[10px] px-4 rounded-full ">
+                  剩餘 {belowClassAvgStats.count} 項
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+
+          <CardContent className="p-3 flex-1 overflow-hidden">
+            {belowClassAvgStats.count > 0 ? (
+              <div className="space-y-2">
+                <p className="text-[11px] text-slate-400 mb-2">點擊單元名稱，下方圖表會自動為你診斷：</p>
+                <ul className="space-y-1.5 max-h-[180px] overflow-y-auto custom-scrollbar pr-1">
+                  {belowClassAvgStats.needsEffortIndicators.map((ind) => (
+                    <li
+                      key={ind}
+                      onClick={() => {
+                        setSelectedIndicators([ind]);
+                        document.getElementById('trend-charts-area')?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className={`
+                        group flex items-center gap-2 p-2 rounded-lg text-xs font-medium transition-all cursor-pointer
+                        ${selectedIndicators.includes(ind) 
+                          ? "bg-blue-50 text-blue-700 border border-blue-200" 
+                          : "bg-slate-50 text-slate-600 border border-transparent hover:bg-slate-100 hover:text-blue-600"
+                        }
+                      `}
+                    >
+                      <div className={` ${selectedIndicators.includes(ind) }`} />
+                      <span className="flex-1 truncate">{ind}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center py-6 text-center">
+                <p className="text-xs text-slate-400 mt-1">目前所有單元都已經滿分囉</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      
+
       <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
         {/* ===== 圖表 1：能力指標練習次數圖 ===== */}
         <Card className="col-span-1 relative">
@@ -1199,7 +1343,7 @@ const topAssocPairs = useMemo(() => {
               onClick={() => setSelectedIndicators([])}
               title="點擊可清除指標篩選"
             >
-              能力指標差距
+              與全校平均的差距
             </CardTitle>
 
             {selectedIndicators.length === 0 && (
@@ -1284,7 +1428,7 @@ const topAssocPairs = useMemo(() => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
             {/* ===== 練習投入走勢圖 ===== */}
             <Card className="col-span-1 relative">
               {loading && (
@@ -1296,10 +1440,8 @@ const topAssocPairs = useMemo(() => {
     
                 <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
                 <CardTitle className="text-xl font-bold flex items-center gap-2">
-                  練習投入走勢
-                  {selectedIndicators.length > 0 && (
-                    <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">疊加比較模式</span>
-                  )}
+                  練習時間走勢
+                 
                 </CardTitle>
     
                 <div className="flex items-center gap-1">
@@ -1338,10 +1480,17 @@ const topAssocPairs = useMemo(() => {
                   data={trendPlotData.practice}
                   layout={{
                     height: 350,
-                    margin: { t: 40, l: 50, r: 50, b: 110 },
-                    xaxis: { title: { text: "時間", font: { size: 10, color: '#64748b' }, standoff: 15 },
-                             type: "date", tickangle: -30, tickformat: "%Y-%m-%d %H:%M:%S", tickfont: { size: 10 } },
-                    yaxis: { title: "花費時間 (秒)", side: "left", showgrid: true },
+                    margin: { t: 10, l: 60, r: 20, b: 120 },
+                    xaxis: { 
+                      title: { text: "練習時間點", font: { size: 12, color: '#64748b' }, standoff: 15 },
+                      type: "category", 
+                      categoryorder: "array",
+                      categoryarray: trendPlotData.dates,
+                      tickangle: -20, 
+                      tickfont: { size: 10 } 
+                    },
+                    yaxis: { 
+                      title: { text: "花費時間 (秒)", font: { size: 12, color: '#64748b' }, standoff: 15 }, side: "left", showgrid: true },
                     legend: { orientation: "h", y: -0.3, x: 0.5, xanchor: "center" },
                     hovermode: "closest",
                   }}
@@ -1362,10 +1511,8 @@ const topAssocPairs = useMemo(() => {
     
               <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
                 <CardTitle className="text-xl font-bold flex items-center gap-2">
-                  正確率走勢
-                  {selectedIndicators.length > 0 && (
-                    <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">疊加比較模式</span>
-                  )}
+                  答對率走勢
+                  
                 </CardTitle>
     
                 <div className="flex items-center gap-1">
@@ -1380,11 +1527,11 @@ const topAssocPairs = useMemo(() => {
                           <div className="space-y-3">
                             <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
                             <ul className="text-xs space-y-2 list-disc pl-4">
-                              <li><b className="text-blue-700 font-bold">我的正確率：</b> 顯示目前在特定單元下的平均正確率走勢。</li>
+                              <li><b className="text-blue-700 font-bold">我的答對率：</b> 顯示目前在特定科目/能力指標下的平均正確率。</li>
                               <li><b className="text-red-600 font-bold">全校平均：</b> 作為基準線以判斷該校表現優於或低於整體該科平均。</li>
                             </ul>
                               <p className="text-[12px] text-slate-400 pt-1 border-t">
-                                ※ 在多指標比較模式下，你能清楚看見：當指標 A 進步時，指標 B 是否隨之爬升！
+                                ※ 與多能力指標比較模式下，你能清楚看見，當指標 A 進步時，指標 B 是否隨之進步。
                               </p>                       
                           </div>
                         </TooltipContent>
@@ -1405,10 +1552,18 @@ const topAssocPairs = useMemo(() => {
                   data={trendPlotData.score}
                   layout={{
                     height: 350,
-                    margin: { t: 40, l: 50, r: 40, b: 110 },
-                    xaxis: { title: { text: "時間", font: { size: 10, color: '#64748b' }, standoff: 15 },
-                             type: "date", tickangle: -30, tickformat: "%Y-%m-%d %H:%M:%S", tickfont: { size: 10 } },
-                    yaxis: { title: "正確率 (%)", range: [0, 105], ticksuffix: "%" },
+                    margin: { t: 40, l: 60, r: 30, b: 110 },
+                    xaxis: { 
+                      title: { text: "練習時間點", font: { size: 12, color: '#64748b' }, standoff: 15 },
+                        type: "category",                       
+                        categoryorder: "array",
+                        categoryarray: trendPlotData.dates,
+                        tickangle: -20, 
+                        tickfont: { size: 10 }
+                    },
+                    yaxis: { 
+                      title: { text: "正確率 (%)", font: { size: 12, color: '#64748b' }, standoff: 15 }, 
+                      side: "left", showgrid: true, range: [-5, 105], ticksuffix: "%"  },
                     legend: { orientation: "h", y: -0.3, x: 0.5, xanchor: "center" },
                     hovermode: "closest",
                   }}
@@ -1440,17 +1595,12 @@ const topAssocPairs = useMemo(() => {
             onClick={() => setSelectedIndicators([])}
           >
             學習歷程表現
-            {selectedIndicators.length > 0 && (
-              <>
-                <span className="text-slate-300">/</span>
-                <span className="text-sm text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-100">{selectedIndicators.join(" vs ")}</span>
-              </>
-            )}
+            
           </CardTitle>
 
           {selectedIndicators.length === 0 && (
                 <span className="text-[11px] text-slate-400 font-normal">
-                  點擊下方任一圓點，可查看單一指標連動表現
+                  點擊圖表中的圓點，可查看單一指標的軌跡表現
                 </span>
               )}
           </div> 
@@ -1468,9 +1618,9 @@ const topAssocPairs = useMemo(() => {
                       <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
                       <ul className="text-xs space-y-2 list-disc pl-4">
                         <li><b>圓點：</b>學生在單元上的練習紀錄。</li>
-                        <li><b>點擊互動：</b>點擊圓點可以查看該單元的「歷史進步軌跡」。多選比較時會畫出多條知識學習的軌跡線！</li>
                         <li><b>答題速度（X軸）：</b>往左代表思考愈快，往右代表花比較多時間。</li>
-                        <li><b>正確率 (Y軸)：</b>愈往上代表答對的情況愈好。</li>
+                        <li><b>正確率 (Y軸)：</b>愈往上代表答對率越高，表現越好。</li>
+                        <li><b>點擊互動：</b>點擊圓點可以查看該單元的「歷史進步軌跡」。多選比較時會畫出多條知識學習的軌跡線！</li>
                       </ul>
                     </div>
                   </TooltipContent>
@@ -1496,8 +1646,8 @@ const topAssocPairs = useMemo(() => {
             layout={{
               height: 300,
               margin: { t: 20, r: 20, b: 70, l: 40 }, 
-              xaxis: { title: { text: "平均每題作答時間（秒）", font: { size: 10, color: '#64748b' }, standoff: 15 }, gridcolor: "#f1f5f9", zeroline: false },
-              yaxis: { title: { text: "正確率 (%)", font: { size: 10, color: '#64748b' }, standoff: 15 }, range: [0, 115], tickformat: ",.0f", gridcolor: "#f1f5f9" },
+              xaxis: { title: { text: "平均每題作答時間（秒）", font: { size: 10, color: '#64748b' }, standoff: 15 },  gridcolor: "#f1f5f9", zeroline: false },
+              yaxis: { title: { text: "正確率 (%)", font: { size: 10, color: '#64748b' }, standoff: 15 }, range: [-5, 115], tickformat: ",.0f", gridcolor: "#f1f5f9" },
               shapes: [
                 { type: "line", x0: 0, x1: 1, xref: "paper", y0: chart3Data.passScore, y1: chart3Data.passScore, line: { color: "#94a3b8", width: 1, dash: "dot" } },
                 { type: "line", x0: chart3Data.medianTimeSec, x1: chart3Data.medianTimeSec, y0: 0, y1: 100, line: { color: "#94a3b8", width: 1, dash: "dot" } },
@@ -1505,10 +1655,11 @@ const topAssocPairs = useMemo(() => {
               annotations: [
                 { x: chart3Data.medianTimeSec * 0.6, y: 85, text: "<b>精熟區</b>", showarrow: false, font: { color: "#22c55e" } },
                 { x: chart3Data.medianTimeSec * 1.4, y: 85, text: "<b>穩定區</b>", showarrow: false, font: { color: "#3b82f6" } },
-                { x: chart3Data.medianTimeSec * 0.6, y: 20, text: "<b>猜測區</b>", showarrow: false, font: { color: "#f97316" } },
+                { x: chart3Data.medianTimeSec * 0.6, y: 20, text: "<b>複習區</b>", showarrow: false, font: { color: "#f97316" } },
                 { x: chart3Data.medianTimeSec * 1.4, y: 20, text: "<b>卡關區</b>", showarrow: false, font: { color: "#ef4444" } },
               ],
-              showlegend: selectedIndicators.length > 0, // 在多指標比較時顯示圖例
+              showlegend: selectedIndicators.length > 0, 
+              legend: { orientation: "h", y: -0.3, x: 0.5, xanchor: "center" },
               hovermode: "closest",
             }}
             useResizeHandler
@@ -1517,94 +1668,6 @@ const topAssocPairs = useMemo(() => {
           />
         </CardContent>
       </Card>
-
-      {/* ===== 進步幅度分析圖 ===== */}
-        <Card className="col-span-1 relative">
-
-          {loading && (
-            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
-              <Activity className="animate-spin mr-2 w-4 h-4" />
-              <span className="text-sm text-slate-600">資料分析中...</span>
-            </div>
-          )}
-
-          <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
-            <div className="flex flex-col gap-1">
-            <CardTitle 
-            className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2 group"
-            onClick={() => setSelectedIndicators([])}
-          >
-            進步幅度變化
-          </CardTitle>
-          
-            {selectedIndicators.length === 0 && (
-              <span className="text-[11px] text-slate-400 font-normal">
-                點擊下方任一圓點，可查看單一指標連動表現
-              </span>
-            )}
-          </div> 
-
-            <div className="flex items-center gap-0">
-              <TooltipProvider delayDuration={100}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
-                      <HelpCircle className="w-4 h-4" />
-                    </button>
-                  </TooltipTrigger>                 
-                  <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
-                    <div className="space-y-3">
-                      <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
-                      <ul className="text-xs space-y-2 list-disc pl-4">
-                        <li><b>中間基準線 (0)：</b>代表此次練習正確率與前一次「持平」。</li>
-                        <li><b>綠色點與正值 (+)：</b>代表正確率「進步」，數值越高進步越多。</li>
-                        <li><b>紅色點與負值 (-)：</b>代表正確率「退步」，可能遇到了新的學習瓶頸。</li>
-                      </ul>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <button
-                onClick={() => runAIForChart("progress_trend")}
-                className="flex items-center justify-center w-8 h-8 rounded-full text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition shadow-sm"
-              >
-                <Bot className="w-4 h-4" />
-              </button>
-            </div>
-            
-          </CardHeader>
-          
-          <CardContent className="h-[300px] w-full">
-            
-            <Plot
-              onClick={(e) => {
-                if (e.points && e.points.length > 0) {
-                  setSelectedIndicators([(e.points[0].customdata as any)[0]]); 
-                }
-              }}
-              data={progressTrendTraces}             
-              layout={{
-                margin: { t: 20, l: 50, r: 20, b: selectedIndicators.length === 0 ? 70 : 110 }, 
-                xaxis: {                  
-                  title: { text: "時間", font: { size: 10, color: '#64748b' }, standoff: 15 },
-                  tickangle: -30, type: "date",
-                  tickformat: selectedIndicators.length === 0 ? "%Y-%m-%d" : "%Y-%m-%d %H:%M:%S", 
-                  tickfont: { size: 10 }, 
-                },
-                yaxis: {                  
-                  title: { text: "進步幅度（正確率變化）", font: { size: 10, color: '#64748b' }, standoff: 15 },
-                  zeroline: true, zerolinewidth: 1, zerolinecolor: "#999",
-                },
-                shapes: [{ type: "line", x0: 0, x1: 1, xref: "paper", y0: 0, y1: 0, line: { color: "#94a3b8", width: 1, dash: "dot" } }],
-                showlegend: selectedIndicators.length > 0,
-                hovermode: "closest",
-              }}
-              config={{ responsive: true, displayModeBar: false }}
-              style={{ width: "100%", height: "100%", cursor: selectedIndicators.length === 0 ? "pointer" : "default" }}
-            />
-          </CardContent>
-        </Card>
       </div>
 
       <Card className="col-span-1 relative overflow-hidden">
@@ -1620,7 +1683,7 @@ const topAssocPairs = useMemo(() => {
               className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2"
               onClick={() => setSelectedIndicators([])}
             >
-              指標弱點關聯
+              能力指標弱點關聯
             </CardTitle>
 
             <div className="flex items-center gap-1">
@@ -1675,7 +1738,7 @@ const topAssocPairs = useMemo(() => {
                       <div className="bg-blue-50 p-4 rounded-r-lg shadow-sm">                        
                         <p className="text-xs text-blue-700 leading-relaxed mb-3">
                           你在做 
-                          <span className="inline-block px-2 py-0.5 mx-1 bg-blue-100 text-blue-800 font-bold rounded border border-blue-200 shadow-sm">
+                          <span className="inline-block px-2 py-0.5 mx-1 bg-blue-100 text-blue-800 font-bold rounded shadow-sm border border-blue-200">
                             {targetInd}
                           </span>
                           如果覺得有點難，可能是因為下面這幾個單元也還沒完全弄懂喔：
@@ -1707,7 +1770,8 @@ const topAssocPairs = useMemo(() => {
                       <div className="bg-slate-50 border-2 border-dashed border-slate-200 p-4 rounded-xl text-center">
                         <p className="text-sm font-bold text-slate-600 mb-1">暫無關聯弱點</p>
                         <p className="text-xs text-slate-500">
-                          在你目前練習過的單元中，沒有發現與 <b>{targetInd}</b> 呈現高度連動卡關的其他單元喔！請繼續保持！
+                          在你目前練習過的單元中，沒有發現與 <b>{targetInd}</b> <br/>
+                          呈現高度連動卡關的其他單元喔！請繼續保持！
                         </p>
                       </div>
                     );
@@ -1729,7 +1793,7 @@ const topAssocPairs = useMemo(() => {
               </button>
             </div>
 
-            {/* ⭐️ 核心點擊連動修改：點擊方塊觸發多指標選擇 */}
+            {/* 核心點擊連動修改：點擊方塊觸發多指標選擇 */}
             {showHeatmap && (
               <div className="h-[300px] w-full bg-white">
                 <Plot
@@ -1777,29 +1841,6 @@ const topAssocPairs = useMemo(() => {
               詳細練習紀錄 
               <span className="text-xs text-blue-600">（ 科目：{selectedSubject}）</span>
             </CardTitle>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">能力指標：</span>
-              <Select
-                value={currentSelectValue} 
-                onValueChange={(val) => {
-                  if (val === "all") setSelectedIndicators([]);
-                  else if (val !== "multiple") setSelectedIndicators([val]);
-                }}
-              >
-                <SelectTrigger className="w-[500px] h-8 text-xs focus:ring-0 font-medium text-slate-700 bg-slate-50 border rounded">
-                  <SelectValue placeholder="選擇能力指標">
-                    {selectedIndicators.length > 1 ? `已選 ${selectedIndicators.length} 項指標疊加比較` : undefined}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部能力指標</SelectItem>
-                  {selectedIndicators.length > 1 && <SelectItem value="multiple" disabled className="hidden">多項比較中</SelectItem>}
-                  {detailAvailableIndicators.map(ind => (
-                    <SelectItem key={ind} value={ind}>{ind}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </CardHeader>
 
           <CardContent className="p-0 pt-2">
@@ -1807,8 +1848,8 @@ const topAssocPairs = useMemo(() => {
               <table className="w-full text-left border-collapse">
                 <thead className="sticky top-0 bg-slate-50 z-10">
                   <tr className="text-xs text-slate-500 border-b">
-                    <th className="p-3 px-4 min-w-[50px]">練習日期</th>
-                    {selectedIndicators.length > 0 && <th className="p-3 text-center">能力指標</th>}
+                    <th className="p-3 px-4">練習日期</th>
+                    {selectedIndicators.length > 0 && <th className="p-3 px-4 min-w-[100px]">能力指標</th>}
                     {Array.from({ length: maxItemCount }).map((_, i) => (
                       <th key={i} className="p-3 text-center">題目{i + 1}</th>
                     ))}
@@ -1820,11 +1861,11 @@ const topAssocPairs = useMemo(() => {
                   {detailedRows.length > 0 ? (
                     detailedRows.map((row) => (
                       <tr key={row.prac_answer_sn} className="border-t hover:bg-slate-50/50 transition">
-                        <td className="px-4 py-2 font-mono text-sm text-slate-600">
+                        <td className="px-4 py-2 font-mono text-xs text-slate-600">
                           {formatDateTime(row.date)}
                         </td>
                         {selectedIndicators.length > 0 && (
-                          <td className="px-3 py-2 text-center text-xs text-slate-600 font-medium">
+                          <td className="px-3 py-2 text-xs text-slate-600 font-mono">
                             {row.items[0]?.indicate_name || "—"}
                           </td>
                         )}
