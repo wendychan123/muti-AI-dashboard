@@ -1,7 +1,6 @@
 export type TeacherPracChartTarget = 
   | "teacher_overview"   // 總覽
   | "diagnostic"         // 教學診斷指標 (四象限)
-  | "participation"      // 作答參與度
   | "practice_trend"     // 練習投入走勢
   | "performance_trend"  // 學習成效走勢
   | "indicator_treemap"   // 能力指標熱力圖
@@ -10,9 +9,8 @@ export type TeacherPracChartTarget =
 const TEACHER_CHART_LABEL_MAP: Record<TeacherPracChartTarget, string> = {
   teacher_overview: "總覽練習表現",
   diagnostic: "教學診斷指標",
-  participation: "作答參與度",
-  practice_trend: "練習投入走勢",
-  performance_trend: "學習成效走勢",
+  practice_trend: "練習時間走勢",
+  performance_trend: "答對率走勢",
   indicator_treemap: "能力指標熱力圖",
   student_risk: "高風險學生與弱點指標",
 };
@@ -22,9 +20,7 @@ const CHART_INTERPRETATION_GUIDES: Record<TeacherPracChartTarget, string> = {
   teacher_overview: 
     "【總覽練習表現】：請從整體參與率、精熟率與人均練習量，評估全校/該年級在該科目的整體健康度。若精熟率低但練習量高，代表可能存在系統性的學習瓶頸。",
   diagnostic: 
-    "【教學診斷指標(四象限)】：X軸為人均練習次數，Y軸為精熟率。請特別揪出落在「瓶頸區 (高練習次數、低精熟率)」的指標，這代表學生反覆練習卻無法掌握，需優先調整教學策略或進行補救。落在「低參與」區則可能為進度未到或學生缺乏動力。",
-  participation: 
-    "【作答參與度】：條形圖代表參與率，折線代表實際作答人數。請關注「參與率極低」的指標，判斷是否為課程進度尚未推動，或是部分班級/學生遺漏了該單元的練習。",
+    "【教學診斷指標(四象限)】：X軸為「參與率(%)」，Y軸為「平均正確率(%)」。請特別揪出落在「瓶頸區 (高參與、低正確率)」的指標，這代表多數學生都已進行練習卻普遍卡關，需優先進行全班性補救教學。落在「低參與」區則表示該單元多數學生尚未作答，樣本數不足以代表全班成效。",
   practice_trend: 
     "【練習投入走勢】：柱狀圖為活躍人數，折線為總練習次數。請觀察是否有異常的「斷崖式下跌」或「突發性飆高」，並推測是否與學校作息、段考週期或特定作業派發有關。",
   performance_trend: 
@@ -40,16 +36,17 @@ export interface BuildTeacherPracPromptParams {
   organization_id: string;
   grade: string;
   subject: string;
-  indicator?: string;
+  indicator?: string | null;
+  selectedDate?: string | null; 
   period: string;
   selectedCharts: TeacherPracChartTarget[];
-
   stats: {
-    totalStudents: number;         // 參與學生總數
-    avgScore: number;              // 平均正確率
-    avgPracPerStudent: number;     // 人均練習次數
-    notMasteredStudents: number;   // 未精熟學生人數
-    notMasteredIndicators: number; // 未精熟指標總數
+    totalStudents: number;         
+    participationRate: number;     
+    avgScore: number;              
+    avgPracPerStudent: number;     
+    notMasteredStudents: number;   
+    notMasteredIndicators: number; 
   };
 }
 
@@ -58,11 +55,12 @@ function fmtInt(n: number) { return Number.isFinite(n) ? Math.round(n).toLocaleS
 function fmt1(n: number) { return Number.isFinite(n) ? n.toFixed(1) : "—"; }
 
 export function buildTeacherPracPrompt(params: BuildTeacherPracPromptParams): string {
-  const { city, organization_id, grade, subject, period, selectedCharts, stats, indicator } = params;
+  const { city, organization_id, grade, subject, period, selectedCharts, stats, indicator, selectedDate } = params;
 
   const subjectLabel = subject === "全部科目" ? "跨科目綜合表現" : subject;
   const chartsText = selectedCharts.map((c) => `- ${TEACHER_CHART_LABEL_MAP[c]}`).join("\n");
   const isSingle = selectedCharts.length === 1;
+  
 
   // 動態組合被選中圖表的專屬 AI 判讀指引
   const chartGuidesText = selectedCharts
@@ -90,11 +88,29 @@ export function buildTeacherPracPrompt(params: BuildTeacherPracPromptParams): st
 • 分析期間：${period}
 
 【班級關鍵 KPI】
-• 參與學生數：${fmtInt(stats.totalStudents)} 位
+• 參與學生數：${fmtInt(stats.totalStudents)} 位 (參與率：${fmt1(stats.participationRate)}%)
 • 全校平均正確率：${stats.avgScore.toFixed(1)}%
-• 每人平均練習次數：${fmt1(stats.avgPracPerStudent)} 次
+• 平均練習投入次數：${fmt1(stats.avgPracPerStudent)} 次
 • 未精熟學生數：${fmtInt(stats.notMasteredStudents)} 位（需優先關注）
 • 未精熟能力指標數：${fmtInt(stats.notMasteredIndicators)} 項
+
+【特定時間切片分析】
+${selectedDate ? `
+老師目前在儀表板上點擊了特定時間點：「${selectedDate}」。
+請你化身為「數據偵探」，你的回答必須：
+1. 開頭直接點出你在分析 ${selectedDate} 當天的異常數據。
+2. 解釋當天為何會出現異常（例如答對率暴跌或練習量暴增）。
+3. 從所選圖表中找出導致當天異常的「元凶單元」或「卡關學生」。
+` : ""}
+
+【分析背景】
+• 縣市：${city}
+• 學校：${organization_id}
+• 對象：${grade} 年級
+• 科目：${subjectLabel}
+- 特定能力指標：${indicator || "全部能力指標"}
+• 分析期間：${period}
+
 
 【本次納入診斷之圖表】
 ${chartsText}

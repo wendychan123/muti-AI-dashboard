@@ -1770,8 +1770,8 @@ const topAssocPairs = useMemo(() => {
                       <div className="bg-slate-50 border-2 border-dashed border-slate-200 p-4 rounded-xl text-center">
                         <p className="text-sm font-bold text-slate-600 mb-1">暫無關聯弱點</p>
                         <p className="text-xs text-slate-500">
-                          在你目前練習過的單元中，沒有發現與 <b>{targetInd}</b> <br/>
-                          呈現高度連動卡關的其他單元喔！請繼續保持！
+                          在你目前練習過的能力指標中，沒有發現與 <b>{targetInd}</b> 有明顯關聯的學習困難。
+                          建議你可以再練習一次 ，或嘗試挑戰其他新的能力指標。
                         </p>
                       </div>
                     );
