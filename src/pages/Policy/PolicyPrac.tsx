@@ -51,8 +51,8 @@ type KPICompare = {
 };
 
 type PolicyExplainTarget =
-  | "policy_overview"
-  | "development_index"
+  | "policy_overview" 
+  | "development_index" 
   | "regional_gap"
   | "gap_trend"
   | "practice_trend"
@@ -815,7 +815,7 @@ const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
   practice_trend: "練習時間走勢",
   effect_trend: "學習成效走勢",
   scissors_gap: "校際差距走勢",
-  school_matrix: "學校落點"
+  school_matrix: "學校落點分佈"
 };
 
 /* =========================
@@ -1350,7 +1350,7 @@ useEffect(() => {
 
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
             <CardTitle className="text-xl font-bold ">
-              學校落點
+              學校落點分佈
                <span className="px-2 text-[9px] text-green-600">（ 科目：{selectedSubject} ）</span>
             </CardTitle>
 

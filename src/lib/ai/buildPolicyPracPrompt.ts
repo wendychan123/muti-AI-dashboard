@@ -6,7 +6,7 @@ export type PolicyExplainTarget =
   | "practice_trend"     // 練習時間走勢 (柱線雙軸)
   | "effect_trend"       // 正確率走勢 (折線圖)
   | "scissors_gap"       // 校際差距走勢 (雙軸趨勢)
-  | "school_matrix";     // 學校落點 (散佈圖)
+  | "school_matrix";     // 學校落點分佈 (散佈圖)
 
 // 供介面與 Prompt 使用的圖表顯示名稱
 const POLICY_CHART_LABEL_MAP: Record<PolicyExplainTarget, string> = {
@@ -17,7 +17,7 @@ const POLICY_CHART_LABEL_MAP: Record<PolicyExplainTarget, string> = {
   practice_trend: "練習時間走勢",
   effect_trend: "正確率走勢",
   scissors_gap: "校際差距走勢",
-  school_matrix: "學校落點"
+  school_matrix: "學校落點分佈"
 };
 
 // 針對每張圖表的AI 判讀重點指引
