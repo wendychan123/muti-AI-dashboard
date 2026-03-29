@@ -1,8 +1,8 @@
 export type TeacherPracChartTarget = 
   | "teacher_overview"   // 總覽
   | "diagnostic"         // 教學診斷指標 (四象限)
-  | "practice_trend"     // 練習投入走勢
-  | "performance_trend"  // 學習成效走勢
+  | "practice_trend"     // 練習時間走勢
+  | "performance_trend"  // 正確率走勢
   | "indicator_treemap"   // 能力指標熱力圖
   | "student_risk";      // 待關注學生
 
@@ -10,7 +10,7 @@ const TEACHER_CHART_LABEL_MAP: Record<TeacherPracChartTarget, string> = {
   teacher_overview: "總覽練習表現",
   diagnostic: "教學診斷指標",
   practice_trend: "練習時間走勢",
-  performance_trend: "答對率走勢",
+  performance_trend: "正確率走勢",
   indicator_treemap: "能力指標熱力圖",
   student_risk: "高風險學生與弱點指標",
 };

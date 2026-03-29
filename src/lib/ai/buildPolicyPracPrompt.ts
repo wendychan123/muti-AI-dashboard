@@ -3,8 +3,8 @@ export type PolicyExplainTarget =
   | "development_index"  // 練習診斷指標 (四象限)
   | "regional_gap"       // 區域學習差距 (長條圖)
   | "gap_trend"          // 區域成效對標 (面積圖)
-  | "practice_trend"     // 練習投入走勢 (柱線雙軸)
-  | "effect_trend"       // 學習成效走勢 (折線圖)
+  | "practice_trend"     // 練習時間走勢 (柱線雙軸)
+  | "effect_trend"       // 正確率走勢 (折線圖)
   | "scissors_gap"       // 校際差距走勢 (雙軸趨勢)
   | "school_matrix";     // 學校落點 (散佈圖)
 
@@ -14,8 +14,8 @@ const POLICY_CHART_LABEL_MAP: Record<PolicyExplainTarget, string> = {
   development_index: "練習診斷指標",
   regional_gap: "區域學習差距",
   gap_trend: "區域成效對標",
-  practice_trend: "練習投入走勢",
-  effect_trend: "學習成效走勢",
+  practice_trend: "練習時間走勢",
+  effect_trend: "正確率走勢",
   scissors_gap: "校際差距走勢",
   school_matrix: "學校落點"
 };

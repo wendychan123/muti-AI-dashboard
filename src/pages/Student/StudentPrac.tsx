@@ -1511,7 +1511,7 @@ const topAssocPairs = useMemo(() => {
     
               <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
                 <CardTitle className="text-xl font-bold flex items-center gap-2">
-                  答對率走勢
+                  正確率走勢
                   
                 </CardTitle>
     

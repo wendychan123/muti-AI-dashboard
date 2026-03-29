@@ -890,7 +890,7 @@ export default function TeacherPrac() {
           </CardContent>
         </Card>
 
-        {/* ===== 答對率走勢圖 ===== */}
+        {/* ===== 正確率走勢圖 ===== */}
        <Card className="col-span-1 relative">
           {loading && (
             <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
@@ -901,7 +901,7 @@ export default function TeacherPrac() {
 
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
             <CardTitle className="text-xl font-bold ">
-              答對率走勢
+              正確率走勢
               <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
             </CardTitle>
 

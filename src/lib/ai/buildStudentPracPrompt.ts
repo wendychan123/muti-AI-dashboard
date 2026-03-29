@@ -32,8 +32,8 @@ export function buildStudentPracPrompt(params: BuildPracPromptParams): string {
         indicator_effect: "能力指標投入",
         learning_process: "學習歷程表現",
         indicator_gap: "能力指標差距",
-        practice_trend: "練習投入走勢",
-        score_trend: "學習成效走勢",
+        practice_trend: "練習時間走勢",
+        score_trend: "正確率走勢",
         indicator_assoc:"指標弱點關聯",
       };
       return `- ${names[c] || c}`;

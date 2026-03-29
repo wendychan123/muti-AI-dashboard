@@ -812,7 +812,7 @@ const POLICY_EXPLAIN_MAP: Record<PolicyExplainTarget, string> = {
   development_index: "練習診斷指標",
   regional_gap: "區域學習差距",
   gap_trend: "區域成效對標",
-  practice_trend: "練習投入走勢",
+  practice_trend: "練習時間走勢",
   effect_trend: "學習成效走勢",
   scissors_gap: "校際差距走勢",
   school_matrix: "學校落點"
@@ -1674,7 +1674,7 @@ useEffect(() => {
       ========================= */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* ===== 圖表 4：練習投入走勢 ===== */}
+        {/* ===== 圖表 4：練習時間走勢 ===== */}
         <Card className="col-span-1 relative">
           {loading && (
             <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
@@ -1685,7 +1685,7 @@ useEffect(() => {
 
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-6">
             <CardTitle className="text-xl font-bold ">
-              練習投入走勢
+              練習時間走勢
               <span className="px-2 text-xs text-green-600">（ 科目：{selectedSubject} ）</span>
             </CardTitle>
 
@@ -1693,7 +1693,7 @@ useEffect(() => {
               <TooltipProvider delayDuration={100}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button onClick={() => runPolicyAIForChart("practice_trend")} className="flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
+                    <button className="flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
                       <HelpCircle className="w-5 h-5" />
                     </button>
                   </TooltipTrigger>
@@ -1710,7 +1710,7 @@ useEffect(() => {
                 </Tooltip>
               </TooltipProvider>
 
-              <button onClick={() => runPolicyAIForChart("effect_trend")} 
+              <button onClick={() => runPolicyAIForChart("practice_trend")} 
               className="flex items-center justify-center w-8 h-8 rounded-full text-emerald-500 hover:bg-emerald-50 transition">
                 <Bot className="w-5 h-5" />
               </button>
@@ -1764,7 +1764,7 @@ useEffect(() => {
           </CardContent>
         </Card>
 
-        {/* ===== 學習成效走勢 ===== */}
+        {/* ===== 正確率走勢 ===== */}
         <Card className="col-span-1 relative">
           {loading && (
             <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
@@ -1775,7 +1775,7 @@ useEffect(() => {
 
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-6">
             <CardTitle className="text-xl font-bold ">
-              學習成效走勢
+              正確率走勢
               <span className="px-2 text-xs text-green-600">（ 科目：{selectedSubject} ）</span>
             </CardTitle>
 
@@ -1800,7 +1800,8 @@ useEffect(() => {
                 </Tooltip>
               </TooltipProvider>
 
-              <button className="flex items-center justify-center w-8 h-8 rounded-full text-emerald-500 hover:bg-emerald-50 transition">
+               <button onClick={() => runPolicyAIForChart("effect_trend")} 
+               className="flex items-center justify-center w-8 h-8 rounded-full text-emerald-500 hover:bg-emerald-50 transition">
                 <Bot className="w-5 h-5" />
               </button>
             </div>

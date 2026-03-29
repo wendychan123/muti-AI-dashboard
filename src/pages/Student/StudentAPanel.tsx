@@ -53,7 +53,7 @@ export default function StudentAiPanel({
     { id: "投入", label: "能力指標練習次數" },
     { id: "差距", label: "與全校平均的差距" },
     { id: "投入走勢", label: "練習時間走勢" }, 
-    { id: "成效走勢", label: "答對率走勢" },
+    { id: "成效走勢", label: "正確率走勢" },
     { id: "歷程", label: "學習歷程表現" },
     { id: "弱點", label: "能力指標弱點關聯" },
   ];
