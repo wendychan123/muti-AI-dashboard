@@ -790,10 +790,16 @@ export default function TeacherPrac() {
           )}
 
             <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
-            <CardTitle className="text-xl font-bold ">
-              練習時間走勢
-              <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
-            </CardTitle>
+              <div className="flex flex-col gap-1">
+                <CardTitle className="text-xl font-bold ">
+                  練習時間走勢
+                  <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
+                </CardTitle>
+
+                <span className="text-[11px] text-slate-400 font-normal">
+                  點擊時間點，可查看該日期連動表現
+                </span>
+              </div>
 
             <div className="flex items-center gap-1">
               <TooltipProvider delayDuration={100}>
@@ -871,10 +877,15 @@ export default function TeacherPrac() {
               }}
               layout={{
                 autosize: true,
-                margin: { t: 30, l: 40, r:30, b: 50 },
-                xaxis: { type: "category", tickangle: -35, tickfont: { size: 10 } ,color: "#64748b" },
-                yaxis: { title: "總練習人數", side: "left", showgrid: true, zeroline: true},
-                yaxis2: { title: "練習總次數", overlaying: "y", side: "right", showgrid: false, zeroline: false },
+                margin: { t: 20, l: 45, r: 40, b: 30 },
+                xaxis: { 
+                  type: "category", tickangle: -35, tickfont: { size: 10 } ,color: "#64748b" },
+                yaxis: { 
+                  title: { text: "總練習人數", font: { size: 12, color: '#64748b' }, standoff: 15 },                  
+                  side: "left", showgrid: true, zeroline: true},
+                yaxis2: { 
+                  title: { text: "總練習次數", font: { size: 12, color: '#64748b' }, standoff: 15 },                    
+                  overlaying: "y", side: "right", showgrid: false, zeroline: false },
                 legend: { orientation: "h", y: -0.25 },
                 hovermode: "x unified",
                 shapes: selectedDate ? [
@@ -900,10 +911,16 @@ export default function TeacherPrac() {
           )}
 
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
-            <CardTitle className="text-xl font-bold ">
-              正確率走勢
-              <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
-            </CardTitle>
+            <div className="flex flex-col gap-1">
+              <CardTitle className="text-xl font-bold ">
+                正確率走勢
+                <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
+              </CardTitle>
+
+              <span className="text-[11px] text-slate-400 font-normal">
+                點擊時間點，可查看該日期連動表現
+              </span>
+            </div>
 
             <div className="flex items-center gap-1">
               <TooltipProvider delayDuration={100}>
@@ -978,7 +995,8 @@ export default function TeacherPrac() {
                   type: "category", tickangle: -45, tickfont: { size: 10, color: "#64748b" },
                 },
                 yaxis: {
-                  title: "平均答對率 (%)", range: [0, 105], ticksuffix: "%", gridcolor: "#f1f5f9",
+                  title: { text: "平均答對率 (%)", font: { size: 12, color: '#64748b' }, standoff: 15 , 
+                           range: [0, 105], ticksuffix: "%", gridcolor: "#f1f5f9",}
                 },
                 legend: { orientation: "h", y: -0.3 },
                 hovermode: "x unified",
