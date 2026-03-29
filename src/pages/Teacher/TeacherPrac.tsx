@@ -1129,7 +1129,7 @@ export default function TeacherPrac() {
                 margin: { t: 30, r: 10, b: 50, l: 60 },
                 xaxis: { 
                   title: { text: "參與率 (%)", font: { size: 12, color: '#64748b' }, standoff: 15 },                                 
-                  range: [-2, quadrantData.maxX * 1.2], 
+                  range: [0, quadrantData.maxX * 1.2], 
                   gridcolor: '#f1f5f9', zeroline: false 
                 },
                 yaxis: { 
