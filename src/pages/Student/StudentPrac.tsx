@@ -1884,7 +1884,10 @@ const topAssocPairs = useMemo(() => {
                 <thead className="sticky top-0 bg-slate-50 z-10">
                   <tr className="text-xs text-slate-500 border-b">
                     <th className="p-3 px-4">練習日期</th>
-                    {selectedIndicators.length > 0 && <th className="p-3 px-4 min-w-[100px]">能力指標</th>}
+                    
+                    {/* 移除條件判斷，讓能力指標欄位常駐顯示 */}
+                    <th className="p-3 px-4 min-w-[20px]">能力指標</th>
+                    
                     {Array.from({ length: maxItemCount }).map((_, i) => (
                       <th key={i} className="p-3 text-center">題目{i + 1}</th>
                     ))}
@@ -1899,11 +1902,12 @@ const topAssocPairs = useMemo(() => {
                         <td className="px-4 py-2 font-mono text-xs text-slate-600">
                           {formatDateTime(row.date)}
                         </td>
-                        {selectedIndicators.length > 0 && (
-                          <td className="px-3 py-2 text-xs text-slate-600 font-mono">
-                            {row.items[0]?.indicate_name || "—"}
-                          </td>
-                        )}
+                        
+                        {/* 移除條件判斷，直接渲染能力指標名稱 */}
+                        <td className="px-3 py-2 text-xs text-slate-600 font-mono">
+                          {row.items[0]?.indicate_name || "—"}
+                        </td>
+                        
                         {Array.from({ length: maxItemCount }).map((_, i) => {
                           const item = row.items[i];
                           return (
