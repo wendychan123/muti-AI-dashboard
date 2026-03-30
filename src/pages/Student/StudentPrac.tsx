@@ -150,7 +150,7 @@ export default function StudentPrac() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<string>("all");
 
-  // ⭐️ 核心修改：將單一字串改為陣列，支援多指標疊加比較
+  // 將單一字串改為陣列，支援多指標疊加比較
   const [selectedIndicators, setSelectedIndicators] = useState<string[]>([]);
 
   // AI
@@ -321,7 +321,7 @@ export default function StudentPrac() {
       let perfectCount = 0;  
       let struggleCount = 0; 
       
-      // ⭐️ 紀錄具體的指標名稱
+      // 紀錄具體的指標名稱
       let improvedIndicators: string[] = [];
       let perfectIndicators: string[] = [];
   
@@ -446,7 +446,7 @@ const chart3Data = useMemo(() => {
       text: latestAttempts.map(d => d.indicate_name),
       marker: {
         size: 14,
-        // ⭐️ 修改：將原本的 ZONE_COLOR 邏輯改為固定灰色
+        // 將原本的 ZONE_COLOR 邏輯改為固定灰色
         color: "#94a3b8", 
         opacity: 0.7,
         line: { color: "white", width: 1.5 },
@@ -1428,7 +1428,7 @@ const topAssocPairs = useMemo(() => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* ===== 練習投入走勢圖 ===== */}
             <Card className="col-span-1 relative">
               {loading && (
@@ -1456,10 +1456,17 @@ const topAssocPairs = useMemo(() => {
                           <div className="space-y-3">
                             <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
                             <ul className="text-xs space-y-2 list-disc pl-4">
-                              <li><b className="text-blue-600">每次練習花費時間 (折線圖)：</b> 顯示你在每次練習中所花費的總秒數。</li>
-                            </ul>
+                              <li>
+                                  <b className="text-blue-700 font-bold">單次作答時間：</b> 
+                                  顯示你在該能力指標下，每次練習所耗費的總秒數。時間縮短通常代表對知識點的熟練度逐漸提升。
+                                </li>
+                                <li>
+                                  <b className="text-rose-600 font-bold">關聯弱點比較：</b> 
+                                  當你在「弱點關聯圖」選取多個指標時，此處將疊加顯示時間折線，幫助你直觀比較自己在連動觀念中，究竟在哪個環節卡最久。
+                                </li>
+                              </ul>
                               <p className="text-[12px] text-slate-400 pt-1 border-t">
-                                ※ 透過此圖可以觀察你的作答速度變化。點擊熱點圖選擇多個指標時，此處將自動畫出並比較各指標的花費時間折線！
+                                ※ 透過此圖可檢視作答流暢性：若正確率高但花費時間極長，代表該觀念可能尚未完全內化，建議持續練習以提升反應速度！
                               </p>
                           </div>
                         </TooltipContent>                   
@@ -1477,7 +1484,18 @@ const topAssocPairs = useMemo(() => {
                 
               <CardContent className="h-[350px] w-full">
                 <Plot
-                  data={trendPlotData.practice}
+                  data={trendPlotData.practice.map(trace => {
+                      if (trace.type === 'scatter') {
+                        return {
+                          ...trace,
+                          marker: {
+                            ...trace.marker, 
+                            size: 15,                  
+                          }
+                        };
+                      }
+                      return trace;
+                    })}
                   layout={{
                     height: 350,
                     margin: { t: 10, l: 60, r: 20, b: 120 },
@@ -1527,12 +1545,18 @@ const topAssocPairs = useMemo(() => {
                           <div className="space-y-3">
                             <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
                             <ul className="text-xs space-y-2 list-disc pl-4">
-                              <li><b className="text-blue-700 font-bold">我的答對率：</b> 顯示目前在特定科目/能力指標下的平均正確率。</li>
-                              <li><b className="text-red-600 font-bold">全校平均：</b> 作為基準線以判斷該校表現優於或低於整體該科平均。</li>
+                              <li>
+                                <b className="text-blue-700 font-bold">單一指標正確率：</b> 
+                                顯示你在特定能力指標下，歷次練習的答對率變化，幫助追蹤學習成效是否穩定成長。
+                              </li>
+                              <li>
+                                <b className="text-rose-600 font-bold">關聯弱點比較：</b> 
+                                當你在其他圖表（如弱點關聯圖）選擇多個指標時，此處將疊加顯示這些指標的正確率折線，方便比對不同觀念間的掌握落差。
+                              </li>
                             </ul>
-                              <p className="text-[12px] text-slate-400 pt-1 border-t">
-                                ※ 與多能力指標比較模式下，你能清楚看見，當指標 A 進步時，指標 B 是否隨之進步。
-                              </p>                       
+                            <p className="text-[12px] text-slate-400 pt-1 border-t">
+                              ※ 透過此圖可以觀察連動關係：當你的核心弱點（指標 A）正確率提升時，其關聯弱點（指標 B）是否也隨之進步。
+                            </p>                       
                           </div>
                         </TooltipContent>
                     </Tooltip>
@@ -1549,7 +1573,18 @@ const topAssocPairs = useMemo(() => {
               
               <CardContent className="h-[350px] w-full">
                 <Plot
-                  data={trendPlotData.score}
+                  data={trendPlotData.practice.map(trace => {
+                      if (trace.type === 'scatter') {
+                        return {
+                          ...trace,
+                          marker: {
+                            ...trace.marker, 
+                            size: 15,                  
+                          }
+                        };
+                      }
+                      return trace;
+                    })}
                   layout={{
                     height: 350,
                     margin: { t: 40, l: 60, r: 30, b: 110 },
@@ -1770,7 +1805,7 @@ const topAssocPairs = useMemo(() => {
                       <div className="bg-slate-50 border-2 border-dashed border-slate-200 p-4 rounded-xl text-center">
                         <p className="text-sm font-bold text-slate-600 mb-1">暫無關聯弱點</p>
                         <p className="text-xs text-slate-500">
-                          在你目前練習過的能力指標中，沒有發現與 <b>{targetInd}</b> 有明顯關聯的學習困難。
+                          在你目前練習過的能力指標中，沒有發現與 <b>{targetInd}</b> 有明顯關聯的學習困難。<br/>
                           建議你可以再練習一次 ，或嘗試挑戰其他新的能力指標。
                         </p>
                       </div>

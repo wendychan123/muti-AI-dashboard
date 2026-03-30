@@ -937,8 +937,7 @@ export default function TeacherPrac() {
                           <li><b className="text-slate-700 font-bold">平均：</b>顯示目前在特定單元下的平均正確率走勢。</li>
                         </ul>
                         <p className="text-[12px] text-slate-400 pt-1 border-t">
-                          ※ 透過此圖觀察曲線波動較大時，代表單元難度或教學進度可能有劇烈變化。<br/>
-                          <span className="text-rose-500 font-bold">【提示】點擊圖表中的特定時間，可過濾下方所有的診斷資訊！</span>
+                          ※ 透過此國觀察曲線波動絞大時，代表單元難度或教學進度可能有劇烈變化；若低於基準線，則建議進行補救教學。
                         </p>                       
                       </div>
                     </TooltipContent>
@@ -1083,7 +1082,7 @@ export default function TeacherPrac() {
                         </li>
                       </ul>
                       <p className="text-[12px] text-slate-400 pt-1 border-t leading-relaxed">
-                          ※ 透過此圖可精準識別全校在各單元的「教學進度 (參與率)」與「實質成效 (正確率)」之關聯。
+                          ※ 透過此圖可精準識別全校在各單元的教學進度 (參與率)與實質成效 (正確率)之關聯。
                         </p>     
                     </div>
                   </TooltipContent>
@@ -1320,6 +1319,13 @@ export default function TeacherPrac() {
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-2">
             <CardTitle className="text-xl font-bold text-slate-800">
               高風險學生與弱點指標 <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
+              
+              
+              <span 
+                className="ml-3 inline-flex items-center gap-1 px-2.5 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded-full">
+                時間區間：{selectedDate} <span className="text-xs leading-none"></span>
+              </span>
+            
             </CardTitle>
               
               <div className="flex items-center gap-1">
