@@ -505,7 +505,7 @@ export default function TeacherPrac() {
     practice_trend: "練習時間走勢",
     performance_trend: "答對率走勢",
     indicator_treemap: "知識節點熱力圖",
-    student_risk: "高風險學生與弱點指標",
+    student_risk: "高風險學生與弱點知識節點",
   };
 
   const runTeacherAIForChart = async (target: TeacherPracChartTarget | "teacher_overview") => {
@@ -1035,7 +1035,7 @@ export default function TeacherPrac() {
 
              {!selectedIndicator && (
                 <span className="text-[11px] text-slate-400 font-normal">
-                  點擊圖表圓點，可查看單一指標連動表現
+                  點擊圖表圓點，可查看單一知識節點連動表現
                 </span>
               )}
             </div>
@@ -1206,7 +1206,7 @@ export default function TeacherPrac() {
                         <ul className="text-xs space-y-2 list-disc pl-4">
                           <li>
                             <b className="text-slate-700 font-bold">區塊大小：</b>
-                            代表該指標的參與練習人數。越大的方塊代表該單元學生練習較集中，或為近期教學重點。
+                            代表該知識節點的參與練習人數。越大的方塊代表該單元學生練習較集中，或為近期教學重點。
                           </li>
                           <li>
                             <b className="text-slate-700 font-bold">區塊顏色：</b>
@@ -1274,7 +1274,7 @@ export default function TeacherPrac() {
                 style={{ width: "100%", height: "100%" }}
               />
             ) : (
-              <div className="flex items-center justify-center h-full text-slate-400 text-sm">無指標數據</div>
+              <div className="flex items-center justify-center h-full text-slate-400 text-sm">無知識節點數據</div>
             )}
           </CardContent>
 
@@ -1318,7 +1318,7 @@ export default function TeacherPrac() {
           
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-2">
             <CardTitle className="text-xl font-bold text-slate-800">
-              高風險學生與弱點指標 <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
+              高風險學生與弱點知識節點 <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
               
               
               <span 
@@ -1339,11 +1339,11 @@ export default function TeacherPrac() {
                         <p className="font-bold border-b pb-1 text-violet-700"> 表格說明：</p>
                         <ul className="text-xs space-y-2 list-disc pl-4">
                           <li>
-                          <b className="text-slate-700 font-bold">未精熟指標數：</b>
+                          <b className="text-slate-700 font-bold">未精熟節點數：</b>
                           指該生在特定單元中，最後一次作答正確率<span className="text-rose-600 font-bold">未達滿分(100分)</span> 的單元總數。
                         </li>
                         <li>
-                          <b className="text-slate-700 font-bold">練習指標數：</b>
+                          <b className="text-slate-700 font-bold">練習節點數：</b>
                           指該生在該科目下<span className="text-violet-600 font-bold">實際參與過</span>的單元總量，反映學生在平台上的活動量。
                         </li>
                         <li>
@@ -1371,8 +1371,8 @@ export default function TeacherPrac() {
                 <thead className="sticky top-0 bg-slate-50 z-10">
                   <tr className="text-xs text-slate-500 border-b">
                     <th className="p-3 px-8 w-40">學生 ID</th>
-                    <th className="p-3 w-40">練習指標數</th>
-                    <th className="p-3 w-40">未精熟指標數</th> 
+                    <th className="p-3 w-40">練習節點數</th>
+                    <th className="p-3 w-40">未精熟節點數</th> 
                     <th className="p-3 w-40 text-center">狀態</th>
                   </tr>
                 </thead>
@@ -1409,7 +1409,7 @@ export default function TeacherPrac() {
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent side="right" className="bg-rose-50 shadow-2xl border-rose-200 text-slate-800">
-                                <p className="text-sm font-bold mb-1">待加強指標：</p>
+                                <p className="text-sm font-bold mb-1">待加強節點：</p>
                                 <p className="text-[11px] leading-relaxed whitespace-pre-line max-w-[200px]">
                                   {student.unmasteredNames}
                                 </p>

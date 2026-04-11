@@ -55,7 +55,7 @@ export default function TeacherAIPanel({
     { id: "performance_trend", label: "正確率走勢" },
     { id: "diagnostic", label: "教學診斷指標" },
     { id: "indicator_treemap", label: "知識節點熱力圖" },
-    { id: "student_risk", label: "高風險學生與弱點指標" },
+    { id: "student_risk", label: "高風險學生與弱點知識節點" },
   ];
 
 
