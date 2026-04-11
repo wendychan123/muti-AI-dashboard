@@ -29,9 +29,9 @@ export function buildStudentPracPrompt(params: BuildPracPromptParams): string {
     .map(c => {
       const names: Record<string, string> = {
         daily_overview: "總覽練習概況",
-        indicator_effect: "能力指標投入",
+        indicator_effect: "知識節點投入",
         learning_process: "學習歷程表現",
-        indicator_gap: "能力指標差距",
+        indicator_gap: "知識節點差距",
         practice_trend: "練習時間走勢",
         score_trend: "正確率走勢",
         indicator_assoc:"指標弱點關聯",

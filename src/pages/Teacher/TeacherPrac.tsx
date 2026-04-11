@@ -449,7 +449,7 @@ export default function TeacherPrac() {
   }, [filteredPrac, viewMode]);
 
   /* =========================
-      能力指標熱力圖
+      知識節點熱力圖
   ========================= */
   const treemapData = useMemo(() => {
     const map = new Map<string, { name: string; students: Set<string>; scoreSum: number; pracCount: number }>();
@@ -504,7 +504,7 @@ export default function TeacherPrac() {
     diagnostic: "教學診斷指標",
     practice_trend: "練習時間走勢",
     performance_trend: "答對率走勢",
-    indicator_treemap: "能力指標熱力圖",
+    indicator_treemap: "知識節點熱力圖",
     student_risk: "高風險學生與弱點指標",
   };
 
@@ -520,7 +520,7 @@ export default function TeacherPrac() {
       organization_id: String(organizationId || ""),
       grade: selectedGrade,
       subject: selectedSubject,
-      indicator: currentIndicatorName || "全部能力指標",
+      indicator: currentIndicatorName || "全部知識節點",
       period: periodLabel,
       selectedDate: selectedDate, 
       stats: {
@@ -569,7 +569,7 @@ export default function TeacherPrac() {
         organization_id: String(organizationId || ""),
         grade: selectedGrade,        
         subject: selectedSubject,
-        indicator: currentIndicatorName || "全部能力指標",
+        indicator: currentIndicatorName || "全部知識節點",
         period: periodLabel,
         selectedDate: selectedDate,
         selectedCharts: selected, 
@@ -1127,7 +1127,7 @@ export default function TeacherPrac() {
                   },
                   text: quadrantData.rows.map(r => wrapText(r.name, 20)),
                   hovertemplate: 
-                    "<b>能力指標：%{text}</b><br>" +
+                    "<b>知識節點：%{text}</b><br>" +
                     "參與率：%{x:.1f}%<br>" + 
                     "精熟率：%{y:.1f}%<br>" +
                     "<extra></extra>",
@@ -1173,7 +1173,7 @@ export default function TeacherPrac() {
 
 
       {/* =========================
-          能力指標熱力圖
+          知識節點熱力圖
       ========================= */}
       <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
         <Card className="col-span-1 relative">
@@ -1189,7 +1189,7 @@ export default function TeacherPrac() {
               className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2 group"
               onClick={() => setSelectedIndicator(null)}
               >
-              能力指標熱力圖
+              知識節點熱力圖
             </CardTitle>
 
             <div className="flex items-center gap-1">

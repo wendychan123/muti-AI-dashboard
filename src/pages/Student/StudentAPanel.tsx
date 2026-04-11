@@ -50,12 +50,12 @@ export default function StudentAiPanel({
 
   const chartOptions = [
     { id: "總覽", label: "總覽練習狀況" },
-    { id: "投入", label: "能力指標練習次數" },
+    { id: "投入", label: "知識節點練習次數" },
     { id: "差距", label: "與全校平均的差距" },
     { id: "投入走勢", label: "練習時間走勢" }, 
     { id: "成效走勢", label: "正確率走勢" },
     { id: "歷程", label: "學習歷程表現" },
-    { id: "弱點", label: "能力指標弱點關聯" },
+    { id: "弱點", label: "知識節點弱點關聯" },
   ];
 
   /* =========================

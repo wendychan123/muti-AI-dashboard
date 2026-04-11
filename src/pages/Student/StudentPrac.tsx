@@ -929,12 +929,12 @@ const topAssocPairs = useMemo(() => {
     description: string;
   }[] = [
     { key: "daily_overview", label: "總覽練習概況", description: "總覽投入時間與正確率變化" },
-    { key: "indicator_effect", label: "能力指標練習次數", description: "各能力指標的練習次數與表現" },
+    { key: "indicator_effect", label: "知識節點練習次數", description: "各知識節點的練習次數與表現" },
     { key: "learning_process", label: "學習歷程表現", description: "答題速度 × 正確率的學習區域" },
     { key: "practice_trend", label: "練習時間走勢", description: "分析練習時間與次數的規律性" },
     { key: "score_trend", label: "正確率走勢", description: "分析正確率隨時間進步的幅度" },
     { key: "progress_trend", label: "進步幅度變化", description: "分析多次練習間的正確率變化與學習狀態" },
-    { key: "indicator_assoc", label: "能力指標弱點關聯", description: "分析哪些能力指標容易一起出現學習困難" },
+    { key: "indicator_assoc", label: "知識節點弱點關聯", description: "分析哪些知識節點容易一起出現學習困難" },
   ];
   
   const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
@@ -944,11 +944,11 @@ const topAssocPairs = useMemo(() => {
     "總覽練習狀況": "daily_overview",
     "練習時間走勢": "practice_trend",
     "正確率走勢": "score_trend",
-    "能力指標練習次數": "indicator_effect",
+    "知識節點練習次數": "indicator_effect",
     "學習歷程表現": "learning_process",
-    "能力指標差距": "indicator_gap",
+    "知識節點差距": "indicator_gap",
     "進步幅度變化": "progress_trend",
-    "能力指標弱點關聯": "indicator_assoc",
+    "知識節點弱點關聯": "indicator_assoc",
   };
 
   const currentSelectValue = selectedIndicators.length === 1 
@@ -1126,7 +1126,7 @@ const topAssocPairs = useMemo(() => {
       {/* 3. Charts Grid */}
 
       
-        {/* ===== 需要再加油的能力指標 ===== */}
+        {/* ===== 需要再加油的知識節點 ===== */}
         <Card className="col-span-1 relative flex flex-col">
           {loading && (
             <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
@@ -1137,7 +1137,7 @@ const topAssocPairs = useMemo(() => {
 
           <CardHeader className="py-3 px-4 border-b">
             <CardTitle className="text-xl font-bold text-slate-700 flex items-center gap-2">
-              需要再加強的能力指標
+              需要再加強的知識節點
               {belowClassAvgStats.count > 0 && (
                 <span className="bg-rose-100 text-rose-600 text-[10px] px-4 rounded-full ">
                   剩餘 {belowClassAvgStats.count} 項
@@ -1182,7 +1182,7 @@ const topAssocPairs = useMemo(() => {
       
 
       <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
-        {/* ===== 圖表 1：能力指標練習次數圖 ===== */}
+        {/* ===== 圖表 1：知識節點練習次數圖 ===== */}
         <Card className="col-span-1 relative">
 
           {loading && (
@@ -1199,7 +1199,7 @@ const topAssocPairs = useMemo(() => {
               onClick={() => setSelectedIndicators([])}
               title="點擊可清除所有指標篩選"
             >
-              能力指標練習次數
+              知識節點練習次數
             </CardTitle>
             
               {selectedIndicators.length === 0 && (
@@ -1290,7 +1290,7 @@ const topAssocPairs = useMemo(() => {
                     autosize: true, 
                     margin: { t: 60, r: 40, b: 80, l: 50 },
                     xaxis: { 
-                      title: { text: "能力指標", font: { size: 10, color: '#64748b' }, standoff: 15 },
+                      title: { text: "知識節點", font: { size: 10, color: '#64748b' }, standoff: 15 },
                       tickangle: -30, 
                       tickfont: { size: 9 },
                       fixedrange: true
@@ -1415,7 +1415,7 @@ const topAssocPairs = useMemo(() => {
                 height: Math.max(300, diffBarData.length * 25), 
                 autosize: true, margin: { l: 120, r: 50, t: 65, b: 80 }, showlegend: false,
                 xaxis: { title: { text: "與校平均差距（%）", font: { size: 10, color: '#64748b' }, standoff: 15 }, zeroline: true, zerolinewidth: 2, zerolinecolor: "#94a3b8", side: "top", fixedrange: true },
-                yaxis: { title: { text: "能力指標", font: { size: 10, color: '#64748b' }, standoff: 15 }, automargin: true, fixedrange: true },
+                yaxis: { title: { text: "知識節點", font: { size: 10, color: '#64748b' }, standoff: 15 }, automargin: true, fixedrange: true },
                 shapes: [{ type: "line", x0: 0, x1: 0, yref: "paper", y0: 0, y1: 1, line: { color: "#475569", width: 2, dash: "dash" } }],
                 annotations: [{ x: 0, y: 1.07, yref: "paper", text: "校平均", showarrow: false, font: { size: 11, color: "#64748b", weight: "bold" }, xanchor: "center" }],
                 font: { family: "inherit" },
@@ -1458,7 +1458,7 @@ const topAssocPairs = useMemo(() => {
                             <ul className="text-xs space-y-2 list-disc pl-4">
                               <li>
                                   <b className="text-blue-700 font-bold">單次作答時間：</b> 
-                                  顯示你在該能力指標下，每次練習所耗費的總秒數。時間縮短通常代表對知識點的熟練度逐漸提升。
+                                  顯示你在該知識節點下，每次練習所耗費的總秒數。時間縮短通常代表對知識點的熟練度逐漸提升。
                                 </li>
                                 <li>
                                   <b className="text-rose-600 font-bold">關聯弱點比較：</b> 
@@ -1547,7 +1547,7 @@ const topAssocPairs = useMemo(() => {
                             <ul className="text-xs space-y-2 list-disc pl-4">
                               <li>
                                 <b className="text-blue-700 font-bold">單一指標正確率：</b> 
-                                顯示你在特定能力指標下，歷次練習的答對率變化，幫助追蹤學習成效是否穩定成長。
+                                顯示你在特定知識節點下，歷次練習的答對率變化，幫助追蹤學習成效是否穩定成長。
                               </li>
                               <li>
                                 <b className="text-rose-600 font-bold">關聯弱點比較：</b> 
@@ -1718,7 +1718,7 @@ const topAssocPairs = useMemo(() => {
               className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2"
               onClick={() => setSelectedIndicators([])}
             >
-              能力指標弱點關聯
+              知識節點弱點關聯
             </CardTitle>
 
             <div className="flex items-center gap-1">
@@ -1733,7 +1733,7 @@ const topAssocPairs = useMemo(() => {
                         <div className="space-y-3">
                           <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
                           <ul className="text-xs space-y-2 list-disc pl-4">
-                            <li><b>每個格子：</b>代表兩個能力指標之間的關聯強度。</li>
+                            <li><b>每個格子：</b>代表兩個知識節點之間的關聯強度。</li>
                         <li><b>顏色越深：</b>表示兩個能力越可能一起出現學習困難或表現關聯。</li>
                         <li><b>點擊熱點方格：</b>可立即啟動疊加比較模式，同時觀察這兩個指標的進步軌跡！</li>
                           </ul>
@@ -1805,8 +1805,8 @@ const topAssocPairs = useMemo(() => {
                       <div className="bg-slate-50 border-2 border-dashed border-slate-200 p-4 rounded-xl text-center">
                         <p className="text-sm font-bold text-slate-600 mb-1">暫無關聯弱點</p>
                         <p className="text-xs text-slate-500">
-                          在你目前練習過的能力指標中，沒有發現與 <b>{targetInd}</b> 有明顯關聯的學習困難。<br/>
-                          建議你可以再練習一次 ，或嘗試挑戰其他新的能力指標。
+                          在你目前練習過的知識節點中，沒有發現與 <b>{targetInd}</b> 有明顯關聯的學習困難。<br/>
+                          建議你可以再練習一次 ，或嘗試挑戰其他新的知識節點。
                         </p>
                       </div>
                     );
@@ -1885,8 +1885,8 @@ const topAssocPairs = useMemo(() => {
                   <tr className="text-xs text-slate-500 border-b">
                     <th className="p-3 px-4">練習日期</th>
                     
-                    {/* 移除條件判斷，讓能力指標欄位常駐顯示 */}
-                    <th className="p-3 px-4 min-w-[20px]">能力指標</th>
+                    {/* 移除條件判斷，讓知識節點欄位常駐顯示 */}
+                    <th className="p-3 px-4 min-w-[20px]">知識節點</th>
                     
                     {Array.from({ length: maxItemCount }).map((_, i) => (
                       <th key={i} className="p-3 text-center">題目{i + 1}</th>
@@ -1903,7 +1903,7 @@ const topAssocPairs = useMemo(() => {
                           {formatDateTime(row.date)}
                         </td>
                         
-                        {/* 移除條件判斷，直接渲染能力指標名稱 */}
+                        {/* 移除條件判斷，直接渲染知識節點名稱 */}
                         <td className="px-3 py-2 text-xs text-slate-600 font-mono">
                           {row.items[0]?.indicate_name || "—"}
                         </td>

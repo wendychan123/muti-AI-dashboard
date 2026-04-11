@@ -3,7 +3,7 @@ export type TeacherPracChartTarget =
   | "diagnostic"         // 教學診斷指標 (四象限)
   | "practice_trend"     // 練習時間走勢
   | "performance_trend"  // 正確率走勢
-  | "indicator_treemap"   // 能力指標熱力圖
+  | "indicator_treemap"   // 知識節點熱力圖
   | "student_risk";      // 待關注學生
 
 const TEACHER_CHART_LABEL_MAP: Record<TeacherPracChartTarget, string> = {
@@ -11,7 +11,7 @@ const TEACHER_CHART_LABEL_MAP: Record<TeacherPracChartTarget, string> = {
   diagnostic: "教學診斷指標",
   practice_trend: "練習時間走勢",
   performance_trend: "正確率走勢",
-  indicator_treemap: "能力指標熱力圖",
+  indicator_treemap: "知識節點熱力圖",
   student_risk: "高風險學生與弱點指標",
 };
 
@@ -26,7 +26,7 @@ const CHART_INTERPRETATION_GUIDES: Record<TeacherPracChartTarget, string> = {
   performance_trend: 
     "【學習成效走勢】：觀察平均答對率的起伏。若正確率隨時間持續下滑，代表近期接觸的單元難度過高，或是學生對新單元的先備知識不足，需提醒老師放慢教學節奏。",
   indicator_treemap: 
-    "【能力指標熱力圖】：區塊面積代表「參與練習人數」，顏色深淺代表「平均精熟率」。請務必優先抓出「大面積且顏色偏白或極淺紫」的區塊，這代表多數學生都有練習但普遍未達標的「全校性教學痛點」。",
+    "【知識節點熱力圖】：區塊面積代表「參與練習人數」，顏色深淺代表「平均精熟率」。請務必優先抓出「大面積且顏色偏白或極淺紫」的區塊，這代表多數學生都有練習但普遍未達標的「全校性教學痛點」。",
   student_risk: 
     "【高風險學生與弱點指標】：此表列出有未精熟單元的學生。請分析這些高風險學生「最常共同卡關的指標名稱」是什麼？找出是否有一小群學生在特定單元上需要抽離式補救教學。"
 };
@@ -84,7 +84,7 @@ export function buildTeacherPracPrompt(params: BuildTeacherPracPromptParams): st
 • 學校：${organization_id}
 • 對象：${grade} 年級
 • 科目：${subjectLabel}
-- 特定能力指標：${indicator || "全部能力指標"}
+- 特定知識節點：${indicator || "全部知識節點"}
 • 分析期間：${period}
 
 【班級關鍵 KPI】
@@ -92,7 +92,7 @@ export function buildTeacherPracPrompt(params: BuildTeacherPracPromptParams): st
 • 全校平均正確率：${stats.avgScore.toFixed(1)}%
 • 平均練習投入次數：${fmt1(stats.avgPracPerStudent)} 次
 • 未精熟學生數：${fmtInt(stats.notMasteredStudents)} 位（需優先關注）
-• 未精熟能力指標數：${fmtInt(stats.notMasteredIndicators)} 項
+• 未精熟知識節點數：${fmtInt(stats.notMasteredIndicators)} 項
 
 【特定時間切片分析】
 ${selectedDate ? `
@@ -108,7 +108,7 @@ ${selectedDate ? `
 • 學校：${organization_id}
 • 對象：${grade} 年級
 • 科目：${subjectLabel}
-- 特定能力指標：${indicator || "全部能力指標"}
+- 特定知識節點：${indicator || "全部知識節點"}
 • 分析期間：${period}
 
 
@@ -133,7 +133,7 @@ ${
 - 不得逐張圖分開解釋。
 - 分析整合分析背後隱藏的教學意義。
 - 必須關聯投入度（練習次數）與成效（正確率）。
-- 必須結合能力指標精熟度與待關注學生進行交叉比對。
+- 必須結合知識節點精熟度與待關注學生進行交叉比對。
 - 找出是否存在高投入但低成效的瓶頸單元，或低參與導致低成效的進度遺漏。`
 }
 
@@ -155,7 +155,7 @@ ${chartGuidesText}
 第一部分：
 (此處請勿出現「｜快讀總結」字樣)
 這部分請控制在 3 句話內。
-- 第一句：總結該學校目前在該科目、能力指標的教學健康狀態（如：進度穩定、出現分化、投入不足等）。
+- 第一句：總結該學校目前在該科目、知識節點的教學健康狀態（如：進度穩定、出現分化、投入不足等）。
 - 第二句：指出指定分析圖表重點說明。
 - 第三句：給出一個最核心的教學建議動作。
 
