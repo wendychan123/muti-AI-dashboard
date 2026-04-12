@@ -934,10 +934,10 @@ export default function TeacherPrac() {
                       <div className="space-y-3">
                         <p className="font-bold border-b pb-1 text-violet-700">圖表計算說明：</p>
                         <ul className="text-xs space-y-2 list-disc pl-4">
-                          <li><b className="text-slate-700 font-bold">平均：</b>顯示目前在特定單元下的平均正確率走勢。</li>
+                          <li><b className="text-slate-700 font-bold">平均：</b>顯示目前在特定節點下的平均正確率走勢。</li>
                         </ul>
                         <p className="text-[12px] text-slate-400 pt-1 border-t">
-                          ※ 透過此國觀察曲線波動絞大時，代表單元難度或教學進度可能有劇烈變化；若低於基準線，則建議進行補救教學。
+                          ※ 透過此圖觀察曲線波動較大時，代表單元難度或教學進度可能有劇烈變化；若低於基準線，則建議進行補救教學。
                         </p>                       
                       </div>
                     </TooltipContent>
@@ -1025,7 +1025,7 @@ export default function TeacherPrac() {
             )}
 
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-0">
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col-2 gap-1">
             <CardTitle 
               className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2 group"
               onClick={() => setSelectedIndicator(null)}
@@ -1033,14 +1033,21 @@ export default function TeacherPrac() {
               教學診斷指標
             </CardTitle>
 
-             {!selectedIndicator && (
-                <span className="text-[11px] text-slate-400 font-normal">
-                  點擊圖表圓點，可查看單一知識節點連動表現
-                </span>
-              )}
+
+            {selectedDate && (
+              <span 
+                className="ml-3 inline-flex items-center gap-1 px-2.5 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded-full cursor-pointer hover:bg-rose-200 transition" 
+                onClick={() => setSelectedDate(null)}
+              >
+                時間區間：{selectedDate} <span className="text-xs leading-none">×</span>
+              </span>
+            )}
             </div>
             
+            
             <div className="flex items-center gap-1">
+              
+              
               <TooltipProvider delayDuration={100}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1096,7 +1103,15 @@ export default function TeacherPrac() {
                 <Bot className="w-5 h-5" />
               </button>
             </div>
+
           </CardHeader>
+          <div className="flex items-center gap-2 py-2 px-6">
+            {!selectedIndicator && (
+                <span className="text-[11px] text-slate-400 font-normal">
+                  點擊圖表圓點，可查看單一知識節點連動表現
+                </span>
+              )}
+              </div>
             
           <CardContent className="h-[300px] w-full">
             {selectedIndicator && (
@@ -1185,12 +1200,23 @@ export default function TeacherPrac() {
           )}
         
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-4">
+            <div className="flex flex-col-2 gap-1">
             <CardTitle 
               className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2 group"
               onClick={() => setSelectedIndicator(null)}
               >
               知識節點熱力圖
             </CardTitle>
+
+            {selectedDate && (
+              <span 
+                className="ml-3 inline-flex items-center gap-1 px-2.5 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded-full cursor-pointer hover:bg-rose-200 transition" 
+                onClick={() => setSelectedDate(null)}
+              >
+                時間區間：{selectedDate} <span className="text-xs leading-none">×</span>
+              </span>
+            )}
+            </div>
 
             <div className="flex items-center gap-1">
               <TooltipProvider delayDuration={100}>
