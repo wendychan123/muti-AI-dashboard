@@ -1179,6 +1179,169 @@ const topAssocPairs = useMemo(() => {
             )}
           </CardContent>
         </Card>
+
+      <Card className="col-span-1 relative overflow-hidden">
+        {loading && (
+          <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+            <Activity className="animate-spin mr-2 w-4 h-4" />
+            <span className="text-sm text-slate-600">弱點分析中...</span>
+          </div>
+        )}
+
+          <CardHeader className="flex flex-row items-center justify-between py-4 pb-2 bg-slate-50/50">
+            <CardTitle
+              className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2"
+              onClick={() => setSelectedIndicators([])}
+            >
+              知識節點弱點關聯
+            </CardTitle>
+
+            <div className="flex items-center gap-1">
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="w-8 h-8 rounded-full text-slate-400 hover:bg-white transition shadow-sm">
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
+                        <div className="space-y-3">
+                          <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
+                          <ul className="text-xs space-y-2 list-disc pl-4">
+                            <li><b>每個格子：</b>代表兩個知識節點之間的關聯強度。</li>
+                        <li><b>顏色越深：</b>表示兩個能力越可能一起出現學習困難或表現關聯。</li>
+                        <li><b>點擊熱點方格：</b>可立即啟動疊加比較模式，同時觀察這兩個指標的進步軌跡！</li>
+                          </ul>
+                          <p className="text-[12px] text-slate-400 pt-1 border-t">
+                            ※ 找出容易一起卡住的關聯指標，一次擊破知識弱點群。
+                          </p>
+                        </div>
+                      </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <button
+                onClick={() => runAIForChart("indicator_assoc")}
+                className="flex items-center justify-center w-8 h-8 rounded-full text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition shadow-sm"
+              >
+                <Bot className="w-4 h-4" />
+              </button>
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-3 space-y-4">
+            {/*診斷提示區 */}
+            {selectedIndicators.length > 0 ? (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                {(() => {
+                  const targetInd = selectedIndicators[0]; // 若選多個，以第一個作為基準推薦
+                  const rawPairs = topAssocPairs.filter(
+                    p => p.source_name === targetInd || p.target_name === targetInd
+                  );
+                  
+                  const displayPairs = _.uniqBy(rawPairs, p => 
+                    p.source_name === targetInd ? p.target_name : p.source_name
+                  ).slice(0, 5);
+
+                  if (displayPairs.length > 0) {
+                    return (
+                      <div className="bg-blue-50 p-4 rounded-r-lg shadow-sm">                        
+                        <p className="text-xs text-blue-700 leading-relaxed mb-3">
+                          你在做 
+                          <span className="inline-block px-2 py-0.5 mx-1 bg-blue-100 text-blue-800 font-bold rounded shadow-sm border border-blue-200">
+                            {targetInd}
+                          </span>
+                          如果覺得有點難，可能是因為下面這幾個單元也還沒完全弄懂喔：
+                        </p>
+                        
+                        <div className="grid grid-cols-1 gap-2">
+                          {displayPairs.map((pair, i) => {                          
+                            const targetName = pair.source_name === targetInd ? pair.target_name : pair.source_name;
+                            return (
+                              <div key={i} className="flex items-center justify-between bg-white/80 p-2 rounded border border-blue-100 hover:border-blue-400 transition cursor-pointer"
+                                onClick={() => setSelectedIndicators([targetInd, targetName])}
+                                title="點擊以進行疊加比較分析"
+                              >
+                                <span className="text-xs font-medium text-slate-700 hover:text-blue-600 underline decoration-blue-200 decoration-dashed underline-offset-4">{targetName}</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-bold">
+                                  關聯性 {Math.round(pair.correlation_score * 100)}%
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[10px] text-blue-500 mt-3 text-right">
+                          點擊上方方塊，立即畫出軌跡比較圖！
+                        </p>
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <div className="bg-slate-50 border-2 border-dashed border-slate-200 p-4 rounded-xl text-center">
+                        <p className="text-sm font-bold text-slate-600 mb-1">暫無關聯弱點</p>
+                        <p className="text-xs text-slate-500">
+                          在你目前練習過的知識節點中，沒有發現與 <b>{targetInd}</b> 有明顯關聯的學習困難。<br/>
+                          建議你可以再練習一次 ，或嘗試挑戰其他新的知識節點。
+                        </p>
+                      </div>
+                    );
+                  }
+                })()}
+              </div>
+            ) : (              
+              <div className="flex flex-col items-center justify-center py-6 border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/30">
+                <p className="text-xs text-slate-500 font-medium">點擊下方熱點方格，啟動多指標疊加分析</p>
+              </div>
+            )}
+
+            <div className="flex justify-center border-t border-slate-100 pt-2">
+              <button 
+                onClick={() => setShowHeatmap(!showHeatmap)}
+                className="text-[11px] text-slate-400 hover:text-blue-500 flex items-center gap-1 transition-colors px-3 py-1 rounded-full hover:bg-slate-50"
+              >
+                {showHeatmap ? "收起熱點圖 ▲" : "打開熱點圖 ▼"}
+              </button>
+            </div>
+
+            {/* 核心點擊連動修改：點擊方塊觸發多指標選擇 */}
+            {showHeatmap && (
+              <div className="h-[300px] w-full bg-white">
+                <Plot
+                  onClick={(e) => {
+                    if (!e.points || e.points.length === 0) return;                
+                    const yLabel = (e.points[0].customdata as any)[0]; // target
+                    const xLabel = (e.points[0].customdata as any)[1]; // source
+                    if (yLabel && xLabel) {
+                      if (yLabel === xLabel) {
+                        setSelectedIndicators([yLabel]);
+                      } else {
+                        setSelectedIndicators([yLabel, xLabel]);
+                      }
+                      window.scrollTo({ top: 0, behavior: "smooth" }); // 自動捲動到最上方看疊加圖
+                    }
+                  }}
+                  data={[{
+                    z: assocHeatmapData?.z ?? [], x: assocHeatmapData?.x ?? [], y: assocHeatmapData?.y ?? [],
+                    type: "heatmap",
+                    colorscale: [[0, '#f8fafc'], [0.3, '#fee2e2'], [0.6, '#ef4444'], [1, '#991b1b']],
+                    zmin: 0, zmax: 1, xgap: 2, ygap: 2,
+                    customdata: assocHeatmapData?.z.map((row, i) => row.map((_, j) => [assocHeatmapData.customY[i], assocHeatmapData.customX[j]])) ?? [],
+                    hovertemplate: "%{customdata[0]} <br>%{customdata[1]} <br>常常會一起錯喔！(點擊畫出比較圖)<extra></extra>",
+                    hoverlabel: { align: "left" }, showscale: false, 
+                  }]}
+                  layout={{
+                    autosize: true, margin: { t: 10, l: 80, r: 10, b: 100 },
+                    xaxis: { tickangle: -45, tickfont: { size: 10, color: '#64748b' }, fixedrange: true },
+                    yaxis: { autorange: "reversed", tickfont: { size: 10, color: '#64748b' }, fixedrange: true },
+                    hovermode: "closest", plot_bgcolor: "rgba(0,0,0,0)", paper_bgcolor: "rgba(0,0,0,0)",
+                  }}
+                  config={{ displayModeBar: false, responsive: true }}
+                  style={{ width: "100%", height: "100%", cursor: "pointer" }}
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
       
 
       <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
@@ -1704,169 +1867,6 @@ const topAssocPairs = useMemo(() => {
         </CardContent>
       </Card>
       </div>
-
-      <Card className="col-span-1 relative overflow-hidden">
-        {loading && (
-          <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
-            <Activity className="animate-spin mr-2 w-4 h-4" />
-            <span className="text-sm text-slate-600">弱點分析中...</span>
-          </div>
-        )}
-
-          <CardHeader className="flex flex-row items-center justify-between py-4 pb-2 bg-slate-50/50">
-            <CardTitle
-              className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2"
-              onClick={() => setSelectedIndicators([])}
-            >
-              知識節點弱點關聯
-            </CardTitle>
-
-            <div className="flex items-center gap-1">
-              <TooltipProvider delayDuration={100}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="w-8 h-8 rounded-full text-slate-400 hover:bg-white transition shadow-sm">
-                      <HelpCircle className="w-4 h-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" align="end" className="max-w-xs p-4 bg-[#f5f4fb] shadow-xl border-slate-200 text-slate-700 z-50">
-                        <div className="space-y-3">
-                          <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
-                          <ul className="text-xs space-y-2 list-disc pl-4">
-                            <li><b>每個格子：</b>代表兩個知識節點之間的關聯強度。</li>
-                        <li><b>顏色越深：</b>表示兩個能力越可能一起出現學習困難或表現關聯。</li>
-                        <li><b>點擊熱點方格：</b>可立即啟動疊加比較模式，同時觀察這兩個指標的進步軌跡！</li>
-                          </ul>
-                          <p className="text-[12px] text-slate-400 pt-1 border-t">
-                            ※ 找出容易一起卡住的關聯指標，一次擊破知識弱點群。
-                          </p>
-                        </div>
-                      </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <button
-                onClick={() => runAIForChart("indicator_assoc")}
-                className="flex items-center justify-center w-8 h-8 rounded-full text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition shadow-sm"
-              >
-                <Bot className="w-4 h-4" />
-              </button>
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-3 space-y-4">
-            {/*診斷提示區 */}
-            {selectedIndicators.length > 0 ? (
-              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                {(() => {
-                  const targetInd = selectedIndicators[0]; // 若選多個，以第一個作為基準推薦
-                  const rawPairs = topAssocPairs.filter(
-                    p => p.source_name === targetInd || p.target_name === targetInd
-                  );
-                  
-                  const displayPairs = _.uniqBy(rawPairs, p => 
-                    p.source_name === targetInd ? p.target_name : p.source_name
-                  ).slice(0, 5);
-
-                  if (displayPairs.length > 0) {
-                    return (
-                      <div className="bg-blue-50 p-4 rounded-r-lg shadow-sm">                        
-                        <p className="text-xs text-blue-700 leading-relaxed mb-3">
-                          你在做 
-                          <span className="inline-block px-2 py-0.5 mx-1 bg-blue-100 text-blue-800 font-bold rounded shadow-sm border border-blue-200">
-                            {targetInd}
-                          </span>
-                          如果覺得有點難，可能是因為下面這幾個單元也還沒完全弄懂喔：
-                        </p>
-                        
-                        <div className="grid grid-cols-1 gap-2">
-                          {displayPairs.map((pair, i) => {                          
-                            const targetName = pair.source_name === targetInd ? pair.target_name : pair.source_name;
-                            return (
-                              <div key={i} className="flex items-center justify-between bg-white/80 p-2 rounded border border-blue-100 hover:border-blue-400 transition cursor-pointer"
-                                onClick={() => setSelectedIndicators([targetInd, targetName])}
-                                title="點擊以進行疊加比較分析"
-                              >
-                                <span className="text-xs font-medium text-slate-700 hover:text-blue-600 underline decoration-blue-200 decoration-dashed underline-offset-4">{targetName}</span>
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-bold">
-                                  關聯性 {Math.round(pair.correlation_score * 100)}%
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <p className="text-[10px] text-blue-500 mt-3 text-right">
-                          點擊上方方塊，立即畫出軌跡比較圖！
-                        </p>
-                      </div>
-                    );
-                  } else {
-                    return (
-                      <div className="bg-slate-50 border-2 border-dashed border-slate-200 p-4 rounded-xl text-center">
-                        <p className="text-sm font-bold text-slate-600 mb-1">暫無關聯弱點</p>
-                        <p className="text-xs text-slate-500">
-                          在你目前練習過的知識節點中，沒有發現與 <b>{targetInd}</b> 有明顯關聯的學習困難。<br/>
-                          建議你可以再練習一次 ，或嘗試挑戰其他新的知識節點。
-                        </p>
-                      </div>
-                    );
-                  }
-                })()}
-              </div>
-            ) : (              
-              <div className="flex flex-col items-center justify-center py-6 border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/30">
-                <p className="text-xs text-slate-500 font-medium">點擊下方熱點方格，啟動多指標疊加分析</p>
-              </div>
-            )}
-
-            <div className="flex justify-center border-t border-slate-100 pt-2">
-              <button 
-                onClick={() => setShowHeatmap(!showHeatmap)}
-                className="text-[11px] text-slate-400 hover:text-blue-500 flex items-center gap-1 transition-colors px-3 py-1 rounded-full hover:bg-slate-50"
-              >
-                {showHeatmap ? "收起熱點圖 ▲" : "打開熱點圖 ▼"}
-              </button>
-            </div>
-
-            {/* 核心點擊連動修改：點擊方塊觸發多指標選擇 */}
-            {showHeatmap && (
-              <div className="h-[300px] w-full bg-white">
-                <Plot
-                  onClick={(e) => {
-                    if (!e.points || e.points.length === 0) return;                
-                    const yLabel = (e.points[0].customdata as any)[0]; // target
-                    const xLabel = (e.points[0].customdata as any)[1]; // source
-                    if (yLabel && xLabel) {
-                      if (yLabel === xLabel) {
-                        setSelectedIndicators([yLabel]);
-                      } else {
-                        setSelectedIndicators([yLabel, xLabel]);
-                      }
-                      window.scrollTo({ top: 0, behavior: "smooth" }); // 自動捲動到最上方看疊加圖
-                    }
-                  }}
-                  data={[{
-                    z: assocHeatmapData?.z ?? [], x: assocHeatmapData?.x ?? [], y: assocHeatmapData?.y ?? [],
-                    type: "heatmap",
-                    colorscale: [[0, '#f8fafc'], [0.3, '#fee2e2'], [0.6, '#ef4444'], [1, '#991b1b']],
-                    zmin: 0, zmax: 1, xgap: 2, ygap: 2,
-                    customdata: assocHeatmapData?.z.map((row, i) => row.map((_, j) => [assocHeatmapData.customY[i], assocHeatmapData.customX[j]])) ?? [],
-                    hovertemplate: "%{customdata[0]} <br>%{customdata[1]} <br>常常會一起錯喔！(點擊畫出比較圖)<extra></extra>",
-                    hoverlabel: { align: "left" }, showscale: false, 
-                  }]}
-                  layout={{
-                    autosize: true, margin: { t: 10, l: 80, r: 10, b: 100 },
-                    xaxis: { tickangle: -45, tickfont: { size: 10, color: '#64748b' }, fixedrange: true },
-                    yaxis: { autorange: "reversed", tickfont: { size: 10, color: '#64748b' }, fixedrange: true },
-                    hovermode: "closest", plot_bgcolor: "rgba(0,0,0,0)", paper_bgcolor: "rgba(0,0,0,0)",
-                  }}
-                  config={{ displayModeBar: false, responsive: true }}
-                  style={{ width: "100%", height: "100%", cursor: "pointer" }}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
        
         {/* ===== 詳細練習紀錄  ===== */}
