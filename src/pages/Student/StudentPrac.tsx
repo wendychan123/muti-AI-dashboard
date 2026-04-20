@@ -649,7 +649,7 @@ const trendPlotData = useMemo(() => {
          { x: globalData.map(t => t.date), y: globalData.map(t => t.totalTimeSec), type: "scatter", mode: "lines+markers", name: "花費時間 (秒)", line: { color: "#2563eb", width: 3 }, hoverlabel: { align: "left" }, hovertemplate: "花費時間：%{y} 秒<extra></extra>" }
        ],
        score: [
-         { x: globalData.map(t => t.date), y: globalData.map(t => t.avgScore), type: "scatter", mode: "lines+markers", name: "我的正確率", line: { color: "#2563eb", width: 3, shape: 'spline' }, hoverlabel: { align: "left" }, hovertemplate: "正確率：%{y}% <extra></extra>" },
+         { x: globalData.map(t => t.date), y: globalData.map(t => t.avgScore), type: "scatter", mode: "lines+markers", name: "我的正確率", line: { color: "#2563eb", width: 3, shape: 'spline' }, hoverlabel: { align: "left" }, hovertemplate: "正確率：%{y:.0f}% <extra></extra>" },
          { x: globalData.map(t => t.date), y: globalData.map(() => avgScoreCompare.classAvg || 0), type: "scatter", mode: "lines", name: `全校平均 (${avgScoreCompare.classAvg}%)`, line: { color: "#ef4444", width: 2, dash: "dash" }, hoverinfo: "skip" }
        ],
        rawGlobal: globalData,
@@ -685,7 +685,7 @@ const trendPlotData = useMemo(() => {
          name: shortIndName, 
          line: { color, width: 3, shape: 'spline' }, 
          hoverlabel: { align: "left" },
-         hovertemplate: `<b>${ind}</b><br>正確率：%{y}%<extra></extra>`
+         hovertemplate: `<b>${ind}</b><br>正確率：%{y:.0f}%<extra></extra>`
        });
     });
 
@@ -1736,7 +1736,7 @@ const topAssocPairs = useMemo(() => {
               
               <CardContent className="h-[350px] w-full">
                 <Plot
-                  data={trendPlotData.practice.map(trace => {
+                  data={trendPlotData.score.map(trace => {
                       if (trace.type === 'scatter') {
                         return {
                           ...trace,
