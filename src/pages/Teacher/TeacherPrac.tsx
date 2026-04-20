@@ -14,7 +14,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { Filter, Bot, HelpCircle, Activity } from "lucide-react";
+import { Filter, Bot, HelpCircle, Activity, Copy, Check } from "lucide-react";
 
 /* =========================
    Types
@@ -611,6 +611,29 @@ export default function TeacherPrac() {
     const reg = new RegExp(`(.{${len}})`, "g");
     return str.replace(reg, "$1<br>");
   };
+
+  const CopyableUserId = ({ userId }: { userId: string }) => {
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(userId);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000); // 2秒後恢復原狀
+  };
+
+  return (
+    <div className="flex items-center gap-2 group">
+      <span className="font-mono">{userId}</span>
+      <button
+        onClick={handleCopy}
+        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-violet-600 focus:outline-none"
+        title="複製使用者 ID"
+      >
+        {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+      </button>
+    </div>
+  );
+};
 
   /* =========================
        Render
@@ -1410,7 +1433,9 @@ export default function TeacherPrac() {
                   {studentRiskRanking.length > 0 ? (
                     studentRiskRanking.map((student) => (
                       <tr key={student.userId} className="hover:bg-slate-50 transition group">
-                        <td className="px-8 py-3 text-sm font-medium text-slate-700">{student.userId}</td>
+                        <td className="px-8 py-3 text-sm font-medium text-slate-700">
+                          <CopyableUserId userId={student.userId} />
+                          </td>
 
                         <td className="px-4 py-3">
                           <TooltipProvider delayDuration={0}>
