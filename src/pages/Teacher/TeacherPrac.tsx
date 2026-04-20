@@ -703,7 +703,7 @@ export default function TeacherPrac() {
               {kpi.hasMultipleSchools ? (
                 <>
                   <span className="text-[11px] text-slate-400">
-                    全校平均 {kpi.cityOverallMasteryRate.toFixed(1)}%
+                    全市平均 {kpi.cityOverallMasteryRate.toFixed(1)}%
                   </span>
                   {kpi.masteryRate >= kpi.cityOverallMasteryRate ? (
                     <span className="text-[11px] text-emerald-600 font-bold">
