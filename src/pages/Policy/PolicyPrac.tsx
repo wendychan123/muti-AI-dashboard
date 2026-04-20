@@ -95,6 +95,10 @@ export default function PolicyPrac() {
   const [trend, setTrend] = useState<CityTrendRow[]>([]);
   const [allCitiesTrend, setAllCitiesTrend] = useState<CityTrendRow[]>([]); 
   const [baselineTrend, setBaselineTrend] = useState<CityTrendRow[]>([]); 
+
+  const [overallTrend, setOverallTrend] = useState<CityTrendRow[]>([]);
+  const [overallBaselineTrend, setOverallBaselineTrend] = useState<CityTrendRow[]>([]);
+  
   const [schoolData, setSchoolData] = useState<SchoolRow[]>([]); 
   const [viewMode, setViewMode] = useState<"day" | "week" | "month">("day");
   const [loading, setLoading] = useState(false);
@@ -291,6 +295,30 @@ export default function PolicyPrac() {
         
         const { data: sData } = await schoolQ;
         setSchoolData(sData ?? []);
+
+        // 5. 查詢跨科目整體資料 (專供校際差距走勢圖使用) ▼▼▼
+        let overallQ = supabase
+          .from("city_trend_daily")
+          .select("*")
+          .gte("activity_date", startDate)
+          .lte("activity_date", endDate);
+
+        if (selectedCity !== ALL_CITY) {
+          overallQ = overallQ.eq("city", selectedCity);
+        }
+        const { data: overallData } = await overallQ.order("activity_date", { ascending: true });
+        setOverallTrend(overallData ?? []);
+
+        // 整體 baseline (全縣市、全部科目)
+        let overallBaseQ = supabase
+          .from("city_trend_daily")
+          .select("*")
+          .gte("activity_date", startDate)
+          .lte("activity_date", endDate);
+
+        const { data: overallBaseData } = await overallBaseQ.order("activity_date", { ascending: true });
+        setOverallBaselineTrend(overallBaseData ?? []);
+
 
       } finally {
         setLoading(false);
@@ -581,9 +609,6 @@ const alignedCommonData = useMemo(() => {
 /* =========================
      日 / 週 / 月聚合資料
   ========================= */
-/* =========================
-     日 / 週 / 月聚合資料
-  ========================= */
 const aggregatedScoreTrend = useMemo(() => {
   if (viewMode === "day") return alignedCommonData;
 
@@ -643,6 +668,57 @@ const aggregatedScoreTrend = useMemo(() => {
     baseStd: v.baseStdCount > 0 ? v.baseStdSum / v.baseStdCount : null, // 計算出平均並放進物件中
   })).sort((a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf());
 }, [alignedCommonData, viewMode]);
+
+/* =========================
+     日 / 週 / 月聚合資料 (專供校際差距圖使用 - 不分科目)
+  ========================= */
+const overallAggregatedScoreTrend = useMemo(() => {
+  // 先對齊日期
+  const cityDates = new Set(overallTrend.map((t) => dayjs(t.activity_date).format("YYYY-MM-DD")));
+  const baseDates = new Set(overallBaselineTrend.map((t) => dayjs(t.activity_date).format("YYYY-MM-DD")));
+  const common = Array.from(cityDates).filter((d) => baseDates.has(d)).sort();
+
+  const cityMap = new Map(overallTrend.map((t) => [dayjs(t.activity_date).format("YYYY-MM-DD"), { score: t.avg_score_rate, std: t.school_score_std }]));
+  const baseMap = new Map(overallBaselineTrend.map((t) => [dayjs(t.activity_date).format("YYYY-MM-DD"), { score: t.avg_score_rate, std: t.school_score_std }]));
+
+  const aligned = common.map((date) => ({
+    date,
+    city: cityMap.get(date)?.score ?? null,
+    cityStd: cityMap.get(date)?.std ?? null,
+    base: baseMap.get(date)?.score ?? null,
+    baseStd: baseMap.get(date)?.std ?? null,
+  }));
+
+  if (viewMode === "day") return aligned;
+
+  const map = new Map<string, { citySum: number; baseSum: number; cityStdSum: number; stdCount: number; baseStdSum: number; baseStdCount: number; count: number; }>();
+
+  aligned.forEach((d) => {
+    const key = viewMode === "week"
+      ? dayjs(d.date).startOf("week").format("YYYY-MM-DD")
+      : dayjs(d.date).startOf("month").format("YYYY-MM-DD");
+
+    if (!map.has(key)) {
+      map.set(key, { citySum: 0, baseSum: 0, cityStdSum: 0, stdCount: 0, baseStdSum: 0, baseStdCount: 0, count: 0 });
+    }
+
+    const obj = map.get(key)!;
+    obj.citySum += d.city ?? 0;
+    obj.baseSum += d.base ?? 0;
+    obj.count += 1;
+    
+    if (d.cityStd != null) { obj.cityStdSum += d.cityStd; obj.stdCount += 1; }
+    if (d.baseStd != null) { obj.baseStdSum += d.baseStd; obj.baseStdCount += 1; }
+  });
+
+  return Array.from(map.entries()).map(([date, v]) => ({
+    date,
+    city: v.citySum / v.count,
+    base: v.baseSum / v.count,
+    cityStd: v.stdCount > 0 ? v.cityStdSum / v.stdCount : null,
+    baseStd: v.baseStdCount > 0 ? v.baseStdSum / v.baseStdCount : null,
+  })).sort((a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf());
+}, [overallTrend, overallBaselineTrend, viewMode]);
 
 /* =========================
      縣市KPI資料（改使用 allCitiesTrend 計算，供跨縣市比較圖表使用）
@@ -1867,7 +1943,7 @@ useEffect(() => {
           <CardHeader className="flex flex-row items-center justify-between py-4 pb-6">
             <CardTitle className="text-xl font-bold ">
               校際差距走勢
-              <span className="px-2 text-xs text-green-600">（ 科目：{selectedSubject} ）</span>
+              <span className="px-2 text-xs text-green-600">（ 科目：全部科目 ）</span>
             </CardTitle>
 
             <div className="flex items-center gap-1">
@@ -1909,8 +1985,8 @@ useEffect(() => {
             data={[
               // 綠線：平均正確率 (左Y軸)
               {
-                x: aggregatedScoreTrend.map((d) => d.date),
-                y: aggregatedScoreTrend.map((d) => d.city),
+                x: overallAggregatedScoreTrend.map((d) => d.date),
+                y: overallAggregatedScoreTrend.map((d) => d.city),
                 type: "scatter",
                 mode: "lines+markers",
                 name: "平均正確率",
@@ -1918,8 +1994,8 @@ useEffect(() => {
                 hovertemplate: "平均正確率：%{y:.1f}%<extra></extra>",
               },
               {
-                x: aggregatedScoreTrend.map((d) => d.date),
-                y: aggregatedScoreTrend.map((d) => d.baseStd), 
+                x: overallAggregatedScoreTrend.map((d) => d.date),
+                y: overallAggregatedScoreTrend.map((d) => d.baseStd), 
                 type: "scatter",
                 mode: "lines",
                 name: "全國平均差距",
@@ -1929,8 +2005,8 @@ useEffect(() => {
               },
               // 紅色面積圖：校際差距/標準差 (右Y軸)
               {
-                x: aggregatedScoreTrend.map((d) => d.date),
-                y: aggregatedScoreTrend.map((d) => d.cityStd),
+                x: overallAggregatedScoreTrend.map((d) => d.date),
+                y: overallAggregatedScoreTrend.map((d) => d.cityStd),
                 type: "scatter",
                 mode: "lines",
                 name: "校際差距 (標準差)",

@@ -90,6 +90,10 @@ export function buildPolicyPracPrompt(
 
   const isSingle = selectedCharts.length === 1;
 
+  const crossSubjectWarning = selectedCharts.includes("scissors_gap") && subject !== "全部科目"
+    ? `\n本次分析包含「校際差距走勢」圖表，該圖表系統已設定為固定顯示「全區跨科目整體數據」，**不受上述單一科目（${subject}）範圍限制**。進行跨圖表整合分析時，請務必意識到此維度的差異，不可將校際差距解讀為單一科目的現象。`
+    : "";
+
   return `
 你是一位「教育政策分析顧問」，針對「${city} 教育管理者」之區域學習分析儀表板進行專業判讀。
 請使用「專業、客觀、審慎、策略導向」語氣，不得使用口語化表達或對話式語句。
@@ -112,6 +116,7 @@ export function buildPolicyPracPrompt(
 
 【本次納入分析的圖表與指引】
 ${chartsGuideText}
+${crossSubjectWarning}
 
 ---------------------------------------------------
 重要任務說明：
