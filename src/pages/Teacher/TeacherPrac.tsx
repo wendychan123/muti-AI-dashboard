@@ -1347,10 +1347,14 @@ export default function TeacherPrac() {
               高風險學生與弱點知識節點 <span className="px-2 text-xs text-violet-600">（ 科目：{selectedSubject} ）</span>
               
               
+              {selectedDate && (
               <span 
-                className="ml-3 inline-flex items-center gap-1 px-2.5 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded-full">
-                時間區間：{selectedDate} <span className="text-xs leading-none"></span>
+                className="ml-3 inline-flex items-center gap-1 px-2.5 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded-full cursor-pointer hover:bg-rose-200 transition" 
+                onClick={() => setSelectedDate(null)}
+              >
+                時間區間：{selectedDate} <span className="text-xs leading-none">×</span>
               </span>
+            )}
             
             </CardTitle>
               
