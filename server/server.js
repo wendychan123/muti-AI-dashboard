@@ -37,7 +37,7 @@ app.get("/api/test", async (req, res) => {
 
 // 🔑 Gemini 代理端點
 app.post("/api/gemini", async (req, res) => {
-  console.log("📩 收到前端請求:", JSON.stringify(req.body, null, 2));
+  console.log("收到前端請求:", JSON.stringify(req.body, null, 2));
 
   try {
     const { messages } = req.body;
@@ -64,7 +64,7 @@ app.post("/api/gemini", async (req, res) => {
       }
     );
 
-    console.log("⬅️ Gemini 狀態碼:", response.status);
+    console.log("⬅Gemini 狀態碼:", response.status);
 
     let data;
     try {
@@ -92,15 +92,15 @@ app.post("/api/gemini", async (req, res) => {
   }
 });
 
-// ✅ 最簡單測試端點
+// 最簡單測試端點
 app.get("/ping", (req, res) => {
-  console.log("✅ 收到 /ping 請求");
+  console.log("收到 /ping 請求");
   res.json({ message: "pong" });
 });
 
 // 啟動 server
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Gemini Proxy running on http://localhost:${PORT}`);
+  console.log(`Gemini Proxy running on http://localhost:${PORT}`);
   console.log("🔑 Gemini Key 前 8 碼:", process.env.GEMINI_API_KEY?.slice(0, 8));
 
   // 顯示可用的測試網址
