@@ -930,11 +930,11 @@ const topAssocPairs = useMemo(() => {
   }[] = [
     { key: "daily_overview", label: "總覽練習概況", description: "總覽投入時間與正確率變化" },
     { key: "indicator_effect", label: "知識節點練習次數", description: "各知識節點的練習次數與表現" },
+    { key: "indicator_assoc", label: "知識節點弱點關聯", description: "分析哪些知識節點容易一起出現學習困難" },
+    { key: "indicator_gap", label: "與全校平均的差距", description: "各知識節點與全校平均的差距" },
     { key: "learning_process", label: "學習歷程表現", description: "答題速度 × 正確率的學習區域" },
     { key: "practice_trend", label: "練習時間走勢", description: "分析練習時間與次數的規律性" },
     { key: "score_trend", label: "正確率走勢", description: "分析正確率隨時間進步的幅度" },
-    { key: "progress_trend", label: "進步幅度變化", description: "分析多次練習間的正確率變化與學習狀態" },
-    { key: "indicator_assoc", label: "知識節點弱點關聯", description: "分析哪些知識節點容易一起出現學習困難" },
   ];
   
   const EXPLAIN_LABEL_MAP: Record<ExplainTarget, string> =
@@ -942,13 +942,12 @@ const topAssocPairs = useMemo(() => {
   
   const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
     "總覽練習狀況": "daily_overview",
+    "知識節點練習次數": "indicator_effect",
+    "知識節點弱點關聯": "indicator_assoc",
+    "與全校平均的差距": "indicator_gap",
     "練習時間走勢": "practice_trend",
     "正確率走勢": "score_trend",
-    "知識節點練習次數": "indicator_effect",
     "學習歷程表現": "learning_process",
-    "知識節點差距": "indicator_gap",
-    "進步幅度變化": "progress_trend",
-    "知識節點弱點關聯": "indicator_assoc",
   };
 
   const currentSelectValue = selectedIndicators.length === 1 

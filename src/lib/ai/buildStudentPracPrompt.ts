@@ -1,7 +1,7 @@
 interface BuildPracPromptParams {
   date: string | null;
   subject: string;
-  selectedIndicators: string[]; // ⭐️ 改為陣列，支援多維度分析
+  selectedIndicators: string[]; // 改為陣列，支援多維度分析
   selectedCharts: string[];
 
   stats: {
@@ -31,7 +31,7 @@ export function buildStudentPracPrompt(params: BuildPracPromptParams): string {
         daily_overview: "總覽練習概況",
         indicator_effect: "知識節點投入",
         learning_process: "學習歷程表現",
-        indicator_gap: "知識節點差距",
+        indicator_gap: "與全校平均的差距",
         practice_trend: "練習時間走勢",
         score_trend: "正確率走勢",
         indicator_assoc:"知識節點弱點關聯",

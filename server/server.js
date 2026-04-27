@@ -64,7 +64,7 @@ app.post("/api/gemini", async (req, res) => {
       }
     );
 
-    console.log("⬅Gemini 狀態碼:", response.status);
+    console.log("Gemini 狀態碼:", response.status);
 
     let data;
     try {
