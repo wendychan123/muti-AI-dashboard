@@ -503,7 +503,7 @@ export default function TeacherPrac() {
     teacher_overview: "總覽練習表現",
     diagnostic: "教學診斷指標",
     practice_trend: "練習時間走勢",
-    performance_trend: "答對率走勢",
+    performance_trend: "正確率走勢",
     indicator_treemap: "知識節點熱力圖",
     student_risk: "高風險學生與弱點知識節點",
   };

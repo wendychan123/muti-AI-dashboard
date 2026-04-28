@@ -14,23 +14,29 @@ const PORT = 5050;
 
 // 🧪 測試端點 (列出模型清單)
 app.get("/api/test", async (req, res) => {
-  console.log("🧪 測試 Gemini API Key:", process.env.GEMINI_API_KEY?.slice(0, 8));
-
   try {
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`
     );
 
     const data = await response.json();
-    console.log("🧪 Gemini 測試回應:", data);
 
     if (data.error) {
       return res.status(500).json({ error: data.error });
     }
 
-    return res.json({ ok: true, models: data.models?.slice(0, 3) });
+    // 👉 過濾 + 整理
+    const models = data.models
+      ?.filter(m => m.supportedGenerationMethods?.includes("generateContent"))
+      .map(m => ({
+        name: m.name,
+        displayName: m.displayName,
+        input: m.inputTokenLimit,
+        output: m.outputTokenLimit
+      }));
+
+    return res.json({ ok: true, models });
   } catch (error) {
-    console.error("❌ 測試 API 失敗:", error);
     return res.status(500).json({ error: error.message });
   }
 });
@@ -57,8 +63,8 @@ app.post("/api/gemini", async (req, res) => {
         body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-            maxOutputTokens: 1500, // 限制回覆長度
-            temperature: 0.7      // 控制隨機性
+            maxOutputTokens: 700, // 限制回覆長度
+            temperature: 0.5      // 控制隨機性
         }
     }),
       }
