@@ -1852,7 +1852,7 @@ const topAssocPairs = useMemo(() => {
               annotations: [
                 { x: chart3Data.medianTimeSec * 0.6, y: 85, text: "<b>精熟區</b>", showarrow: false, font: { color: "#22c55e" } },
                 { x: chart3Data.medianTimeSec * 1.4, y: 85, text: "<b>穩定區</b>", showarrow: false, font: { color: "#3b82f6" } },
-                { x: chart3Data.medianTimeSec * 0.6, y: 20, text: "<b>複習區</b>", showarrow: false, font: { color: "#f97316" } },
+                { x: chart3Data.medianTimeSec * 0.6, y: 20, text: "<b>猜測區</b>", showarrow: false, font: { color: "#f97316" } },
                 { x: chart3Data.medianTimeSec * 1.4, y: 20, text: "<b>卡關區</b>", showarrow: false, font: { color: "#ef4444" } },
               ],
               showlegend: selectedIndicators.length > 0, 
