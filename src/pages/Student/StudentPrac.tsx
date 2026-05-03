@@ -7,6 +7,7 @@ import { buildStudentPracPrompt } from "@/lib/ai/buildStudentPracPrompt";
 import dayjs from "dayjs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { extractKnowledgeContext } from "@/lib/ai/knowledge/parser";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   ArrowLeft, 
@@ -154,6 +155,7 @@ export default function StudentPrac() {
   const [selectedIndicators, setSelectedIndicators] = useState<string[]>([]);
 
   // AI
+  
   const [showAI, setShowAI] = useState(false);
   const [geminiResult, setGeminiResult] = useState<string | null>(null);
   const [geminiLoading, setGeminiLoading] = useState(false);
@@ -765,19 +767,20 @@ const topAssocPairs = useMemo(() => {
     .slice(0, 10);
 }, [filteredIndicatorAssoc]);
 
-  /* =========================
+
+/* =========================
      AI 助手
-  ========================= */
-  const runAIForChart = async (chart: ExplainTarget) => {
-    setGeminiLoading(true);
-  
-    const prompt = buildStudentPracPrompt({
-    // 修正：傳入實際的資料起訖日期
+========================= */
+const runAIForChart = async (chart: ExplainTarget) => {
+  setGeminiLoading(true);
+
+  const kContext = extractKnowledgeContext(selectedSubject, selectedIndicators);
+
+  const prompt = buildStudentPracPrompt({
     date: startDate && endDate ? `${startDate} ~ ${endDate}` : null,
     subject: selectedSubject,
-    // 核心修正：傳入陣列，讓 AI 知道現在是單選、多選還是總覽
     selectedIndicators: selectedIndicators, 
-    selectedCharts: [chart], // (若是 multi-request 則為 explainTargets)
+    selectedCharts: [chart],
     stats: {
       avgScore: avgScoreCompare.studentAvg,
       avgSpeedSec: Number(processedStats.avgSpeedSec),
@@ -786,141 +789,197 @@ const topAssocPairs = useMemo(() => {
       reachedGoal: processedStats.reachedGoal,
     },
     chartData: {
-      // 這裡全部替換成我們剛剛提煉的乾淨資料！
       practiceTrend: trendPlotData.aiTrendData, 
       scoreTrend: trendPlotData.aiTrendData,
       indicatorEffect: chart1Data.meta, 
       learningProcess: chart3Data.aiData, 
-      // 差距圖直接 map 出乾淨的物件
       indicatorGap: diffBarData.map(d => ({ 
         單元名稱: d.original_name, 
         你的正確率: d.latestScore, 
         校平均: d.classAvg, 
         落差: d.latestDiff 
       })),
-      // 關聯圖提取中文名稱與機率
       indicatorAssoc: topAssocPairs.map(p => ({ 
         單元A: p.source_name, 
         單元B: p.target_name, 
         關聯度: `${Math.round(p.correlation_score * 100)}%` 
       }))
-    }
+    },
+    knowledgeContext: kContext
   });
-  
-    window.dispatchEvent(
-      new CustomEvent("student-ai-update", {
-        detail: { loading: true, questions: [EXPLAIN_LABEL_MAP[chart]] }
-      })
-    );
-  
+
+  // 發送 Loading 事件
+  window.dispatchEvent(
+    new CustomEvent("student-ai-update", {
+      detail: { loading: true, questions: [EXPLAIN_LABEL_MAP[chart]] }
+    })
+  );
+
+  // 開始計時
+  const startTime = performance.now();
+
+  try {
     const res = await fetch("/api/gemini", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt, role: "student" }),
     });
-  
+
     const data = await res.json();
-  
+
+    // 計算花費秒數 (取小數點後 1 位)
+    const durationSec = ((performance.now() - startTime) / 1000).toFixed(0);
+
     setGeminiResult(data.text);
     setShowAI(true);
-    setGeminiLoading(false);
-  
+
+    // 發送完成事件，並附帶 duration
     window.dispatchEvent(
       new CustomEvent("student-ai-update", {
-        detail: { loading: false, content: data.text },
+        detail: { 
+          loading: false, 
+          content: data.text,
+          duration: durationSec // 把時間傳給外面的元件
+        },
       })
     );
-  };
-  
-  const runOverviewAI = () => {
-    runAIForChart("daily_overview");
-  };
-  
-  /* =========================
-     多圖整合 AI 監聽
-  ========================= */
-  useEffect(() => {
-    const handler = async (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (!detail?.charts) return;
-  
-      const chartLabels: string[] = detail.charts;
-      const explainTargets: ExplainTarget[] = chartLabels.map(label => LABEL_TO_EXPLAIN_KEY[label]).filter(Boolean);
-  
-      if (explainTargets.length === 0) return;
-      setGeminiLoading(true);
-  
-      const prompt = buildStudentPracPrompt({
-        // 修正：傳入實際的資料起訖日期
-        date: startDate && endDate ? `${startDate} ~ ${endDate}` : null,
-        subject: selectedSubject,
-        // 核心修正：傳入陣列，讓 AI 知道現在是單選、多選還是總覽
-        selectedIndicators: selectedIndicators, 
-        selectedCharts: explainTargets, 
-        stats: {
-          avgScore: avgScoreCompare.studentAvg,
-          avgSpeedSec: Number(processedStats.avgSpeedSec),
-          totalCount: processedStats.count,
-          belowClassCount: belowClassAvgStats.count,
-          reachedGoal: processedStats.reachedGoal,
+  } catch (error) {
+    console.error("AI error:", error);
+    
+    // 如果發生錯誤，一樣可以計算花了多久才失敗
+    const durationSec = ((performance.now() - startTime) / 1000).toFixed(0);
+    
+    window.dispatchEvent(
+      new CustomEvent("student-ai-update", {
+        detail: { 
+          loading: false, 
+          content: "分析失敗，請檢查網路連線或稍後再試。",
+          duration: durationSec
         },
-        chartData: {
-          // 這裡全部替換成我們剛剛提煉的乾淨資料！
-          practiceTrend: trendPlotData.aiTrendData, 
-          scoreTrend: trendPlotData.aiTrendData,
-          indicatorEffect: chart1Data.meta, 
-          learningProcess: chart3Data.aiData, 
-          // 差距圖直接 map 出乾淨的物件
-          indicatorGap: diffBarData.map(d => ({ 
-            單元名稱: d.original_name, 
-            你的正確率: d.latestScore, 
-            校平均: d.classAvg, 
-            落差: d.latestDiff 
-          })),
-          // 關聯圖提取中文名稱與機率
-          indicatorAssoc: topAssocPairs.map(p => ({ 
-            單元A: p.source_name, 
-            單元B: p.target_name, 
-            關聯度: `${Math.round(p.correlation_score * 100)}%` 
-          }))
-        }
+      })
+    );
+  } finally {
+    setGeminiLoading(false);
+  }
+};
+
+const runOverviewAI = () => {
+  runAIForChart("daily_overview");
+};
+
+/* =========================
+   多圖整合 AI 監聽
+========================= */
+useEffect(() => {
+  const handler = async (e: Event) => {
+    const detail = (e as CustomEvent).detail;
+    if (!detail?.charts) return;
+
+    const chartLabels: string[] = detail.charts;
+    const explainTargets: ExplainTarget[] = chartLabels.map(label => LABEL_TO_EXPLAIN_KEY[label]).filter(Boolean);
+
+    if (explainTargets.length === 0) return;
+    setGeminiLoading(true);
+
+    const kContext = extractKnowledgeContext(selectedSubject, selectedIndicators);
+
+    const prompt = buildStudentPracPrompt({
+      date: startDate && endDate ? `${startDate} ~ ${endDate}` : null,
+      subject: selectedSubject,
+      selectedIndicators: selectedIndicators, 
+      selectedCharts: explainTargets, 
+      stats: {
+        avgScore: avgScoreCompare.studentAvg,
+        avgSpeedSec: Number(processedStats.avgSpeedSec),
+        totalCount: processedStats.count,
+        belowClassCount: belowClassAvgStats.count,
+        reachedGoal: processedStats.reachedGoal,
+      },
+      chartData: {
+        practiceTrend: trendPlotData.aiTrendData, 
+        scoreTrend: trendPlotData.aiTrendData,
+        indicatorEffect: chart1Data.meta, 
+        learningProcess: chart3Data.aiData, 
+        indicatorGap: diffBarData.map(d => ({ 
+          單元名稱: d.original_name, 
+          你的正確率: d.latestScore, 
+          校平均: d.classAvg, 
+          落差: d.latestDiff 
+        })),
+        indicatorAssoc: topAssocPairs.map(p => ({ 
+          單元A: p.source_name, 
+          單元B: p.target_name, 
+          關聯度: `${Math.round(p.correlation_score * 100)}%` 
+        }))
+      },
+      knowledgeContext: kContext
+    });
+
+    // 發送 Loading 事件
+    window.dispatchEvent(new CustomEvent("student-ai-update", { detail: { loading: true, questions: chartLabels } }));
+
+    // 開始計時
+    const startTime = performance.now();
+
+    try {
+      const res = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, role: "student" }),
       });
-  
-      window.dispatchEvent(new CustomEvent("student-ai-update", { detail: { loading: true, questions: chartLabels } }));
-  
-      try {
-        const res = await fetch("/api/gemini", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, role: "student" }),
-        });
-        const data = await res.json();
-        setGeminiResult(data.text);
-        setShowAI(true);
-        setGeminiLoading(false);
-  
-        window.dispatchEvent(new CustomEvent("student-ai-update", { detail: { loading: false, content: data.text } }));
-      } catch (err) {
-        console.error("Multi AI error:", err);
-        setGeminiLoading(false);
-      }
-    };
-  
-    window.addEventListener("student-ai-multi-request", handler);
-    return () => { window.removeEventListener("student-ai-multi-request", handler); };
-  }, [
-    selectedIndicators,
-    chart1Data,
-    chart3Data,
-    diffBarData,
-    assocHeatmapData,
-    trendPlotData,
-    selectedDate,
-    selectedSubject,
-    avgScoreCompare,
-    processedStats,
-    belowClassAvgStats,
-  ]);
+      const data = await res.json();
+      
+      // 計算花費秒數
+      const durationSec = ((performance.now() - startTime) / 1000).toFixed(0);
+
+      setGeminiResult(data.text);
+      setShowAI(true);
+      setGeminiLoading(false);
+
+      // 發送完成事件，並附帶 duration
+      window.dispatchEvent(
+        new CustomEvent("student-ai-update", { 
+          detail: { 
+            loading: false, 
+            content: data.text,
+            duration: durationSec // 加上秒數
+          } 
+        })
+      );
+    } catch (err) {
+      console.error("Multi AI error:", err);
+      
+      // 錯誤處理的計時
+      const durationSec = ((performance.now() - startTime) / 1000).toFixed(1);
+      
+      window.dispatchEvent(
+        new CustomEvent("student-ai-update", { 
+          detail: { 
+            loading: false, 
+            content: "整合分析失敗，請稍後再試。",
+            duration: durationSec 
+          } 
+        })
+      );
+      setGeminiLoading(false);
+    }
+  };
+
+  window.addEventListener("student-ai-multi-request", handler);
+  return () => { window.removeEventListener("student-ai-multi-request", handler); };
+}, [
+  selectedIndicators,
+  chart1Data,
+  chart3Data,
+  diffBarData,
+  assocHeatmapData,
+  trendPlotData,
+  selectedDate,
+  selectedSubject,
+  avgScoreCompare,
+  processedStats,
+  belowClassAvgStats,
+]);
   
   
   const EXPLAIN_CHART_OPTIONS: {

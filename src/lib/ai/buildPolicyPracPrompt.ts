@@ -38,7 +38,6 @@ export interface BuildPolicyPracPromptParams {
   period: string;
   startDate: string | null;
   endDate: string | null;
-
   selectedCharts: PolicyExplainTarget[];
 
   stats: {
@@ -47,6 +46,8 @@ export interface BuildPolicyPracPromptParams {
     avgPracPerStudent: number;   // 人均練習
     schoolGap: number | null;    // 平均校際差距
   };
+  chartData?: any;           // 供 AI 讀取的 JSON 乾淨數據
+  knowledgeContext?: string; // 供 AI 讀取的 RAG 教學知識庫
 }
 
 function fmtInt(n: number) {
@@ -70,6 +71,8 @@ export function buildPolicyPracPrompt(
     endDate,
     selectedCharts,
     stats,
+    chartData,
+    knowledgeContext
   } = params;
 
   const subjectLabel =
@@ -118,6 +121,13 @@ export function buildPolicyPracPrompt(
 ${chartsGuideText}
 ${crossSubjectWarning}
 
+【圖表 JSON 乾淨數據】
+${JSON.stringify(chartData ?? {}, null, 2)}
+
+【專屬政策知識庫支援 (RAG Context)】
+以下是系統針對該科目/節點為您檢索出的「專屬政策知識庫」。給予行政與資源調度建議時，【絕對必須】引用這裡的【管理者建議 (Policy)】來提出解方，避免給出「加強關注」等空泛言論：
+${knowledgeContext ? knowledgeContext : "（無特定單元知識庫，請依區域數據客觀分析並給予一般性政策建議）"}
+
 ---------------------------------------------------
 重要任務說明：
 
@@ -144,9 +154,9 @@ ${
 }
 
 所有判讀需依據：
-- 提供之摘要數據
-- 所選圖表之【分析焦點】
-- 圖表所潛在呈現之趨勢、差距或分布現狀
+- 提供之摘要數據與 JSON 乾淨數據
+- 所選圖表之【分析焦點】與潛在呈現之趨勢差距
+- 專屬政策知識庫中提示的教學斷點
 
 ---------------------------------------------------
 【輸出格式規範（嚴格遵守）】
@@ -208,9 +218,10 @@ ${
   ◦ 說明建議監測之指標或警戒訊號
 
 ｜行動建議
+（請務必根據上方的【專屬政策知識庫】中的「管理者建議(Policy)」來撰寫，絕對不可捏造空泛建議）
 • （列出 3 點）
   ◦ 每一點需包含「策略動作 + 目的 + 針對對象」
-  ◦ 必須屬於政策層級（如：資源配置、支持方案、分層輔導、監測機制）
+  ◦ 必須屬於政策層級（例如：將特定數位教具資源導入落後學區、針對某特定單元規劃跨校研習）
   ◦ 不可給學生個別建議
   ◦ 不可假設未提供之數據
 

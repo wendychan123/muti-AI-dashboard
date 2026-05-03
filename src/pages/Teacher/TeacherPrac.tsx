@@ -6,6 +6,7 @@ import Plot from "react-plotly.js";
 import _ from "lodash";
 import { buildTeacherPracPrompt } from "@/lib/ai/buildTeacherPracPrompt";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { extractKnowledgeContext } from "@/lib/ai/knowledge/parser";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -496,6 +497,7 @@ export default function TeacherPrac() {
     return { decayWarnings };
   }, [activeIndicatorSummary]); 
 
+
   /* =========================
       AI 助手功能
   ========================= */
@@ -514,6 +516,8 @@ export default function TeacherPrac() {
     const currentIndicatorName = selectedIndicator ? (activeIndicatorSummary[0]?.indicate_name || selectedIndicator) : null;
     const currentAvgScore = selectedIndicator && activeIndicatorSummary.length > 0 ? activeIndicatorSummary[0].student_mastery_rate_pct : kpi.masteryRate;
     const chartLabel = TEACHER_CHART_LABELS[target] || "全校練習表現";
+    
+    const kContext = extractKnowledgeContext(selectedSubject, currentIndicatorName ? [currentIndicatorName] : []);
 
     const prompt = buildTeacherPracPrompt({
       city: String(userInfo?.city || ""), 
@@ -531,10 +535,20 @@ export default function TeacherPrac() {
         notMasteredStudents: kpi.notMasteredStudents,
         notMasteredIndicators: 0, 
       },
-      selectedCharts: [target as any],
+      selectedCharts: [target as TeacherPracChartTarget],
+      knowledgeContext: kContext,
+      chartData: {
+         diagnostic: quadrantData.rows,
+         practiceTrend: aggregatedPracTrend,
+         performanceTrend: aggregatedScoreTrend,
+         indicatorTreemap: treemapData?.customData,
+         studentRisk: studentRiskRanking
+      }
     });
 
     window.dispatchEvent(new CustomEvent("teacher-ai-update", { detail: { loading: true, questions: [chartLabel] } }));
+
+    const startTime = performance.now();
 
     try {
       const res = await fetch("/api/gemini", {
@@ -543,15 +557,23 @@ export default function TeacherPrac() {
         body: JSON.stringify({ prompt, role: "teacher_diagnostic" }),
       });
       const data = await res.json();
-      window.dispatchEvent(new CustomEvent("teacher-ai-update", { detail: { loading: false, content: data.text } }));
+
+      const durationSec = ((performance.now() - startTime) / 1000).toFixed(0);
+
+      window.dispatchEvent(new CustomEvent("teacher-ai-update", { detail: { loading: false, content: data.text, duration: durationSec } }));
     } catch (err) {
       console.error("Teacher AI error:", err);
-      window.dispatchEvent(new CustomEvent("teacher-ai-update", { detail: { loading: false, content: "AI 診斷暫時無法連線，請稍後再試。" } }));
+      const durationSec = ((performance.now() - startTime) / 1000).toFixed(0);
+      window.dispatchEvent(new CustomEvent("teacher-ai-update", { 
+        detail: { loading: false, content: "AI 診斷暫時無法連線，請稍後再試。", duration: durationSec } 
+      }));
     } finally {
       setGeminiLoading(false);
     }
   };
-
+  /* =========================
+      多圖整合 AI 
+  ========================= */
   useEffect(() => {
     const handler = async (e: Event) => {
       const detail = (e as CustomEvent<{ charts: string[] }>).detail;
@@ -564,6 +586,8 @@ export default function TeacherPrac() {
       const currentIndicatorName = selectedIndicator ? (activeIndicatorSummary[0]?.indicate_name || selectedIndicator) : null;
       const currentAvgScore = selectedIndicator && activeIndicatorSummary.length > 0 ? activeIndicatorSummary[0].student_mastery_rate_pct : kpi.masteryRate;
       const chartLabels = selected.map((c) => TEACHER_CHART_LABELS[c]);
+      const kContext = extractKnowledgeContext(selectedSubject, currentIndicatorName ? [currentIndicatorName] : []);
+
       const prompt = buildTeacherPracPrompt({
         city: String(userInfo?.city || ""), 
         organization_id: String(organizationId || ""),
@@ -581,9 +605,19 @@ export default function TeacherPrac() {
           notMasteredStudents: kpi.notMasteredStudents,   
           notMasteredIndicators: 0 
         },
+        knowledgeContext: kContext,
+        chartData: {
+           diagnostic: quadrantData.rows,
+           practiceTrend: aggregatedPracTrend,
+           performanceTrend: aggregatedScoreTrend,
+           indicatorTreemap: treemapData?.customData,
+           studentRisk: studentRiskRanking
+        }
       });
 
       window.dispatchEvent(new CustomEvent("teacher-ai-update", { detail: { loading: true, questions: chartLabels } }));
+
+      const startTime = performance.now();
 
       try {
         const res = await fetch("/api/gemini", {
@@ -592,9 +626,16 @@ export default function TeacherPrac() {
           body: JSON.stringify({ prompt, role: "teacher_diagnostic" }),
         });
         const data = await res.json();
-        window.dispatchEvent(new CustomEvent("teacher-ai-update", { detail: { loading: false, content: data.text } }));
+
+        const durationSec = ((performance.now() - startTime) / 1000).toFixed(0);
+
+        window.dispatchEvent(new CustomEvent("teacher-ai-update", { detail: { loading: false, content: data.text, duration: durationSec} }));
       } catch (err) {
-        window.dispatchEvent(new CustomEvent("teacher-ai-update", { detail: { loading: false, content: "AI 整合分析失敗，請檢查網路連線或稍後再試。" } }));
+        const durationSec = ((performance.now() - startTime) / 1000).toFixed(0);
+        
+        window.dispatchEvent(new CustomEvent("teacher-ai-update", { 
+          detail: { loading: false, content: "AI 整合分析失敗，請檢查網路連線或稍後再試。", duration: durationSec } 
+        }));
       } finally {
         setGeminiLoading(false);
       }

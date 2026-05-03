@@ -62,12 +62,12 @@ export default function StudentLayout() {
               </div> 
               */}
               
-              {/* Muti-Edu 點擊可重新整理頁面 */}
+              {/* Multi-Edu 點擊可重新整理頁面 */}
               <button 
                 onClick={handleContentRefresh}
                 className="text-2xl font-bold text-black tracking-tight hover:opacity-70 transition-opacity focus:outline-none"
               >
-                Muti-Edu
+                Multi-Edu
               </button>
             </div>
 

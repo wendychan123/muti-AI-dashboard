@@ -48,14 +48,17 @@ export interface BuildTeacherPracPromptParams {
     notMasteredStudents: number;   
     notMasteredIndicators: number; 
   };
+  chartData?: any;
+  knowledgeContext?: string;
 }
+
 
 // 格式化輔助函數
 function fmtInt(n: number) { return Number.isFinite(n) ? Math.round(n).toLocaleString() : "—"; }
 function fmt1(n: number) { return Number.isFinite(n) ? n.toFixed(1) : "—"; }
 
 export function buildTeacherPracPrompt(params: BuildTeacherPracPromptParams): string {
-  const { city, organization_id, grade, subject, period, selectedCharts, stats, indicator, selectedDate } = params;
+  const { city, organization_id, grade, subject, period, selectedCharts, stats, indicator, selectedDate, chartData, knowledgeContext } = params;
 
   const subjectLabel = subject === "全部科目" ? "跨科目綜合表現" : subject;
   const chartsText = selectedCharts.map((c) => `- ${TEACHER_CHART_LABEL_MAP[c]}`).join("\n");
@@ -100,20 +103,19 @@ ${selectedDate ? `
 請你化身為「數據偵探」，你的回答必須：
 1. 開頭直接點出你在分析 ${selectedDate} 當天的異常數據。
 2. 解釋當天為何會出現異常（例如答對率暴跌或練習量暴增）。
-3. 從所選圖表中找出導致當天異常的「元凶單元」或「卡關學生」。
-` : ""}
-
-【分析背景】
-• 縣市：${city}
-• 學校：${organization_id}
-• 對象：${grade} 年級
-• 科目：${subjectLabel}
-- 特定知識節點：${indicator || "全部知識節點"}
-• 分析期間：${period}
+3. 從所選圖表中找出導致當天異常的「弱知識節點」或「卡關學生」。
+` : "（無特定時間切片，請進行綜合性期間分析）"}
 
 
 【本次納入診斷之圖表】
 ${chartsText}
+
+【圖表 JSON 乾淨數據】
+${JSON.stringify(chartData ?? {}, null, 2)}
+
+【專屬教學知識庫支援 (RAG Context)】
+以下是系統針對該科目/節點檢索出的「專屬教學知識庫」。給予教學建議時，【絕對必須】引用這裡的【教師策略(Teacher)】來提出解方，避免給出空泛的「多加複習」等建議：
+${knowledgeContext ? knowledgeContext : "（無特定單元知識庫，請依數據客觀分析並給予一般性教學建議）"}
 
 ---------------------------------------------------
 重要任務說明：
@@ -156,8 +158,8 @@ ${chartGuidesText}
 (此處請勿出現「｜快讀總結」字樣)
 這部分請控制在 3 句話內。
 - 第一句：總結該學校目前在該科目、知識節點的教學健康狀態（如：進度穩定、出現分化、投入不足等）。
-- 第二句：指出指定分析圖表重點說明。
-- 第三句：給出一個最核心的教學建議動作。
+- 第二句：直接點名從圖表數據中抓出最核心的「教學盲點」或「痛點知識節點名稱」。
+- 第三句：結合知識庫，給出一個最核心、最迫切需要執行的教學行動。
 
 第二部分：詳細分析內容
 請用以下結構，並確保：
@@ -179,29 +181,28 @@ ${
   isSingle
     ? `
   •（針對該圖表提出 1 點解析）
-  ◦ 描述數據分布呈現的學習特徵，特別指出需要補救的知識節點
-  ◦ 識別出教學上的盲點或學生普遍的誤區`
+  ◦ 描述數據分布特徵，明確點出需要補救的知識節點名稱與其相關數據。`
   : `
 •（提出 1 點跨圖整合發現）
   ◦ 每一點必須結合至少 2 張圖表的資訊（例如：參與度下降是否導致了正確率走勢下滑）
   ◦ 必須說明圖與圖之間的因果或結構關聯，不得僅做單圖描述
-  ◦ 識別出哪些節點是全班性弱點，哪些是少數學生瓶頸`
+  ◦ 指出哪些節點是全班性弱點，哪些是少數學生瓶頸。`
 }
 
 ｜教學提醒
 優勢：
-  ◦ 找出 1 個值得表揚或維持的學習表現（如：某節點精熟度高、參與度穩定）
+  ◦ 找出 1 個值得維持的表現（如：某節點精熟度高、參與度穩定）。若無明顯優勢，請寫「當前練習數據偏少，需全面介入」。
 
 風險：
-  ◦ 指出當前最需立即干預的單元或高風險學生群體
-  ◦ 說明若不處理，可能對後續單元造成的影響或警戒訊號
+  ◦ 明確點出當前最需立即干預的單元或高風險群體，說明若不處理對後續進度的警戒影響。
 
 ｜行動建議
-•（提出 3 點教學行動方案）
-◦ 必須包含「教學動作 + 針對對象 + 預期效果」，用一句話描述。
-◦ 必須屬於教學層級（分層教學、補救練習、同儕輔導、課堂複習策略、個別面談）
-◦ 必須具備教學實務上的操作性
-◦ 不可假設未提供之數據
+（請務必根據上方的【專屬教學知識庫】中的「教師策略(Teacher)」來撰寫，絕對不可捏造空泛建議）
+•（教學行動一：針對全班性痛點單元）
+  ◦（具體說明如何應用知識庫中的策略，例如：實施某種教學法、使用哪種教具來拆解迷思）
+•（教學行動二：針對高風險學生群體）
+  ◦（具體說明針對未精熟學生，如何進行分層教學或小組任務重組）
+• 不可假設未提供之數據
 
 請保留上述標題格式，直接輸出內容。
 `;

@@ -13,6 +13,7 @@ interface BuildPracPromptParams {
   };
 
   chartData?: any; // 接收清理過的乾淨 JSON
+  knowledgeContext?: string;
 }
 
 export function buildStudentPracPrompt(params: BuildPracPromptParams): string {
@@ -23,6 +24,7 @@ export function buildStudentPracPrompt(params: BuildPracPromptParams): string {
     selectedCharts,
     stats,
     chartData,
+    knowledgeContext, // 提取知識庫內容
   } = params;
 
   const chartDescriptions = selectedCharts
@@ -42,7 +44,7 @@ export function buildStudentPracPrompt(params: BuildPracPromptParams): string {
 
   const displaySubject = subject === "all" ? "所有科目" : subject;
 
-  // ⭐️ 核心邏輯：根據使用者目前的 Filter 層級，給予 AI 不同的視角指令
+  // 核心邏輯：根據使用者目前的 Filter 層級，給予 AI 不同的視角指令
   let focusInstruction = "";
   if (selectedIndicators.length === 0) {
     focusInstruction = `\n【分析視角：全局總覽】\n學生目前看的是「全部單元」的總覽圖表。請從 JSON 數據中，挑選表現最極端（特別優秀或特別需要救援）的單元來進行重點分析，不需要每個單元都念過去。\n`;
@@ -70,9 +72,9 @@ export function buildStudentPracPrompt(params: BuildPracPromptParams): string {
   }
 
   return `
-你是一位「學習數據分析助教」，負責向小學生（7-12歲）說明他的圖表數據。
+你是一位「學習數據分析助教」，負責向小學生（7-10歲）說明他的圖表數據。
 請全程使用第二人稱（你），避免使用「學生」這個詞。
-語氣要溫和、平易近人，但【絕對不要給空泛的讚美】。所有的陳述都必須有具體的「數據」或「單元名稱」佐證。
+語氣要溫和、平易近人，但絕對不要給空泛的讚美和籠統的學習引導。所有的陳述都必須有具體的「數據」或「單元名稱」佐證。
 
 【學生個人資料】
 - 觀察期間：${date ?? "全部歷史資料"}
@@ -82,6 +84,10 @@ export function buildStudentPracPrompt(params: BuildPracPromptParams): string {
 【目前查看的圖表與視角】
 ${chartDescriptions}
 ${focusInstruction} 
+
+【專科知識庫 (RAG Context)】
+以下是系統針對目前單元為你檢索出的「專屬學習知識庫」。請務必先閱讀此背景知識，了解該單元的特性、學習重點與引導策略：
+${knowledgeContext ? knowledgeContext : "（無特定單元知識庫，請依數據客觀分析）"}
 
 【具體資料擷取要求（非常重要）】
 1. 嚴禁空泛！給建議與分析時，必須根據單元的「科目與單元名稱特性」給出具體作法。
@@ -93,7 +99,7 @@ ${JSON.stringify(chartData ?? {}, null, 2)}
 
 ---------------------------------------------------
 寫作風格指引：
-1. 長度：句子要短，一段不超過 30 個字。
+1. 長度：句子要短，一段不超過 20 個字。
 2. 詞彙：避免「指標」、「權重」、「落差值」等生硬詞彙。改用「知識節點、強項、表現」。
 3. 重點：這年紀的孩子需要成就感，請先用數據肯定優點，再溫柔地指出具體的魔王關卡。
 4. 禁止使用任何招呼語（如：你好！我是助教...）、對話等說話模式。直接進入摘要。
@@ -106,7 +112,7 @@ ${JSON.stringify(chartData ?? {}, null, 2)}
 第一部分：圖表數據重點摘要
 (此處請勿出現任何標題字樣)
 嚴禁使用「你最近表現得很棒」這類空泛的開場白！
-請用 2-3 句話直接客觀點出圖表重點。
+請用 1-2 句話直接客觀點出圖表重點。
 ${chartSummaryDirective}
 
 ===詳細分析===
@@ -127,6 +133,6 @@ ${chartSummaryDirective}
 
 ｜行動建議
 •（針對剛剛點名需要加強的單元，給予符合該內容的具體作法）
-  ◦（例如：因為答題時間僅需X秒且錯誤率高，建議多花5秒檢查）
+  ◦（請將【專屬學習知識庫】中的「學生引導(Student)」或「補救路徑」轉化為明確的學習行動引導。例如：引導使用特定數位教具、提醒口訣、或點出該題型的該注意的陷阱。）
 `;
 }

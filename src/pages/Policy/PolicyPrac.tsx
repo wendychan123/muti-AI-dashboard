@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import dayjs from "dayjs";
 import _ from 'lodash';
 import { buildPolicyPracPrompt } from "@/lib/ai/buildPolicyPracPrompt";
+import { extractKnowledgeContext } from "@/lib/ai/knowledge/parser";
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -817,9 +818,11 @@ const gapTrend = useMemo(() => {
   const safeSchoolGap = Number.isNaN(kpiCurrent.school_score_std) 
       ? null 
       : kpiCurrent.school_score_std;
+  
+  const kContext = extractKnowledgeContext(selectedSubject, []);
 
   const prompt = buildPolicyPracPrompt({
-    city: selectedCity,
+    city: selectedCity,  
     subject: selectedSubject,
     period: periodLabel,
     startDate: startDate ?? null,
@@ -833,6 +836,16 @@ const gapTrend = useMemo(() => {
       avgPracPerStudent: kpiCurrent.avg_prac_per_student,
       schoolGap: kpiCurrent.school_score_std ?? null,
     },
+    knowledgeContext: kContext,
+    chartData: {
+         development_index: cityKPIData,             // 練習診斷指標 (各縣市人均練習與正確率)
+         regional_gap: cityKPIData,                  // 區域學習差距 (與 development_index 共用來源)
+         gap_trend: gapTrend,                        // 區域成效對標 (與基準線的差距走勢)
+         practice_trend: aggregatedTrend,            // 練習時間走勢 (活躍人數與次數)
+         effect_trend: aggregatedScoreTrend,         // 正確率走勢 (本區與全區平均走勢)
+         scissors_gap: overallAggregatedScoreTrend,  // 校際差距走勢 (正確率與標準差雙軸)
+         school_matrix: schoolMatrixData             // 學校落點分佈 (各校氣泡圖)
+      }
   });
 
   window.dispatchEvent(
@@ -843,6 +856,8 @@ const gapTrend = useMemo(() => {
       },
     })
   );
+
+  const startTime = performance.now();
   
   try {
     const res = await fetch("/api/gemini", {
@@ -859,22 +874,27 @@ const gapTrend = useMemo(() => {
 
     const data = await res.json();
 
+    const durationSec = ((performance.now() - startTime) / 1000).toFixed(0);
+
     window.dispatchEvent(
       new CustomEvent("policy-ai-update", {
         detail: {
           loading: false,
           content: data.text,
+          duration: durationSec
         },
       })
     );
   } catch (err) {
     console.error("Policy AI error:", err);
+    const durationSec = ((performance.now() - startTime) / 1000).toFixed(0);
 
     window.dispatchEvent(
       new CustomEvent("policy-ai-update", {
         detail: {
           loading: false,
           content: "AI 分析失敗，請稍後再試。",
+          duration: durationSec
         },
       })
     );
@@ -920,6 +940,8 @@ useEffect(() => {
       ? null 
       : kpiCurrent.school_score_std;
 
+    const kContext = extractKnowledgeContext(selectedSubject, []);
+
     const prompt = buildPolicyPracPrompt({
       city: selectedCity,
       subject: selectedSubject,
@@ -935,6 +957,16 @@ useEffect(() => {
         avgPracPerStudent: kpiCurrent.avg_prac_per_student,
         schoolGap: kpiCurrent.school_score_std ?? null,
       },
+      knowledgeContext: kContext,
+      chartData: {
+           development_index: cityKPIData,
+           regional_gap: cityKPIData,
+           gap_trend: gapTrend,
+           practice_trend: aggregatedTrend,
+           effect_trend: aggregatedScoreTrend,
+           scissors_gap: overallAggregatedScoreTrend,
+           school_matrix: schoolMatrixData
+        }
     });
 
     window.dispatchEvent(
@@ -945,6 +977,8 @@ useEffect(() => {
         },
       })
     );
+
+    const startTime = performance.now();
 
     try {
       const res = await fetch("/api/gemini", {
@@ -962,22 +996,27 @@ useEffect(() => {
 
       const data = await res.json();
 
+      const durationSec = ((performance.now() - startTime) / 1000).toFixed(0);
+
       window.dispatchEvent(
         new CustomEvent("policy-ai-update", {
           detail: {
             loading: false,
             content: data.text,
+            duration: durationSec
           },
         })
       );
     } catch (err) {
       console.error("Policy Multi AI error:", err);
+      const durationSec = ((performance.now() - startTime) / 1000).toFixed(0);
 
       window.dispatchEvent(
         new CustomEvent("policy-ai-update", {
           detail: {
             loading: false,
             content: "AI 整合分析失敗，請稍後再試。",
+            duration: durationSec
           },
         })
       );

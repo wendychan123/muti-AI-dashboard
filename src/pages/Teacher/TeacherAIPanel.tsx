@@ -16,13 +16,15 @@ interface AIEventPayload {
   questions?: string[];
   loading?: boolean;
   content?: string | null;
+  duration?: string;
 }
 
 interface AIMessage {
   id: string;
   questions: string[];
-  status: "loading" | "done";
+  status: "loading" | "done" | "error"; 
   content?: string;
+  duration?: string;
   collapsed: boolean;
   showDetail?: boolean;
 }
@@ -94,6 +96,7 @@ export default function TeacherAIPanel({
                   ...m,
                   status: "done",
                   content: detail.content,
+                  duration: detail.duration,
                 }
               : m
           );
@@ -258,9 +261,22 @@ export default function TeacherAIPanel({
                         分析：{msg.questions.join("、")}
                       </div>
                     )}
+                    <div className="text-[11px] mt-0.5 font-medium transition-colors duration-300">
+                      {msg.status === "done" ? (
+                        <span className="text-slate-400">
+                          分析完畢 {msg.duration ? `(耗時 ${msg.duration} 秒)` : ""}
+                        </span>
+                      ) : (
+                        <span className="text-violet-500 animate-pulse">
+                          分析中...
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-                {msg.collapsed ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronUp className="w-4 h-4 text-slate-400" />}
+                <div className="mt-1">
+                  {msg.collapsed ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronUp className="w-4 h-4 text-slate-400" />}
+                </div>
               </button>
 
               {/* Body: 內容區 */}
