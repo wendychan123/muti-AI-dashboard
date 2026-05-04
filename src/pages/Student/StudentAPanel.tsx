@@ -52,13 +52,56 @@ export default function StudentAiPanel({
 
   const chartOptions = [
     { id: "總覽", label: "總覽練習狀況" },
+    { id: "弱點", label: "弱點伴隨出錯分析" },
     { id: "投入", label: "知識節點練習次數" },
     { id: "差距", label: "與全校平均的差距" },
     { id: "投入走勢", label: "練習時間走勢" }, 
     { id: "成效走勢", label: "正確率走勢" },
     { id: "歷程", label: "學習歷程表現" },
-    { id: "弱點", label: "知識節點弱點關聯" },
   ];
+
+  /* 處理 **文字** 並換成 Tailwind 樣式 */
+  const formatText = (text: string) => {
+    if (!text) return null;
+    
+    // 用換行符號先切開，這樣我們就能一行一行處理，避免標題被誤殺
+    const lines = text.split('\n');
+
+    return lines.map((line, lineIndex) => {
+      // 判斷這一行是不是標題 (通常 AI 產生的標題會以 emoji 開頭)
+      const isHeader = /^[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/.test(line.trim());
+
+      // 把這一行裡面的 ** 包起來的字切出來
+      const parts = line.split(/(\*\*.*?\*\*)/g);
+
+      return (
+        <span key={lineIndex} className="block"> {/* 使用 block 讓原本的換行生效 */}
+          {parts.map((part, partIndex) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+              const innerText = part.slice(2, -2);
+              
+              // 如果這一行是標題，我們只給粗體，不給紅色
+              if (isHeader) {
+                return (
+                  <span key={partIndex} className="text-rose-700 font-extrabold px-0.5">
+                    {innerText}
+                  </span>
+                );
+              }
+              
+              // 如果是一般內文，就給紅色粗體
+              return (
+                <span key={partIndex} className="text-rose-600 font-extrabold px-0.5">
+                  {innerText}
+                </span>
+              );
+            }
+            return <span key={partIndex}>{part}</span>;
+          })}
+        </span>
+      );
+    });
+  };
 
   /* =========================
      監聽 student-ai-update
@@ -278,7 +321,7 @@ export default function StudentAiPanel({
                     {/* 簡短總結：永遠顯示 */}
                     <div className="bg-blue-200/50 p-3 rounded-lg border-blue-800 text-slate-700 leading-relaxed">
                       <div className="text-[13px] font-bold text-blue-600 mb-1 uppercase tracking-widest">學習建議摘要</div>
-                      {summary}
+                      {formatText(summary)}
                     </div>
 
                     {/* 詳細分析：點擊才顯示 */}
@@ -294,7 +337,7 @@ export default function StudentAiPanel({
                         ) : (
                           <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-300">
                             <div className="text-slate-600 text-xs leading-relaxed whitespace-pre-line border-t pt-3 mt-1">
-                              {details}
+                              {formatText(details)}
                             </div>
                             <button
                               onClick={() => toggleDetail(msg.id)}

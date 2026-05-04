@@ -89,6 +89,7 @@ interface PracDetailRow {
   items: PracItemRow[];
   avg_item_time_ms: number;
   score_rate: number;
+  attempt_index?: number;
 }
 
 interface DiffBarRow {
@@ -240,7 +241,8 @@ export default function StudentPrac() {
     if (filteredPracItems.length === 0) return [];
     const byPrac: Record<number, PracItemRow[]> = _.groupBy(filteredPracItems, "prac_answer_sn");
 
-    return Object.values(byPrac).map((items: PracItemRow[]) => {
+    // 1. 整理每一次作答的基礎資料
+    const baseRows = Object.values(byPrac).map((items: PracItemRow[]) => {
       const first = items[0];
       const correctCount = items.filter(i => i.is_correct === 1).length;
       const totalCount = items.length;
@@ -249,11 +251,30 @@ export default function StudentPrac() {
       return {
         prac_answer_sn: first.prac_answer_sn,
         date: first.date,
+        indicate_name: first.indicate_name, // 加入 indicate_name 方便分組
         items, 
         avg_item_time_ms: totalSpentTime, 
         score_rate: (correctCount / totalCount) * 100,
       };
-    }).sort((a, b) => b.prac_answer_sn - a.prac_answer_sn);
+    });
+
+    // 2. 依照「知識節點」分組，並按時間排序來計算是「第幾次」
+    const byIndicator = _.groupBy(baseRows, "indicate_name");
+    const rowsWithIndex: PracDetailRow[] = [];
+
+    Object.values(byIndicator).forEach(rows => {
+      // 按時間從小到大排序 (舊 -> 新)
+      const sorted = _.orderBy(rows, ["date", "prac_answer_sn"], ["asc", "asc"]);
+      sorted.forEach((row, index) => {
+        rowsWithIndex.push({
+          ...row,
+          attempt_index: index + 1 // 賦予第幾次練習的編號
+        });
+      });
+    });
+
+    // 3. 為了畫面顯示，最後再把全部資料按時間從大到小排序 (新 -> 舊)
+    return _.orderBy(rowsWithIndex, ["date", "prac_answer_sn"], ["desc", "desc"]);
   }, [filteredPracItems]);
 
   const maxItemCount = useMemo(() => {
@@ -989,7 +1010,7 @@ useEffect(() => {
   }[] = [
     { key: "daily_overview", label: "總覽練習概況", description: "總覽投入時間與正確率變化" },
     { key: "indicator_effect", label: "知識節點練習次數", description: "各知識節點的練習次數與表現" },
-    { key: "indicator_assoc", label: "知識節點弱點關聯", description: "分析哪些知識節點容易一起出現學習困難" },
+    { key: "indicator_assoc", label: "弱點伴隨出錯分析", description: "分析哪些知識節點容易一起出現學習困難" },
     { key: "indicator_gap", label: "與全校平均的差距", description: "各知識節點與全校平均的差距" },
     { key: "learning_process", label: "學習歷程表現", description: "答題速度 × 正確率的學習區域" },
     { key: "practice_trend", label: "練習時間走勢", description: "分析練習時間與次數的規律性" },
@@ -1002,7 +1023,7 @@ useEffect(() => {
   const LABEL_TO_EXPLAIN_KEY: Record<string, ExplainTarget> = {
     "總覽練習狀況": "daily_overview",
     "知識節點練習次數": "indicator_effect",
-    "知識節點弱點關聯": "indicator_assoc",
+    "弱點伴隨出錯分析": "indicator_assoc",
     "與全校平均的差距": "indicator_gap",
     "練習時間走勢": "practice_trend",
     "正確率走勢": "score_trend",
@@ -1251,7 +1272,7 @@ useEffect(() => {
               className="text-xl font-bold cursor-pointer hover:opacity-70 transition flex items-center gap-2"
               onClick={() => setSelectedIndicators([])}
             >
-              知識節點弱點關聯
+              弱點伴隨出錯分析
             </CardTitle>
 
             <div className="flex items-center gap-1">
@@ -1266,12 +1287,12 @@ useEffect(() => {
                         <div className="space-y-3">
                           <p className="font-bold border-b pb-1 text-blue-700">圖表計算說明：</p>
                           <ul className="text-xs space-y-2 list-disc pl-4">
-                            <li><b>每個格子：</b>代表兩個知識節點之間的關聯強度。</li>
-                        <li><b>顏色越深：</b>表示兩個能力越可能一起出現學習困難或表現關聯。</li>
-                        <li><b>點擊熱點方格：</b>可立即啟動疊加比較模式，同時觀察這兩個指標的進步軌跡！</li>
+                            <li><b>每個格子：</b>代表兩個單元「同時發生錯誤」的頻率。</li>
+                            <li><b>顏色越深：</b>表示這兩個單元越常一起卡關，但這不代表兩者有絕對的因果關係喔！</li>
+                            <li><b>點擊熱點方格：</b>可立即啟動疊加比較模式，同時觀察這兩個指標的進步軌跡！</li>
                           </ul>
                           <p className="text-[12px] text-slate-400 pt-1 border-t">
-                            ※ 找出容易一起卡住的關聯指標，一次擊破知識弱點群。
+                            ※ 找出常常一起錯的單元，解決知識弱點群。
                           </p>
                         </div>
                       </TooltipContent>
@@ -1322,7 +1343,7 @@ useEffect(() => {
                               >
                                 <span className="text-xs font-medium text-slate-700 hover:text-blue-600 underline decoration-blue-200 decoration-dashed underline-offset-4">{targetName}</span>
                                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-bold">
-                                  關聯性 {Math.round(pair.correlation_score * 100)}%
+                                  伴隨出錯率 {Math.round(pair.correlation_score * 100)}%
                                 </span>
                               </div>
                             );
@@ -1336,9 +1357,9 @@ useEffect(() => {
                   } else {
                     return (
                       <div className="bg-slate-50 border-2 border-dashed border-slate-200 p-4 rounded-xl text-center">
-                        <p className="text-sm font-bold text-slate-600 mb-1">暫無關聯弱點</p>
+                        <p className="text-sm font-bold text-slate-600 mb-1">暫無伴隨出錯的弱點</p>
                         <p className="text-xs text-slate-500">
-                          在你目前練習過的知識節點中，沒有發現與 <b>{targetInd}</b> 有明顯關聯的學習困難。<br/>
+                          在你目前練習過的知識節點中，沒有發現與 <b>{targetInd}</b> 明顯一起卡關的單元。<br/>
                           建議你可以再練習一次 ，或嘗試挑戰其他新的知識節點。
                         </p>
                       </div>
@@ -1771,12 +1792,12 @@ useEffect(() => {
                                 顯示你在特定知識節點下，歷次練習的答對率變化，幫助追蹤學習成效是否穩定成長。
                               </li>
                               <li>
-                                <b className="text-rose-600 font-bold">關聯弱點比較：</b> 
-                                當你在其他圖表（如弱點關聯圖）選擇多個指標時，此處將疊加顯示這些指標的正確率折線，方便比對不同觀念間的掌握落差。
+                                <b className="text-rose-600 font-bold">伴隨弱點比較：</b> 
+                                當你在「弱點伴隨出錯分析」選取多個指標時，此處將疊加顯示這些常一起錯的指標正確率。
                               </li>
                             </ul>
                             <p className="text-[12px] text-slate-400 pt-1 border-t">
-                              ※ 透過此圖可以觀察連動關係：當你的核心弱點（指標 A）正確率提升時，其關聯弱點（指標 B）是否也隨之進步。
+                              ※ 透過此圖可以觀察連動關係：當這組「常一起錯」的單元群中，某個單元正確率提升時，另一個單元是否也突破了？若沒有，代表概念迷思尚未完全釐清。
                             </p>                       
                           </div>
                         </TooltipContent>
@@ -1876,7 +1897,7 @@ useEffect(() => {
                         <li><b>圓點：</b>學生在單元上的練習紀錄。</li>
                         <li><b>答題速度（X軸）：</b>往左代表思考愈快，往右代表花比較多時間。</li>
                         <li><b>正確率 (Y軸)：</b>愈往上代表答對率越高，表現越好。</li>
-                        <li><b>點擊互動：</b>點擊圓點可以查看該單元的「歷史進步軌跡」。多選比較時會畫出多條知識學習的軌跡線！</li>
+                        <li><b>點擊互動：</b>點擊圓點可以查看該單元的「歷史進步軌跡」。當選取一組「伴隨出錯」的單元比較時，可觀察它們是否落在同一個學習瓶頸區！</li>
                       </ul>
                     </div>
                   </TooltipContent>
@@ -1942,12 +1963,11 @@ useEffect(() => {
                 <thead className="sticky top-0 bg-slate-50 z-10">
                   <tr className="text-xs text-slate-500 border-b">
                     <th className="p-3 px-4">練習日期</th>
-                    
-                    {/* 移除條件判斷，讓知識節點欄位常駐顯示 */}
                     <th className="p-3 px-4 min-w-[20px]">知識節點</th>
+                    <th className="p-3 px-2 text-center whitespace-nowrap">練習次數</th>
                     
                     {Array.from({ length: maxItemCount }).map((_, i) => (
-                      <th key={i} className="p-3 text-center">題目{i + 1}</th>
+                      <th key={i} className="p-3 text-center">題{i + 1}</th>
                     ))}
                     <th className="p-3 text-center">花費時間(秒)</th>
                     <th className="p-3 text-center">正確率</th>
@@ -1961,9 +1981,14 @@ useEffect(() => {
                           {formatDateTime(row.date)}
                         </td>
                         
-                        {/* 移除條件判斷，直接渲染知識節點名稱 */}
                         <td className="px-3 py-2 text-xs text-slate-600 font-mono">
                           {row.items[0]?.indicate_name || "—"}
+                        </td>
+                        
+                        <td className="px-2 py-2 text-center">
+                          <span className="inline-block px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 font-bold text-[11px] rounded-md whitespace-nowrap">
+                            第 {row.attempt_index} 次
+                          </span>
                         </td>
                         
                         {Array.from({ length: maxItemCount }).map((_, i) => {
@@ -1985,7 +2010,7 @@ useEffect(() => {
                       </tr>
                     ))
                   ) : (
-                    <tr><td colSpan={maxItemCount + 4} className="text-center py-8 text-slate-400">尚無符合條件的作答紀錄</td></tr>
+                    <tr><td colSpan={maxItemCount + 5} className="text-center py-8 text-slate-400">尚無符合條件的作答紀錄</td></tr>
                   )}
                 </tbody>
               </table>

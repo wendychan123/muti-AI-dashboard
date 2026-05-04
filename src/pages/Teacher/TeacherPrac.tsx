@@ -94,7 +94,7 @@ type TeacherPracChartTarget =
   | "diagnostic"
   | "practice_trend"
   | "performance_trend"
-  | "indicator_treemap"
+  //| "indicator_treemap"
   | "student_risk";
 
 const ALL_GRADE = "全部年級";
@@ -506,7 +506,7 @@ export default function TeacherPrac() {
     diagnostic: "教學診斷指標",
     practice_trend: "練習時間走勢",
     performance_trend: "正確率走勢",
-    indicator_treemap: "知識節點熱力圖",
+    //indicator_treemap: "知識節點熱力圖",
     student_risk: "高風險學生與弱點知識節點",
   };
 
@@ -1310,13 +1310,6 @@ export default function TeacherPrac() {
                     </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-
-              <button
-                onClick={() => runTeacherAIForChart("indicator_treemap")}
-                className="flex items-center justify-center w-8 h-8 rounded-full text-violet-500 hover:bg-violet-50 transition"
-              >
-                <Bot className="w-5 h-5" />
-              </button>
             </div>
           </CardHeader>
 
