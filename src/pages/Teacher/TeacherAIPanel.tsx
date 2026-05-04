@@ -47,6 +47,40 @@ export default function TeacherAIPanel({
   const [selectedCharts, setSelectedCharts] = useState<string[]>([]);
   const [toolOpen, setToolOpen] = useState(true);
 
+  /* **文字** 並換成 Tailwind  */
+  const formatText = (text: string) => {
+    if (!text) return null;
+    const lines = text.split('\n');
+
+    return lines.map((line, lineIndex) => {
+      // 判斷這一行是不是標題 (通常 AI 產生的標題會以 emoji 或 ｜ 開頭)
+      const isHeader = /^[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]|｜/.test(line.trim());
+
+      const parts = line.split(/(\*\*.*?\*\*)/g);
+
+      return (
+        <span key={lineIndex} className="block">
+          {parts.map((part, partIndex) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+              const innerText = part.slice(2, -2);
+              
+              if (isHeader) {
+                return <span key={partIndex} className="font-bold text-red-700">{innerText}</span>;
+              }
+              
+              return (
+                <span key={partIndex} className="text-red-700 font-extrabold px-0.5">
+                  {innerText}
+                </span>
+              );
+            }
+            return <span key={partIndex}>{part}</span>;
+          })}
+        </span>
+      );
+    });
+  };
+
   /* =========================
      可選圖表
   ========================= */
@@ -287,7 +321,7 @@ export default function TeacherAIPanel({
                     <div className="text-[13px] font-bold text-violet-600 mb-1 uppercase tracking-widest">
                       教學建議摘要
                     </div>
-                    {summary || msg.content /* 若無分隔符則顯示全文 */}
+                    {formatText(summary || msg.content)}
                   </div>
 
                   {/* 詳細內容 (Details) - 點擊才展開 */}
@@ -303,7 +337,8 @@ export default function TeacherAIPanel({
                       ) : (
                         <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-300">
                           <div className="text-slate-600 text-xs leading-relaxed whitespace-pre-line border-t pt-3 mt-1">
-                            {details}
+                            
+                            {formatText(details)}
                           </div>
                           <button
                             onClick={() => toggleDetail(msg.id)}

@@ -44,8 +44,50 @@ export default function PolicyAIPanel({
   const [selectedCharts, setSelectedCharts] = useState<PolicyExplainTarget[]>([]);
   const [toolOpen, setToolOpen] = useState(true);
 
+/* 攔截 **文字** 並換成 Tailwind  */
+  const formatText = (text: string) => {
+    if (!text) return null;
+    
+    // 用換行符號切開，一行一行處理
+    const lines = text.split('\n');
+
+    return lines.map((line, lineIndex) => {
+      // 判斷這一行是不是標題 (通常 AI 產生的標題會以 emoji 或 ｜ 開頭)
+      const isHeader = /^[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]|｜/.test(line.trim());
+
+      // 把這一行裡面的 ** 包起來的字切出來
+      const parts = line.split(/(\*\*.*?\*\*)/g);
+
+      return (
+        <span key={lineIndex} className="block">
+          {parts.map((part, partIndex) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+              const innerText = part.slice(2, -2);
+              
+              // 如果這一行是標題，我們只給普通粗體
+              if (isHeader) {
+                return (
+                  <span key={partIndex} className="font-bold text-red-700">
+                    {innerText}
+                  </span>
+                );
+              }
+              
+              return (
+                <span key={partIndex} className="text-red-700 font-extrabold px-0.5">
+                  {innerText}
+                </span>
+              );
+            }
+            return <span key={partIndex}>{part}</span>;
+          })}
+        </span>
+      );
+    });
+  };
+
   /* =========================
-     圖表選項（強型別）
+     圖表選項
   ========================= */
 
   const chartOptions: {
@@ -288,8 +330,7 @@ export default function PolicyAIPanel({
                     <div className="text-[13px] font-bold text-emerald-600 mb-1 uppercase tracking-widest">
                       決策建議摘要
                     </div>
-                    {/* 修正點：確保即使沒有詳細內容標記，也能顯示完整內容 */}
-                    {summary || msg.content}
+                    {formatText(summary || msg.content)}
                   </div>
 
                   {/* 詳細內容控制區 */}
@@ -307,7 +348,7 @@ export default function PolicyAIPanel({
                         // 狀態 B：詳細內容展開中
                         <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-300">
                           <div className="text-slate-600 text-[12px] leading-relaxed whitespace-pre-line border-t border-slate-100 pt-3 mt-1">
-                            {details}
+                            {formatText(details)}
                           </div>
                           {/* 🔹 關鍵修正：點擊這個按鈕只會讓 showDetail 變回 false，摘要依然會在上面 */}
                           <button

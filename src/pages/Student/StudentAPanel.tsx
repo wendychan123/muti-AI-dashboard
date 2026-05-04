@@ -83,7 +83,7 @@ export default function StudentAiPanel({
               // 如果這一行是標題，我們只給粗體，不給紅色
               if (isHeader) {
                 return (
-                  <span key={partIndex} className="text-rose-700 font-extrabold px-0.5">
+                  <span key={partIndex} className="text-red-700 font-extrabold px-0.5">
                     {innerText}
                   </span>
                 );
@@ -91,7 +91,7 @@ export default function StudentAiPanel({
               
               // 如果是一般內文，就給紅色粗體
               return (
-                <span key={partIndex} className="text-rose-600 font-extrabold px-0.5">
+                <span key={partIndex} className="text-red-700 font-extrabold px-0.5">
                   {innerText}
                 </span>
               );
