@@ -671,55 +671,64 @@ const aggregatedScoreTrend = useMemo(() => {
 }, [alignedCommonData, viewMode]);
 
 /* =========================
-     日 / 週 / 月聚合資料 (專供校際差距圖使用 - 不分科目)
+      日 / 週 / 月聚合資料 (專供校際差距圖使用 - 不分科目)
   ========================= */
-const overallAggregatedScoreTrend = useMemo(() => {
-  // 先對齊日期
-  const cityDates = new Set(overallTrend.map((t) => dayjs(t.activity_date).format("YYYY-MM-DD")));
-  const baseDates = new Set(overallBaselineTrend.map((t) => dayjs(t.activity_date).format("YYYY-MM-DD")));
-  const common = Array.from(cityDates).filter((d) => baseDates.has(d)).sort();
+  const overallAggregatedScoreTrend = useMemo(() => {
+    // 先對齊日期
+    const cityDates = new Set(overallTrend.map((t) => dayjs(t.activity_date).format("YYYY-MM-DD")));
+    const baseDates = new Set(overallBaselineTrend.map((t) => dayjs(t.activity_date).format("YYYY-MM-DD")));
+    const common = Array.from(cityDates).filter((d) => baseDates.has(d)).sort();
 
-  const cityMap = new Map(overallTrend.map((t) => [dayjs(t.activity_date).format("YYYY-MM-DD"), { score: t.avg_score_rate, std: t.school_score_std }]));
-  const baseMap = new Map(overallBaselineTrend.map((t) => [dayjs(t.activity_date).format("YYYY-MM-DD"), { score: t.avg_score_rate, std: t.school_score_std }]));
+    const cityMap = new Map(overallTrend.map((t) => [dayjs(t.activity_date).format("YYYY-MM-DD"), { score: t.avg_score_rate, std: t.school_score_std }]));
+    const baseMap = new Map(overallBaselineTrend.map((t) => [dayjs(t.activity_date).format("YYYY-MM-DD"), { score: t.avg_score_rate, std: t.school_score_std }]));
 
-  const aligned = common.map((date) => ({
-    date,
-    city: cityMap.get(date)?.score ?? null,
-    cityStd: cityMap.get(date)?.std ?? null,
-    base: baseMap.get(date)?.score ?? null,
-    baseStd: baseMap.get(date)?.std ?? null,
-  }));
+    const aligned = common.map((date) => {
+      // 找出該日期在目前縣市中表現最需要輔導的學校 (正確率最低者)
+      // 註：此處從 schoolData 篩選，若有更細緻的每日學校資料表可替換來源
+      const schoolsInCity = schoolData.filter(s => s.city === selectedCity);
+      const worstSchool = _.minBy(schoolsInCity, 'avg_score_rate');
 
-  if (viewMode === "day") return aligned;
+      return {
+        date,
+        city: cityMap.get(date)?.score ?? null,
+        cityStd: cityMap.get(date)?.std ?? null,
+        base: baseMap.get(date)?.score ?? null,
+        baseStd: baseMap.get(date)?.std ?? null,
+        worstSchoolId: worstSchool?.organization_id || "未知",
+      };
+    });
 
-  const map = new Map<string, { citySum: number; baseSum: number; cityStdSum: number; stdCount: number; baseStdSum: number; baseStdCount: number; count: number; }>();
+    if (viewMode === "day") return aligned;
 
-  aligned.forEach((d) => {
-    const key = viewMode === "week"
-      ? dayjs(d.date).startOf("week").format("YYYY-MM-DD")
-      : dayjs(d.date).startOf("month").format("YYYY-MM-DD");
+    const map = new Map<string, { citySum: number; baseSum: number; cityStdSum: number; stdCount: number; baseStdSum: number; baseStdCount: number; count: number; worstSchoolId: string }>();
 
-    if (!map.has(key)) {
-      map.set(key, { citySum: 0, baseSum: 0, cityStdSum: 0, stdCount: 0, baseStdSum: 0, baseStdCount: 0, count: 0 });
-    }
+    aligned.forEach((d) => {
+      const key = viewMode === "week"
+        ? dayjs(d.date).startOf("week").format("YYYY-MM-DD")
+        : dayjs(d.date).startOf("month").format("YYYY-MM-DD");
 
-    const obj = map.get(key)!;
-    obj.citySum += d.city ?? 0;
-    obj.baseSum += d.base ?? 0;
-    obj.count += 1;
-    
-    if (d.cityStd != null) { obj.cityStdSum += d.cityStd; obj.stdCount += 1; }
-    if (d.baseStd != null) { obj.baseStdSum += d.baseStd; obj.baseStdCount += 1; }
-  });
+      if (!map.has(key)) {
+        map.set(key, { citySum: 0, baseSum: 0, cityStdSum: 0, stdCount: 0, baseStdSum: 0, baseStdCount: 0, count: 0, worstSchoolId: d.worstSchoolId });
+      }
 
-  return Array.from(map.entries()).map(([date, v]) => ({
-    date,
-    city: v.citySum / v.count,
-    base: v.baseSum / v.count,
-    cityStd: v.stdCount > 0 ? v.cityStdSum / v.stdCount : null,
-    baseStd: v.baseStdCount > 0 ? v.baseStdSum / v.baseStdCount : null,
-  })).sort((a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf());
-}, [overallTrend, overallBaselineTrend, viewMode]);
+      const obj = map.get(key)!;
+      obj.citySum += d.city ?? 0;
+      obj.baseSum += d.base ?? 0;
+      obj.count += 1;
+      
+      if (d.cityStd != null) { obj.cityStdSum += d.cityStd; obj.stdCount += 1; }
+      if (d.baseStd != null) { obj.baseStdSum += d.baseStd; obj.baseStdCount += 1; }
+    });
+
+    return Array.from(map.entries()).map(([date, v]) => ({
+      date,
+      city: v.citySum / v.count,
+      base: v.baseSum / v.count,
+      cityStd: v.stdCount > 0 ? v.cityStdSum / v.stdCount : null,
+      baseStd: v.baseStdCount > 0 ? v.baseStdSum / v.baseStdCount : null,
+      worstSchoolId: v.worstSchoolId,
+    })).sort((a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf());
+  }, [overallTrend, overallBaselineTrend, viewMode, schoolData, selectedCity]);
 
 /* =========================
      縣市KPI資料（改使用 allCitiesTrend 計算，供跨縣市比較圖表使用）
@@ -747,6 +756,7 @@ const cityKPIData = useMemo(() => {
     obj.totalScore += row.avg_score_rate ?? 0;
     obj.count += 1;
   });
+
 
   return Array.from(map.entries()).map(([city, v]) => ({
     city,
@@ -1039,6 +1049,19 @@ useEffect(() => {
   kpiCurrent,
 ]);
 
+// 標題組件：模擬參考圖中文字下方有灰色底條的設計
+const SectionTitle = ({ children }: { children: React.ReactNode }) => (
+  <div className="flex items-center mb-8 gap-4">
+    {/* 左側垂直橘色粗線 */}
+    <div className="w-[8px] h-[35px] bg-emerald-700 shrink-0" />
+    
+    {/* 標題文字 */}
+    <h2 className="text-[25px] font-bold text-emerald-900 tracking-tight uppercase">
+      {children}
+    </h2>
+  </div>
+);
+
 
   /* =========================
      Render
@@ -1141,8 +1164,12 @@ useEffect(() => {
       {/* =========================
         KPI 區 
     ========================= */}
+
+    {/*<SectionTitle> </SectionTitle>*/}
+
       {kpiCompare && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          
 
           {/* KPI 1: 學生母數 */}
           <div className="flex flex-col border border-slate-200 rounded-md overflow-hidden shadow-sm bg-white">
@@ -1299,8 +1326,10 @@ useEffect(() => {
       )}
 
       {/* =========================
-              區塊一（3張圖表）
+              區塊一
       ========================= */}
+
+      {/*<SectionTitle>學習成效與資源診斷區</SectionTitle>*/}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
@@ -2019,10 +2048,10 @@ useEffect(() => {
             </div>
           </CardHeader>
 
-          <CardContent className="h-[350px] w-full pt-0">
+          <CardContent className="h-[400px] w-full pt-0">
           <Plot
             data={[
-              // 綠線：平均正確率 (左Y軸)
+              // 1. 綠線：平均正確率 (左Y軸)
               {
                 x: overallAggregatedScoreTrend.map((d) => d.date),
                 y: overallAggregatedScoreTrend.map((d) => d.city),
@@ -2032,6 +2061,7 @@ useEffect(() => {
                 line: { color: "#16a34a", width: 3 },
                 hovertemplate: "平均正確率：%{y:.1f}%<extra></extra>",
               },
+              // 2. 灰色虛線：全國平均差距基準
               {
                 x: overallAggregatedScoreTrend.map((d) => d.date),
                 y: overallAggregatedScoreTrend.map((d) => d.baseStd), 
@@ -2042,7 +2072,7 @@ useEffect(() => {
                 yaxis: "y2",
                 hovertemplate: "全國校際標準差：%{y:.2f}<extra></extra>",
               },
-              // 紅色面積圖：校際差距/標準差 (右Y軸)
+              // 3. 紅色區域：校際差距/標準差 (右Y軸)
               {
                 x: overallAggregatedScoreTrend.map((d) => d.date),
                 y: overallAggregatedScoreTrend.map((d) => d.cityStd),
@@ -2055,10 +2085,31 @@ useEffect(() => {
                 yaxis: "y2",
                 hovertemplate: "校際標準差：%{y:.2f}<extra></extra>",
               },
+              // 4. 文字標籤層：標示需輔助學校代碼
+              {
+                x: overallAggregatedScoreTrend.map((d) => d.date),
+                y: overallAggregatedScoreTrend.map((d) => d.cityStd),
+                mode: "text",
+                type: "scatter",
+                yaxis: "y2",
+                text: overallAggregatedScoreTrend.map((d) => 
+                  // 門檻值：當標準差大於一定數值時標示學校代碼，避免畫面過雜
+                  (d.cityStd && d.cityStd > 1.5) ? `${d.worstSchoolId}` : ""
+                ),
+                textposition: "top center",
+                textfont: {
+                  family: "sans-serif",
+                  size: 10,
+                  color: "#be123c" // 玫瑰紅，區別於線段
+                },
+                name: "落後學校標示",
+                showlegend: false,
+                hoverinfo: "none"
+              }
             ]}
             layout={{
-              height: 350,
-              margin: { t: 30, l: 70, r: 50, b: 80 },
+              height: 400,
+              margin: { t: 30, l: 70, r: 70, b: 80 },
               xaxis: {
                 title: viewMode === "day" ? "日期" : viewMode === "week" ? "週起始日" : "月份",
                 type: "category",
@@ -2066,37 +2117,36 @@ useEffect(() => {
                 tickfont: { size: 10, color: "#64748b" },
               },
               yaxis: {
-                title: {
-                    text: "平均答題正確率 (%)", 
-                    font: { size: 10, color: '#64748b' },
-                    standoff: 15
-                  },
+                title: { text: "平均答題正確率 (%)", font: { size: 10, color: '#16a34a' }, standoff: 15 },
                 range: [0, 105],
                 ticksuffix: "%",
-                titlefont: { color: '#16a34a' },
                 tickfont: { color: '#16a34a' },
               },
               yaxis2: {
-                title: {
-                    text: "校際差距 (標準差)", 
-                    font: { size: 10, color: '#64748b' },
-                    standoff: 15
-                  },
+                title: { text: "校際差距 (標準差)", font: { size: 10, color: '#ef4444' }, standoff: 15 },
                 overlaying: "y",
                 side: "right",
                 rangemode: "tozero",
-                titlefont: { color: '#ef4444' },
                 tickfont: { color: '#ef4444' },
                 showgrid: false,
               },
-              legend: { orientation: "h", y: -0.25 },
+              legend: { orientation: "h", y: -0.3 },
               hovermode: "x unified",
+              // 加入輔助線與註釋
+              annotations: [
+                {
+                  xref: 'paper', yref: 'paper',
+                  x: 1, y: 1.12,
+                  text: "標註 ID 為該時段表現最落後學校",
+                  showarrow: false,
+                  font: { size: 10, color: "#ef4444" }
+                }
+              ]
             }}
             config={{ displayModeBar: false, responsive: true }}
-            useResizeHandler
             style={{ width: "100%", height: "100%" }}
           />
-          </CardContent>
+        </CardContent>
         </Card>
 
 
