@@ -1040,7 +1040,7 @@ export default function StudentPrac() {
                   key={ind}
                   onClick={() => {
                     setSelectedIndicators([ind]);
-                    document.getElementById('trend-charts-area')?.scrollIntoView({ behavior: 'smooth' });
+                    //document.getElementById('trend-charts-area')?.scrollIntoView({ behavior: 'smooth' });
                   }}
                   className={`group flex items-center gap-2 p-2 rounded-lg text-xs font-bold transition-all cursor-pointer
                     ${selectedIndicators[0] === ind 
