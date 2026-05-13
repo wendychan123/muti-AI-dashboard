@@ -1040,7 +1040,7 @@ export default function StudentPrac() {
                   key={ind}
                   onClick={() => {
                     setSelectedIndicators([ind]);
-                    //document.getElementById('trend-charts-area')?.scrollIntoView({ behavior: 'smooth' });
+                    document.getElementById('trend-charts-area')?.scrollIntoView({ behavior: 'smooth' });
                   }}
                   className={`group flex items-center gap-2 p-2 rounded-lg text-xs font-bold transition-all cursor-pointer
                     ${selectedIndicators[0] === ind 
@@ -1073,7 +1073,7 @@ export default function StudentPrac() {
     ).slice(0, 5);
 
     return (
-      <Card className="col-span-1 relative overflow-hidden">
+      <Card id="trend-charts-area" className="col-span-1 relative overflow-hidden">
         {loading && (
           <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
             <Activity className="animate-spin mr-2 w-4 h-4" />
@@ -1129,11 +1129,17 @@ export default function StudentPrac() {
                         <div className="grid grid-cols-1 gap-2">
                           {displayPairs.map((pair, i) => {                          
                             const targetName = pair.source_name === targetInd ? pair.target_name : pair.source_name;
+                            const isSelected = selectedIndicators[1] === targetName;
                             return (
-                              <div key={i} className="flex items-center justify-between bg-white/80 p-2 rounded border border-blue-100 hover:border-blue-400 transition cursor-pointer"
-                                onClick={() => setSelectedIndicators([targetInd, targetName])}
-                                title="點擊以進行疊加比較分析"
-                              >
+                              <div key={i} 
+                              className={`flex items-center justify-between p-2 rounded border transition cursor-pointer 
+                                ${isSelected 
+                                      ? "bg-blue-100 border-blue-600 ring-1 ring-blue-600 shadow-sm" // 被選中時：深藍邊框、加強背景、光環
+                                      : "bg-white/80 border-blue-100 hover:border-blue-400"        // 未選中時
+                                  }`}
+                                  onClick={() => setSelectedIndicators([targetInd, targetName])}
+                                  title="點擊以進行疊加比較分析"
+                                >
                                 <span className="text-xs font-medium text-slate-700 hover:text-blue-600 underline decoration-blue-200 decoration-dashed underline-offset-4">
                                   {targetName}
                                   </span>
@@ -1378,7 +1384,7 @@ export default function StudentPrac() {
         {renderSubGoalSection()}
       </div>
 
-      <div id="trend-charts-area" className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
         {/* ===== 圖表 1：知識節點練習次數圖 ===== */}
         <Card className="col-span-1 relative">
 
