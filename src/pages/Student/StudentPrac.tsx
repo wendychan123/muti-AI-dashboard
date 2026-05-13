@@ -1124,7 +1124,6 @@ export default function StudentPrac() {
                           <span className="inline-block px-2 py-0.5 mx-1 bg-blue-100 text-blue-800 font-bold rounded shadow-sm border border-blue-200">
                             {targetInd}
                           </span>
-                          <br/>
                           如果覺得有點難，可能是因為下面這幾個單元也還沒完全弄懂喔：
                         </p>
                         <div className="grid grid-cols-1 gap-2">
@@ -1183,7 +1182,7 @@ export default function StudentPrac() {
                     } else {
                       setSelectedIndicators([yLabel, xLabel]);
                     }
-                    document.getElementById('trend-charts-area')?.scrollIntoView({ behavior: 'smooth' });
+                    //document.getElementById('trend-charts-area')?.scrollIntoView({ behavior: 'smooth' });
                   }
                 }}
                 data={[{
